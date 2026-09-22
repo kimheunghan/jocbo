@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: jocbo
+      POSTGRES_USER: jocbo
+      POSTGRES_PASSWORD: local-demo-only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jocbo"]
+      interval: 3s
+      retries: 20
+  app:
+    build: .
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://jocbo:local-demo-only@db:5432/jocbo
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  pgdata:
+  uploads:
