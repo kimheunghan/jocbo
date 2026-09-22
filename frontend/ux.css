@@ -1,0 +1,608 @@
+.notice.error {
+  background: #fff0ee !important;
+  color: #922d25;
+}
+
+.form-error {
+  padding: 10px 12px;
+  border: 1px solid #dfaaa4;
+  border-radius: 6px;
+  background: #fff2f0;
+  color: #8f2d24;
+}
+
+.form-error.success {
+  border-color: #9db9a8;
+  background: #edf6f0;
+  color: #285b45;
+}
+
+.required {
+  color: #a63428;
+  font-size: 11px;
+}
+
+.field-hint {
+  float: right;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: #b83b31;
+  box-shadow: 0 0 0 2px #f8d9d5;
+}
+
+button.busy {
+  cursor: wait;
+}
+
+#bookInfoForm {
+  margin-top: 18px;
+}
+
+#newBookToggle {
+  width: 100%;
+  margin: 0 0 12px;
+}
+
+#bookForm[hidden] {
+  display: none !important;
+}
+
+.dialog-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d5d9d3;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.dialog-close:hover {
+  background: #f0f3ef;
+}
+
+.hanja-control {
+  display: flex;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.hanja-control input {
+  min-width: 0;
+  margin: 0;
+  flex: 1;
+}
+
+.hanja-control button {
+  flex: none;
+  padding: 8px 11px;
+  white-space: nowrap;
+}
+
+.hanja-picker {
+  grid-column: 1 / -1;
+  max-height: 280px;
+  overflow: auto;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid #9db9a8;
+  border-radius: 8px;
+  background: #f7fbf7;
+}
+
+.hanja-picker > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hanja-picker p {
+  margin: 8px 0;
+  color: var(--ink-faint);
+}
+
+.hanja-picker #closeHanja {
+  padding: 4px 9px;
+}
+
+.hanja-candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+}
+
+.hanja-candidates button {
+  padding: 8px 4px;
+  border-color: #cad5c7;
+  background: #fff;
+  color: var(--ink);
+  font-family: "Batang", serif;
+  font-size: 21px;
+}
+
+.hanja-candidates button:hover,
+.hanja-candidates button:focus-visible {
+  background: #285b45;
+  color: #fff;
+}
+
+.hanja-candidates p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.search-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #cdb98a;
+  border-radius: 8px;
+  background: #fbf5e6;
+  font-size: 13px;
+}
+
+.search-notice strong {
+  font-weight: 700;
+}
+
+.search-notice button {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.tree-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.tree-options strong {
+  color: var(--green);
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
+.tree-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tree-options input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--green);
+}
+
+.tree-scroll {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.tree-canvas {
+  position: relative;
+  background: var(--paper-raised);
+}
+
+.family-tree {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+
+.parent-line,
+.spouse-line {
+  fill: none;
+  stroke: #527b64;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.level-label {
+  fill: #6d776f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tree-node {
+  position: absolute;
+}
+
+.tree-node:hover,
+.tree-node:focus-within {
+  z-index: 5;
+}
+
+.tree-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  padding: 8px 9px;
+  border: 1.5px solid #aebfaf;
+  border-radius: 10px;
+  background: #fffef9;
+  box-shadow: 0 2px 2px #1b372316;
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+
+.tree-card.male {
+  border-color: #a7bcd6;
+  background: #eaf1fa;
+}
+
+.tree-card.female {
+  border-color: #dcabb6;
+  background: #fbeaee;
+}
+
+.tree-card:hover,
+.tree-card:focus-visible {
+  border-color: #285b45;
+  box-shadow: 0 0 0 2px #285b4533;
+}
+
+.tree-card strong {
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.tree-card span {
+  max-width: 100%;
+  overflow: hidden;
+  color: #5d675f;
+  font-size: 11.5px;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The record is clamped to two lines so one card height still fits every person. */
+.tree-card small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 2px;
+  color: #6d776f;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+/* Quick add handles sit on the card edge that matches the relationship, so the
+   family can be built from the tree instead of from the form far below it. */
+.tree-add {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1.5px solid #cbd6cb;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--green);
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity .12s;
+}
+
+.tree-node:hover .tree-add,
+.tree-node:focus-within .tree-add {
+  opacity: 1;
+}
+
+.tree-add:hover,
+.tree-add:focus-visible {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+  opacity: 1;
+}
+
+.tree-add.parent {
+  top: -13px;
+  left: 50%;
+  translate: -50% 0;
+}
+
+.tree-add.child {
+  bottom: -13px;
+  left: 50%;
+  translate: -50% 0;
+}
+
+.tree-add.spouse {
+  top: 50%;
+  right: -13px;
+  translate: 0 -50%;
+}
+
+.tree-add.sibling {
+  top: 50%;
+  left: -13px;
+  translate: 0 -50%;
+}
+
+.relative-banner {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #9db9a8;
+  border-radius: 8px;
+  background: #f2f8f3;
+}
+
+.relative-banner p {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.relative-banner label {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.relative-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.relative-actions label {
+  flex: 1;
+  min-width: 160px;
+  margin: 0;
+}
+
+.relative-actions button {
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.tree-photo {
+  flex: none;
+  width: 78px;
+  height: 94px;
+  overflow: hidden;
+  border: 1px solid #cfd6cd;
+  border-radius: 4px;
+  background: #f1f2ee;
+}
+
+.tree-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media print {
+  .tree-options {
+    display: none;
+  }
+}
+
+.traditional-book {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px 88px;
+  grid-template-rows: 1fr;
+  min-width: 900px;
+  min-height: 1240px;
+  padding: 0;
+  border: 4px double #555747;
+  background: #fffdf4;
+  color: #1f241f;
+}
+
+.traditional-book + .traditional-book {
+  margin-top: 26px;
+}
+
+.genealogy-side,
+.genealogy-branch {
+  writing-mode: vertical-rl;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 26px 10px;
+  border-left: 1px solid #77796a;
+  letter-spacing: 3px;
+}
+
+.genealogy-side {
+  grid-column: 3;
+  grid-row: 1;
+  gap: 16px;
+  font-family: "Batang", serif;
+}
+
+.genealogy-side strong {
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.genealogy-side span {
+  font-size: 16px;
+}
+
+.genealogy-side small {
+  color: #5f655f;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.genealogy-branch {
+  grid-column: 2;
+  grid-row: 1;
+  font: 700 21px/1 "Batang", serif;
+}
+
+.genealogy-body {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Six equal 世 rows on every sheet, so the horizontal rules and the 世 column rule
+   run edge to edge even where a generation has no entry yet. */
+.genealogy-generation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  flex: 1 1 0;
+  min-height: 0;
+  border-bottom: 1px solid #77796a;
+}
+
+.genealogy-generation:last-child {
+  border-bottom: 0;
+}
+
+.genealogy-generation h3 {
+  grid-column: 2;
+  grid-row: 1;
+  writing-mode: vertical-rl;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 10px 8px;
+  border-left: 1px solid #77796a;
+  font: 400 17px/1.3 "Batang", serif;
+  letter-spacing: 2px;
+}
+
+.genealogy-entries {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* One person is one vertical text block; long lines wrap into further columns to
+   the left exactly as the printed page does. */
+.genealogy-person {
+  writing-mode: vertical-rl;
+  flex: 0 0 auto;
+  height: 100%;
+  padding: 14px 8px 14px 15px;
+  font: 14px/1.32 "Batang", serif;
+}
+
+.genealogy-person strong {
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+
+/* The book sets the 子/女 mark smaller than the name and leaves a small gap after
+   it; margin-inline-end is the gap below the mark in vertical text. */
+.genealogy-person strong i {
+  margin-inline-end: 5px;
+  font-size: 16px;
+  font-style: normal;
+  letter-spacing: 0;
+}
+
+.genealogy-person strong em {
+  color: #39443d;
+  font-size: 12px;
+  font-style: normal;
+  letter-spacing: 0;
+}
+
+.genealogy-person span {
+  display: block;
+}
+
+.genealogy-person .genealogy-note {
+  color: #47504a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.genealogy-empty {
+  margin: auto;
+  color: var(--ink-faint);
+}
+
+@media print {
+  .traditional-book {
+    width: 182mm;
+    min-width: 0;
+    min-height: 258mm;
+    margin: 0;
+    padding: 0;
+    break-after: page;
+  }
+
+  .traditional-book:last-child {
+    break-after: auto;
+  }
+
+  .genealogy-entries {
+    overflow: visible;
+  }
+
+  .genealogy-person {
+    padding: 9px 5px 9px 10px;
+    font-size: 11.5px;
+    line-height: 1.3;
+  }
+
+  .genealogy-person strong {
+    font-size: 20px;
+  }
+
+  .genealogy-person strong i {
+    margin-inline-end: 4px;
+    font-size: 13px;
+  }
+
+  .genealogy-person .genealogy-note {
+    font-size: 10.5px;
+  }
+}

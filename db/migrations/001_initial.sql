@@ -13,6 +13,9 @@ CREATE TABLE family_books (
 	user_id INTEGER NOT NULL,
 	title VARCHAR(200) NOT NULL,
 	clan_name VARCHAR(200) NOT NULL,
+	bon_gwan VARCHAR(200) DEFAULT '' NOT NULL,
+	branch_name VARCHAR(200) DEFAULT '' NOT NULL,
+	volume VARCHAR(50) DEFAULT '' NOT NULL,
 	description TEXT NOT NULL,
 	PRIMARY KEY (id),
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE

@@ -14,7 +14,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from sqlalchemy import (create_engine, MetaData, Table, Column, Integer, String, Text,
-                        ForeignKey, UniqueConstraint, CheckConstraint, select, event, delete)
+                        ForeignKey, UniqueConstraint, CheckConstraint, select, event, delete,
+                        inspect, text)
 from sqlalchemy.exc import IntegrityError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,14 +28,24 @@ if engine.dialect.name == 'sqlite':
 meta = MetaData()
 users = Table('users', meta, Column('id', Integer, primary_key=True), Column('email', String(255), nullable=False, unique=True), Column('password_hash', String(255), nullable=False))
 sessions = Table('sessions', meta, Column('token_hash', String(64), primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('expires', Integer, nullable=False))
-books = Table('family_books', meta, Column('id', Integer, primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('title', String(200), nullable=False), Column('clan_name', String(200), nullable=False), Column('description', Text, nullable=False))
-persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('korean_name', String(100), nullable=False), Column('hanja_name', String(100), nullable=False), Column('generation', Integer, nullable=False), Column('gender', String(10), nullable=False), Column('birth_date', String(10), nullable=False), Column('death_date', String(10), nullable=False), Column('note', Text, nullable=False), CheckConstraint('generation > 0'))
+books = Table('family_books', meta, Column('id', Integer, primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('title', String(200), nullable=False), Column('clan_name', String(200), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('branch_name', String(200), nullable=False, server_default=''), Column('volume', String(50), nullable=False, server_default=''), Column('description', Text, nullable=False))
+persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('korean_name', String(100), nullable=False), Column('hanja_name', String(100), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('generation', Integer, nullable=False), Column('gender', String(10), nullable=False), Column('birth_date', String(10), nullable=False), Column('death_date', String(10), nullable=False), Column('note', Text, nullable=False), CheckConstraint('generation > 0'))
 relations = Table('relations', meta, Column('id', Integer, primary_key=True), Column('source_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('target_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('kind', String(20), nullable=False), UniqueConstraint('source_id', 'target_id', 'kind'), CheckConstraint('source_id <> target_id'), CheckConstraint("kind IN ('parent', 'spouse')"))
 files = Table('files', meta, Column('id', Integer, primary_key=True), Column('person_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
 
 @asynccontextmanager
 async def lifespan(app):
     meta.create_all(engine)
+    additions = {
+        'family_books': {'bon_gwan': 'VARCHAR(200)', 'branch_name': 'VARCHAR(200)', 'volume': 'VARCHAR(50)'},
+        'persons': {'bon_gwan': 'VARCHAR(200)'},
+    }
+    with engine.begin() as connection:
+        for table, columns in additions.items():
+            existing = {column['name'] for column in inspect(engine).get_columns(table)}
+            for name, column_type in columns.items():
+                if name not in existing:
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {column_type} NOT NULL DEFAULT ''"))
     UPLOADS.mkdir(parents=True, exist_ok=True)
     yield
 
@@ -50,11 +61,15 @@ class Credentials(Input):
 class Book(Input):
     title: str = Field(min_length=1, max_length=200)
     clan_name: str = Field(default='', max_length=200)
+    bon_gwan: str = Field(default='', max_length=200)
+    branch_name: str = Field(default='', max_length=200)
+    volume: str = Field(default='', max_length=50)
     description: str = Field(default='', max_length=5000)
 
 class Person(Input):
     korean_name: str = Field(min_length=1, max_length=100)
     hanja_name: str = Field(default='', max_length=100)
+    bon_gwan: str = Field(default='', max_length=200)
     generation: int = Field(default=1, ge=1, le=200)
     gender: Literal['미상', '남', '여'] = '미상'
     birth_date: str = ''
@@ -142,16 +157,41 @@ def list_books(uid=Depends(auth)):
 @app.post('/api/books', status_code=201)
 def create_book(data: Book, uid=Depends(auth)):
     with engine.begin() as c:
-        return {'id': c.execute(books.insert().values(user_id=uid, **data.model_dump())).inserted_primary_key[0]}
+        values = data.model_dump()
+        values['volume'] = values['volume'] or '1'
+        return {'id': c.execute(books.insert().values(user_id=uid, **values)).inserted_primary_key[0]}
+
+@app.put('/api/books/{bid}')
+def edit_book(bid: int, data: Book, uid=Depends(auth)):
+    with engine.begin() as c:
+        own_book(c, bid, uid)
+        c.execute(books.update().where(books.c.id == bid).values(**data.model_dump()))
+    return {'ok': True}
 
 @app.get('/api/books/{bid}')
 def get_book(bid: int, uid=Depends(auth)):
     with engine.connect() as c:
         book = dict(own_book(c, bid, uid))
-        book['persons'] = list(c.execute(select(persons).where(persons.c.book_id == bid).order_by(persons.c.generation, persons.c.id)).mappings())
+        book['persons'] = [dict(row) for row in c.execute(select(persons).where(persons.c.book_id == bid).order_by(persons.c.generation, persons.c.id)).mappings()]
         ids = [p['id'] for p in book['persons']]
         book['relations'] = list(c.execute(select(relations).where(relations.c.source_id.in_(ids))).mappings())
         book['files'] = list(c.execute(select(files.c.id, files.c.person_id, files.c.name).where(files.c.person_id.in_(ids))).mappings())
+        # Legacy records may still have the default generation (1).  Derive the
+        # displayed generation from parent-child relationships so every view is
+        # consistent even before the record is edited again.
+        generations = {p['id']: p['generation'] for p in book['persons']}
+        parent_relations = [r for r in book['relations'] if r['kind'] == 'parent']
+        for _ in range(len(book['persons'])):
+            changed = False
+            for relation in parent_relations:
+                expected = generations[relation['source_id']] + 1
+                if generations[relation['target_id']] < expected:
+                    generations[relation['target_id']] = expected
+                    changed = True
+            if not changed:
+                break
+        for person in book['persons']:
+            person['generation'] = generations[person['id']]
         return book
 
 @app.post('/api/books/{bid}/persons', status_code=201)
@@ -195,6 +235,7 @@ def add_relation(data: Relation, uid=Depends(auth)):
                 if node not in seen:
                     seen.add(node)
                     pending.extend(e['target_id'] for e in edges if e['source_id'] == node)
+            c.execute(persons.update().where(persons.c.id == b['id']).values(generation=max(b['generation'], a['generation'] + 1)))
         else:
             data.source_id, data.target_id = sorted([data.source_id, data.target_id])
         try:
