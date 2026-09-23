@@ -390,7 +390,7 @@ function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classLis
  }
  if(view==='tree'){renderTree(book.persons);markFound(q?people[0]:null,'[data-tree-person]');return;}
  if(view==='book'){const sheets=bookHTML(book.persons);$('#view').innerHTML=sheets.includes('traditional-book')?wrapZoom(sheets):sheets;bindZoom('book');markFound(q?people[0]:null,'[data-book-person]');return;}
- $('#view').innerHTML=people.length?'<div class="cards">'+people.map(personCard).join('')+'</div>':'<p class="empty">등록된 인물 없음</p>';
+ $('#view').innerHTML=people.length?'<div class="cards">'+inBookOrder(people).map(personCard).join('')+'</div>':'<p class="empty">등록된 인물 없음</p>';
  document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>editPerson(Number(b.dataset.person)));
 }
 // A whole tree or a whole book is too large to search by eye, so the person who
@@ -504,6 +504,22 @@ function spouseHosts(){
   hostOf.set(guest.id,host.id);
  }
  return {byId,surname,married,hostOf};
+}
+// The list is read the way the book is: generation by generation, and within
+// one each father's children together, sons before daughters, eldest first.
+// Someone who married in follows their spouse, as the book sets them in the
+// spouse's column.
+function inBookOrder(people){
+ const {byId,hostOf}=spouseHosts();
+ const fatherOf=fatherIndex(byId),keys=new Map();
+ const keyOf=person=>{
+  if(!keys.has(person.id)){
+   const host=byId.get(hostOf.get(person.id));
+   keys.set(person.id,host?[...columnKey(host,byId,fatherOf),[1,'',person.id]]:columnKey(person,byId,fatherOf));
+  }
+  return keys.get(person.id);
+ };
+ return people.slice().sort((a,b)=>a.generation-b.generation||compareKeys(keyOf(a),keyOf(b)));
 }
 function fatherIndex(byId){
  const fatherOf=new Map();
