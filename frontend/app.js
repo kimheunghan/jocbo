@@ -52,8 +52,14 @@ $('#bookInfoForm').elements.volume.readOnly=true;
 const HANJA_SURNAME={金:'김',李:'이',柳:'유',劉:'유',羅:'나',盧:'노',梁:'양',林:'임',呂:'여',龍:'용',廉:'염',雷:'뇌',陸:'육',陰:'음'};
 const INITIAL_SOUND={라:'나',래:'내',로:'노',뢰:'뇌',루:'누',르:'느',리:'이',량:'양',려:'여',력:'역',련:'연',렬:'열',렴:'염',령:'영',례:'예',룡:'용',류:'유',륙:'육',륜:'윤',률:'율',름:'늠',릉:'능',림:'임',립:'입',녀:'여',뇨:'요',뉴:'유',니:'이',냑:'약',녕:'영'};
 let hanjaReadings=null;
-let scriptMode='hanja';
-try{scriptMode=localStorage.getItem('jocbo.script')==='hangul'?'hangul':'hanja';}catch{}
+// Two switches: one for the records on the page, one for the sidebar's own list
+// and edit boxes, because reading the page in hangul should not disturb the
+// boxes you are editing.
+let scriptMode='hanja',sideScriptMode='hanja';
+try{
+ scriptMode=localStorage.getItem('jocbo.script')==='hangul'?'hangul':'hanja';
+ sideScriptMode=localStorage.getItem('jocbo.sideScript')==='hangul'?'hangul':'hanja';
+}catch{}
 async function loadHanjaDict(){
  if(hanjaReadings)return hanjaReadings;
  hanjaReadings=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});
@@ -81,6 +87,9 @@ function readingOf(text){
 function scriptText(text){
  return scriptMode==='hangul'?(readingOf(text)||text):text;
 }
+function sideScriptText(text){
+ return sideScriptMode==='hangul'?(readingOf(text)||text):text;
+}
 const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder'];
 // The edit fields read in whichever script is switched on. Each remembers what is
 // on record and what it was shown as, so reading a book in hangul and saving it
@@ -92,7 +101,7 @@ function paintBookFields(){
   if(!input)continue;
   const stored=book[name]||'';
   input.dataset.stored=stored;
-  input.value=scriptText(stored);
+  input.value=sideScriptText(stored);
   input.dataset.shown=input.value;
  }
 }
@@ -119,18 +128,24 @@ function paintReadings(){
  if(!book)return;
  for(const name of BOOK_SCRIPT_FIELDS)paintReadingFor($('#bookInfoForm').elements[name]);
 }
-async function toggleScript(button){
+async function toggleScript(button,side){
  await busy(button,'불러오는 중…',loadHanjaDict).catch(err=>message(err.message,'error'));
  if(!hanjaReadings)return;
- scriptMode=scriptMode==='hangul'?'hanja':'hangul';
- try{localStorage.setItem('jocbo.script',scriptMode);}catch{}
+ if(side){
+  sideScriptMode=sideScriptMode==='hangul'?'hanja':'hangul';
+  try{localStorage.setItem('jocbo.sideScript',sideScriptMode);}catch{}
+ }else{
+  scriptMode=scriptMode==='hangul'?'hanja':'hangul';
+  try{localStorage.setItem('jocbo.script',scriptMode);}catch{}
+ }
  paintScriptToggle();
  paintPersonScript();
  await loadBooks(book?book.id:undefined);
 }
-// One switch beside the view tabs, plus one in each window that covers them.
+// One switch beside the view tabs, plus one in each window that covers them, and
+// the sidebar's own.
 document.querySelectorAll('[data-script-toggle]').forEach(button=>{
- button.onclick=()=>toggleScript(button);
+ button.onclick=()=>toggleScript(button,button.dataset.scriptToggle==='side');
 });
 // The book's own details read across the page under its title, where there is
 // room for them, instead of stacking down a 286px sidebar and running off screen.
@@ -148,8 +163,9 @@ function paintBookFacts(){
 }
 function paintScriptToggle(){
  document.querySelectorAll('[data-script-toggle]').forEach(button=>{
-  button.textContent=scriptMode==='hangul'?'한자로 보기':'한글로 보기';
-  button.setAttribute('aria-pressed',String(scriptMode==='hangul'));
+  const mode=button.dataset.scriptToggle==='side'?sideScriptMode:scriptMode;
+  button.textContent=mode==='hangul'?'한자로 보기':'한글로 보기';
+  button.setAttribute('aria-pressed',String(mode==='hangul'));
  });
 }
 // A person's 본관 is a stored hanja value like the book's, so it reads in the
@@ -187,7 +203,7 @@ function dialogError(text='', field){const el=$('#personError');el.classList.rem
 function validDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const [y,m,d]=value.split('-').map(Number),parsed=new Date(Date.UTC(y,m-1,d));return parsed.getUTCFullYear()===y&&parsed.getUTCMonth()===m-1&&parsed.getUTCDate()===d;}
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
-async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(scriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
+async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
 async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
@@ -216,7 +232,17 @@ const HANJA_BRANCHES='子丑寅卯辰巳午未申酉戌亥';
 const BOOK_ROWS=6;
 function hanjaYear(year){return String(year).split('').map(d=>HANJA_DIGITS[Number(d)]??d).join('');}
 function ganji(year){const n=year-4;return HANJA_STEMS[((n%10)+10)%10]+HANJA_BRANCHES[((n%12)+12)%12];}
-function hanjaDate(iso,suffix){if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||''))return '';const [y,m,d]=iso.split('-').map(Number);return `${hanjaYear(y)}年${ganji(y)}${hanjaNumber(m)}月${hanjaNumber(d)}日${suffix}`;}
+const KR_STEMS='갑을병정무기경신임계';
+const KR_BRANCHES='자축인묘진사오미신유술해';
+function ganjiKorean(year){const n=year-4;return KR_STEMS[((n%10)+10)%10]+KR_BRANCHES[((n%12)+12)%12];}
+// The sheet keeps its shape in either script; only the words change.
+function bookDate(iso,kind){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||''))return '';
+ const [y,m,d]=iso.split('-').map(Number);
+ if(scriptMode==='hangul')return `${y}년 ${ganjiKorean(y)} ${m}월 ${d}일${kind==='生'?'생':'졸'}`;
+ return `${hanjaYear(y)}年${ganji(y)}${hanjaNumber(m)}月${hanjaNumber(d)}日${kind}`;
+}
+function bookWord(hanja,hangul){return scriptMode==='hangul'?hangul:hanja;}
 function clanSurname(){const hanja=(book.clan_name||'').replace(/[氏씨\s]/g,'');return {hanja:/[一-鿿]/.test(hanja)?hanja[0]:'',korean:/[가-힣]/.test(hanja)?hanja[0]:''};}
 // A married-in spouse shares the row with the lineage member but is printed inside
 // that member's column, so only the lineage member may open a column of its own.
@@ -228,11 +254,17 @@ function lineageScore(person,parentTargets,surname){
 }
 function spousePhrase(spouse){
  const hanja=spouse.hanja_name||'',surname=hanja.slice(0,1),given=hanja.slice(1);
- const born=hanjaDate(spouse.birth_date,'生'),died=hanjaDate(spouse.death_date,'卒');
- const tail=[spouse.note,born,died].filter(Boolean).join(' ');
+ const born=bookDate(spouse.birth_date,'生'),died=bookDate(spouse.death_date,'卒');
+ const note=scriptMode==='hangul'?(readingOf(spouse.note)||spouse.note):spouse.note;
+ const tail=[note,born,died].filter(Boolean).join(' ');
  if(spouse.gender==='남'){
-  const origin=spouse.bon_gwan?`${spouse.bon_gwan}人`:'';
-  return `夫${hanja||spouse.korean_name}(${spouse.korean_name}) ${origin} ${tail}`.replace(/\s+/g,' ').trim();
+  const origin=spouse.bon_gwan?`${scriptText(spouse.bon_gwan)}${bookWord('人',' 사람')}`:'';
+  const name=scriptMode==='hangul'?spouse.korean_name:`${hanja||spouse.korean_name}(${spouse.korean_name})`;
+  return `${bookWord('夫','남편 ')}${name} ${origin} ${tail}`.replace(/\s+/g,' ').trim();
+ }
+ if(scriptMode==='hangul'){
+  const clan=spouse.bon_gwan?`${readingOf(spouse.bon_gwan)||spouse.bon_gwan} `:'';
+  return `배우자 ${clan}${spouse.korean_name} ${tail}`.replace(/\s+/g,' ').trim();
  }
  const body=spouse.bon_gwan&&given?`${spouse.bon_gwan}${surname}氏${given}`:(hanja||spouse.korean_name);
  return `配${body}(${spouse.korean_name}) ${tail}`.replace(/\s+/g,' ').trim();
@@ -246,11 +278,14 @@ function lineName(person,surname){
  return {hanja:hanja||korean,korean};
 }
 function personEntry(person,spouses,surname){
- const prefix=person.gender==='여'?'女':'子',name=lineName(person,surname);
- const lines=[hanjaDate(person.birth_date,'生'),hanjaDate(person.death_date,'卒')].filter(Boolean);
- return `<section class="genealogy-person"><strong><i>${prefix}</i>${esc(name.hanja)}<em>${esc(name.korean)}</em></strong>`
+ const hangul=scriptMode==='hangul';
+ const prefix=person.gender==='여'?bookWord('女','딸'):bookWord('子','아들'),name=lineName(person,surname);
+ const lines=[bookDate(person.birth_date,'生'),bookDate(person.death_date,'卒')].filter(Boolean);
+ const note=hangul?(readingOf(person.note)||person.note):person.note;
+ return `<section class="genealogy-person"><strong><i>${prefix}</i>`
+  +`${esc(hangul?name.korean:name.hanja)}<em>${esc(hangul?name.hanja:name.korean)}</em></strong>`
   +lines.map(line=>`<span>${esc(line)}</span>`).join('')
-  +(person.note?`<span class="genealogy-note">${esc(person.note)}</span>`:'')
+  +(note?`<span class="genealogy-note">${esc(note)}</span>`:'')
   +spouses.map(spouse=>`<span>${esc(spousePhrase(spouse))}</span>`).join('')
   +'</section>';
 }
@@ -294,6 +329,13 @@ function fatherIndex(byId){
  }
  return fatherOf;
 }
+// Which of a person's two names leads, and which follows underneath.
+function displayName(person){
+ const hanja=person.hanja_name||'',korean=person.korean_name||'';
+ return scriptMode==='hangul'
+  ?{primary:korean,other:hanja}
+  :{primary:hanja||korean,other:hanja?korean:''};
+}
 // The list card carries the portrait and the same facts the tree card shows, so
 // browsing the list feels like reading the book rather than a bare index.
 function personCard(person){
@@ -303,8 +345,8 @@ function personCard(person){
  return `<button type="button" class="person-card${tone}" data-person="${person.id}">`
   +`<span class="person-portrait">${photo?`<img src="/api/files/${photo.id}" alt="">`:esc(person.korean_name.slice(0,1))}</span>`
   +'<span class="person-body">'
-  +`<strong>${esc(person.korean_name)}</strong>`
-  +`<span class="person-hanja">${esc(person.hanja_name||'한자명 미등록')}</span>`
+  +`<strong>${esc(displayName(person).primary)}</strong>`
+  +`<span class="person-hanja">${esc(displayName(person).other||'한자명 미등록')}</span>`
   +`<small>${esc(dates)}</small>`
   +`<span class="badge">${person.generation}세대 · ${esc(person.gender)}</span>`
   +'</span></button>';
@@ -317,8 +359,8 @@ function bookHTML(people){
  if(!columns.length)return '<p class="empty">인쇄할 기록이 없습니다.</p>';
  const generations=columns.map(p=>p.generation);
  const first=Math.min(...generations),last=Math.max(...generations);
- const volume=book.volume?`卷之${hanjaNumber(book.volume)}`:'';
- const origin=book.founder?'始祖 '+book.founder:'';
+ const volume=book.volume?bookWord(`卷之${hanjaNumber(book.volume)}`,`${book.volume}권`):'';
+ const origin=book.founder?bookWord('始祖 '+book.founder,'시조 '+scriptText(book.founder)):'';
  const pages=[];
  // Traditional pages hold six 世 rows and repeat the last one as the next page's
  // first row, so the linking generation appears on both sheets.
@@ -331,15 +373,15 @@ function bookHTML(people){
    const generation=top+offset;
    const entries=columns.filter(p=>p.generation===generation)
     .map(p=>personEntry(p,married.get(p.id)||[],surname)).join('');
-   rows.push(`<section class="genealogy-generation"><h3>${hanjaNumber(generation)}世</h3><div class="genealogy-entries">${entries}</div></section>`);
+   rows.push(`<section class="genealogy-generation"><h3>${bookWord(hanjaNumber(generation)+'世',generation+'세')}</h3><div class="genealogy-entries">${entries}</div></section>`);
   }
-  pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(book.title)}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(book.branch_name||book.bon_gwan||'')}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
+  pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
  }
  return pages.join('');
 }
 // Which details each tree card shows. The set is shared by every card so one card
 // height fits all, and it is remembered per browser.
-const TREE_FIELDS=[['generation','세대'],['hanja','한자명'],['bon_gwan','본관'],['birth','출생일'],['death','사망일'],['age','나이'],['photo','사진'],['note','기록/생애'],['gender','성별 색']];
+const TREE_FIELDS=[['generation','세대'],['hanja','이름 병기'],['bon_gwan','본관'],['birth','출생일'],['death','사망일'],['age','나이'],['photo','사진'],['note','기록/생애'],['gender','성별 색']];
 let treeOptions={generation:true,hanja:true,bon_gwan:false,birth:false,death:false,age:false,photo:false,note:false,gender:true};
 try{Object.assign(treeOptions,JSON.parse(localStorage.getItem('jocbo.tree')||'{}'));}catch{}
 function saveTreeOptions(){try{localStorage.setItem('jocbo.tree',JSON.stringify(treeOptions));}catch{}}
@@ -360,7 +402,7 @@ function treeDetailRows(){
 function treeDetails(person){
  const rows=[];
  if(treeOptions.generation||treeOptions.hanja)
-  rows.push([treeOptions.generation?person.generation+'세대':'',treeOptions.hanja?person.hanja_name:''].filter(Boolean).join(' · '));
+  rows.push([treeOptions.generation?person.generation+'세대':'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
  if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+scriptText(person.bon_gwan):'');
  if(treeOptions.birth||treeOptions.death)
   rows.push([treeOptions.birth?person.birth_date:'',treeOptions.death&&person.death_date?'— '+person.death_date:''].filter(Boolean).join(' '));
@@ -493,7 +535,7 @@ function renderTree(people){
   return `<div class="tree-node" style="left:${at.x}px;top:${at.y}px;width:${nodeW}px;height:${nodeH}px">`
    +`<button type="button" class="tree-card${tone}" data-tree-person="${p.id}">`
    +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}" alt="">`:''}</span>`:'')
-   +`<strong>${esc(p.korean_name)}</strong>`
+   +`<strong>${esc(displayName(p).primary)}</strong>`
    +treeDetails(p).map(row=>`<span>${esc(row)}</span>`).join('')
    +(treeOptions.note?`<small>${esc(p.note||'')}</small>`:'')
    +'</button>'
