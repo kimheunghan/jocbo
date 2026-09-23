@@ -567,7 +567,13 @@ function treeDetails(person){
 }
 function treeOptionsHTML(){
  return `<form id="treeOptions" class="tree-options"><strong>표시 항목</strong>${TREE_FIELDS.map(([name,label])=>
-  `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`;
+  `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`
+  ;
+}
+function treeLegendHTML(){
+ const clan=book?[book.bon_gwan,book.clan_name].filter(Boolean).map(scriptText).join(' '):'';
+ return `<p class="tree-legend"><span><i class="line-solid"></i>${esc(clan||'이 족보')} 계대</span>`
+  +'<span><i class="line-dashed"></i>혼인으로 들어온 분의 친가</span></p>';
 }
 const RELATIVE_LABELS={parent:'부모',child:'자녀',spouse:'배우자',sibling:'형제자매'};
 // Spouses alternate to the right and left of the lineage member so that every
@@ -581,14 +587,14 @@ function orderMembers(host,mates){
 // Zooming keeps the point under the pointer still, so a wide tree can be pulled
 // back to see its shape and pushed in to read a card without losing your place.
 const ZOOM_MIN=0.25,ZOOM_MAX=3;
-function wrapZoom(inner){
+function wrapZoom(inner,trailing=''){
  return '<div class="zoom-bar">'
   +'<button type="button" class="secondary" data-zoom="out" aria-label="축소">−</button>'
   +'<span class="zoom-level">100%</span>'
   +'<button type="button" class="secondary" data-zoom="in" aria-label="확대">+</button>'
   +'<button type="button" class="secondary" data-zoom="reset">100%</button>'
   +'<button type="button" class="secondary" data-zoom="fit">맞추기</button>'
-  +'<small>끌어서 이동 · Ctrl + 휠로 확대·축소</small></div>'
+  +'<small>끌어서 이동 · Ctrl + 휠로 확대·축소</small>'+trailing+'</div>'
   +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`;
 }
 // Switching script or a display option redraws the whole view, so where the
@@ -828,8 +834,12 @@ function renderTree(people){
    +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+',!parentsOf.has(p.id))
    +'</div>';
  }).join('');
+ // Solid for this book's own line, dashed for a forebear of someone who married
+ // in — a different clan, and no part of the 계대 this book records. Easy to read
+ // once said, impossible to guess until then, so it is said beside the drawing.
  $('#view').innerHTML=options+wrapZoom(`<div class="tree-canvas" style="width:${width}px;height:${height}px">`
-  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${marriedInLines}${mateLines}${labels}</svg>${cards}</div>`);
+  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${marriedInLines}${mateLines}${labels}</svg>${cards}</div>`,
+  marriedIn.length?treeLegendHTML():'');
  bindTreeOptions();
  bindZoom('tree');
  document.querySelectorAll('[data-tree-person]').forEach(node=>{

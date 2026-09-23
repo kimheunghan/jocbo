@@ -1073,3 +1073,31 @@ button.busy {
   stroke-dasharray: 5 4;
   opacity: 0.75;
 }
+
+/* Which line means what, said where the lines are. */
+.tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  /* Pushed to the far end of the zoom row, into the space it was leaving. */
+  margin: 0 0 0 auto;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.tree-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tree-legend i {
+  width: 26px;
+  height: 0;
+  border-top: 2px solid var(--green);
+}
+
+.tree-legend .line-dashed {
+  border-top-style: dashed;
+  opacity: 0.75;
+}
