@@ -770,20 +770,20 @@ button.busy {
   margin: 0 0 12px;
 }
 
-/* 가족 추가 is neither a save nor a discard, so it takes 단청 blue — the one hue
-   the page does not otherwise use. Gold on cream was too close in tone to read
-   from across the row. */
+/* 가족 추가 opens a whole flow of its own, so it is filled like + 인물 등록
+   rather than outlined. An outline among outlines was not seen. It takes 단청
+   blue, the one hue the page does not otherwise use, so it never reads as a
+   second 저장, and it stands off at the far right where the row ends. */
 #addFamily {
-  /* Pushed clear of 저장 · 취소 · 삭제; it does something else entirely. */
   margin-left: auto;
-  border-color: #9fb4cf;
-  background: #e9f0f8;
-  color: #23456f;
-  font-weight: 600;
+  border-color: #1d3a5f;
+  background: #24507f;
+  color: #fff;
+  box-shadow: 0 1px 2px #1d3a5f33, 0 6px 16px #1d3a5f2e;
 }
 
 #addFamily:hover {
-  border-color: #23456f;
-  background: #23456f;
+  border-color: #16304f;
+  background: #16304f;
   color: #fff;
 }
