@@ -81,7 +81,7 @@ function readingOf(text){
 function scriptText(text){
  return scriptMode==='hangul'?(readingOf(text)||text):text;
 }
-const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name'];
+const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder'];
 // The edit fields read in whichever script is switched on. Each remembers what is
 // on record and what it was shown as, so reading a book in hangul and saving it
 // never overwrites the hanja — only a field the user actually typed into changes.
@@ -129,14 +129,8 @@ $('#scriptToggle').onclick=async()=>{
 function paintBookFacts(){
  const box=$('#bookFacts');
  if(!book){box.hidden=true;return;}
- // A 족보's description opens with its 始祖, so that line is labelled as such and
- // the word itself is dropped — the label already says it.
- let note=(book.description||'').trim().split(String.fromCharCode(10))[0].trim(),noteLabel='비고';
- for(const mark of ['始祖','시조']){
-  if(note.startsWith(mark)){noteLabel='시조';note=note.slice(mark.length).trim();break;}
- }
  const items=[['성씨 / 가문',book.clan_name],['본관',book.bon_gwan],['파명',book.branch_name],
-  ['권',book.volume?book.volume+'권':''],[noteLabel,note]]
+  ['권',book.volume?book.volume+'권':''],['시조',book.founder]]
   .filter(([,value])=>value);
  box.hidden=!items.length;
  box.innerHTML=items.map(([label,value])=>{
@@ -301,7 +295,7 @@ function bookHTML(people){
  const generations=columns.map(p=>p.generation);
  const first=Math.min(...generations),last=Math.max(...generations);
  const volume=book.volume?`卷之${hanjaNumber(book.volume)}`:'';
- const origin=(book.description||'').trim().split(String.fromCharCode(10))[0].slice(0,24);
+ const origin=book.founder?'始祖 '+book.founder:'';
  const pages=[];
  // Traditional pages hold six 世 rows and repeat the last one as the next page's
  // first row, so the linking generation appears on both sheets.

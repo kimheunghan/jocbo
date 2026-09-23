@@ -69,13 +69,14 @@ def test_book_metadata_can_be_created_and_edited(client):
     account(client)
     created = client.post('/api/books', json={
         'title': '청도김씨대동보', 'clan_name': '김씨', 'bon_gwan': '청도',
-        'branch_name': '외오산파', 'volume': '9'
+        'branch_name': '외오산파', 'volume': '9', 'founder': '영헌공'
     })
     assert created.status_code == 201
     bid = created.json()['id']
     saved = client.get(f'/api/books/{bid}').json()
     assert (saved['bon_gwan'], saved['branch_name'], saved['volume']) == ('청도', '외오산파', '9')
-    updated = {key: saved[key] for key in ['title', 'clan_name', 'bon_gwan', 'branch_name', 'volume', 'description']}
+    assert saved['founder'] == '영헌공'
+    updated = {key: saved[key] for key in ['title', 'clan_name', 'bon_gwan', 'branch_name', 'volume', 'founder', 'description']}
     updated['volume'] = '10'
     assert client.put(f'/api/books/{bid}', json=updated).status_code == 200
     assert client.get(f'/api/books/{bid}').json()['volume'] == '10'
