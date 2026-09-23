@@ -1101,3 +1101,9 @@ button.busy {
   border-top-style: dashed;
   opacity: 0.75;
 }
+
+/* Outside this book's line: dashed, like the line that reaches it. */
+.tree-card.outside {
+  border-style: dashed;
+  background: var(--paper);
+}

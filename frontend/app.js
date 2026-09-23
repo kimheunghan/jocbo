@@ -585,10 +585,10 @@ function ageText(person){
 function treeDetailRows(){
  return [treeOptions.generation||treeOptions.hanja,treeOptions.bon_gwan,treeOptions.birth||treeOptions.death,treeOptions.age].filter(Boolean).length;
 }
-function treeDetails(person){
+function treeDetails(person,outside){
  const rows=[];
  if(treeOptions.generation||treeOptions.hanja)
-  rows.push([treeOptions.generation?person.generation+'세대':'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
+  rows.push([treeOptions.generation?(outside?'外家':person.generation+'세대'):'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
  if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+scriptText(person.bon_gwan):'');
  if(treeOptions.birth||treeOptions.death)
   rows.push([treeOptions.birth?person.birth_date:'',treeOptions.death&&person.death_date?'— '+person.death_date:''].filter(Boolean).join(' '));
@@ -716,6 +716,9 @@ function renderTree(people){
  const options=treeOptionsHTML();
  if(!people.length){$('#view').innerHTML=options+'<p class="empty">표시할 인물이 없습니다.</p>';bindTreeOptions();return;}
  const {byId,married,hostOf}=spouseHosts();
+ const beyond=outsideTheLine(hostOf);
+ // A 配 keeps the 세 they married into; it is their own forebears who have none.
+ const outside=new Set([...beyond].filter(id=>!hostOf.has(id)));
  const visible=new Set(people.map(p=>p.id));
  const units=new Map(),unitOf=new Map();
  for(const p of people){
@@ -852,12 +855,13 @@ function renderTree(people){
  };
  const cards=people.filter(p=>pos.has(p.id)).map(p=>{
   const at=pos.get(p.id),photo=photoOf(p.id);
-  const tone=treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'';
+  const tone=(treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'')
+   +(outside.has(p.id)?' outside':'');
   return `<div class="tree-node" style="left:${at.x}px;top:${at.y}px;width:${nodeW}px;height:${nodeH}px">`
    +`<div class="tree-card${tone}" data-tree-person="${p.id}" role="button" tabindex="0">`
    +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}" alt="">`:''}</span>`:'')
    +`<strong>${esc(displayName(p).primary)}</strong>`
-   +treeDetails(p).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
+   +treeDetails(p,outside.has(p.id)).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
    +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
    +'</div>'
    +addButton(p.id,'parent','+')+addButton(p.id,'child','+')
