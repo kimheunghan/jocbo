@@ -1097,7 +1097,36 @@ function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<o
  const q=$('#search').value.toLowerCase().trim();
  const found=q?book.persons.find(p=>[p.korean_name,p.hanja_name,p.note].join(' ').toLowerCase().includes(q)):null;
  anchor.value=found?String(found.id):(kept||anchor.value);
- $('#relationForm').querySelector('button').disabled=!book.persons.length;$('#relationList').innerHTML=book.relations.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">관계를 등록하려면 인물을 2명 이상 추가하세요.</p>':'');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));}
+ $('#relationForm').querySelector('button').disabled=!book.persons.length;
+ // A search is about one family. The book holds other branches that never meet
+ // it, and listing those under a name the reader just searched for is noise.
+ const kin=found?directLine(found.id):null;
+ const shown=kin?book.relations.filter(r=>kin.has(r.source_id)&&kin.has(r.target_id)):book.relations;
+ $('#relationScope').hidden=!kin;
+ if(kin)$('#relationScope').textContent=`${displayName(found).primary} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
+ $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));}
+// One person's line: up through their forebears, down through their issue, and
+// whoever married into either. Not their forebears' other children, which is
+// where a separate branch of the book would come in.
+function directLine(id){
+ const up=new Set([id]),down=new Set([id]);
+ const parents=book.relations.filter(r=>r.kind==='parent');
+ for(let pass=0;pass<book.persons.length;pass++){
+  let grew=false;
+  for(const r of parents){
+   if(up.has(r.target_id)&&!up.has(r.source_id)){up.add(r.source_id);grew=true;}
+   if(down.has(r.source_id)&&!down.has(r.target_id)){down.add(r.target_id);grew=true;}
+  }
+  if(!grew)break;
+ }
+ const kin=new Set([...up,...down]);
+ for(const r of book.relations){
+  if(r.kind!=='spouse')continue;
+  if(kin.has(r.source_id))kin.add(r.target_id);
+  else if(kin.has(r.target_id))kin.add(r.source_id);
+ }
+ return kin;
+}
 // 부모 → 자녀 and 배우자 ↔ 배우자 were the only two shapes this form could make,
 // and it could not make a sibling at all. All four are on the list now, and the
 // button opens the same registration the tree cards use, already set to the one
