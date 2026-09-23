@@ -769,3 +769,17 @@ button.busy {
 #relativeKindNote {
   margin: 0 0 12px;
 }
+
+/* 가족 추가 is neither a save nor a discard, so it takes the gold of a seal
+   rather than standing as a second white button beside 취소. */
+#addFamily {
+  border-color: #d9c49b;
+  background: #faf2e1;
+  color: #7c6029;
+}
+
+#addFamily:hover {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #fff;
+}

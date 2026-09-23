@@ -104,6 +104,12 @@ function scriptText(text){
 function sideScriptText(text){
  return sideScriptMode==='hangul'?(readingOf(text)||text):text;
 }
+// 성별 is a fixed choice rather than a transcribed name, so its hanja is set
+// here instead of looked up. What is stored stays hangul in either script.
+const GENDER_HANJA={미상:'未詳',남:'男',여:'女'};
+function genderText(gender){
+ return scriptMode==='hangul'?gender:(GENDER_HANJA[gender]||gender);
+}
 const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder'];
 // The edit fields read in whichever script is switched on. Each remembers what is
 // on record and what it was shown as, so reading a book in hangul and saving it
@@ -127,14 +133,15 @@ function bookFormValues(form){
  }
  return data;
 }
-function paintReadingFor(input){
+function paintReadingFor(input,text){
  if(!input)return;
  // The hint belongs under the whole row, not between the box and its 한자 button.
  const row=input.closest('label')||input.parentElement;
  let hint=row.querySelector('.reading');
  if(!hint){hint=document.createElement('small');hint.className='reading';row.append(hint);}
- // Only hanja needs explaining; in hangul the box already reads plainly.
- const reading=readingOf(input.value);
+ // Only hanja needs explaining; in hangul the box already reads plainly. A
+ // select shows a label rather than its value, so it passes its own reading in.
+ const reading=text===undefined?readingOf(input.value):text;
  hint.textContent=reading;
  hint.hidden=!reading;
 }
@@ -193,15 +200,24 @@ function setPersonScriptField(name,value){
  input.dataset.shown=input.value;
  if(name==='bon_gwan')paintReadingFor(input);
 }
+function paintGenderScript(){
+ const select=$('#personForm').elements.gender;
+ if(!select)return;
+ const hanja=scriptMode!=='hangul';
+ for(const option of select.options)option.textContent=hanja?GENDER_HANJA[option.value]||option.value:option.value;
+ paintReadingFor(select,hanja?select.value:'');
+}
 function setPersonScriptFields(person){
  setPersonScriptField('bon_gwan',person.bon_gwan);
  setPersonScriptField('note',person.note);
+ paintGenderScript();
 }
 function paintPersonScript(){
  for(const name of PERSON_SCRIPT_FIELDS){
   const input=$('#personForm').elements[name];
   if(input)setPersonScriptField(name,input.dataset.stored??input.value);
  }
+ paintGenderScript();
 }
 // The notice now covers part of the page, so it clears itself once it has been
 // read — an error is left up longer than a confirmation.
@@ -379,7 +395,7 @@ function personCard(person){
   +`<strong>${esc(displayName(person).primary)}</strong>`
   +`<span class="person-hanja">${esc(displayName(person).other||'한자명 미등록')}</span>`
   +`<small>${esc(dates)}</small>`
-  +`<span class="badge">${person.generation}세대 · ${esc(person.gender)}</span>`
+  +`<span class="badge">${person.generation}세대 · ${esc(genderText(person.gender))}</span>`
   +'</span></button>';
 }
 function bookHTML(people){
@@ -843,6 +859,7 @@ $('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.on
  $('#relativeKindDialog').close();
  addRelative(kind,relativeAnchorId);
 });
+$('#personForm').elements.gender.onchange=paintGenderScript;
 $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#personDialog').close();$('#closePersonDialog').onclick=()=>$('#personDialog').close();
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
 // The picker walks a queue of fields, one syllable at a time, writing each
