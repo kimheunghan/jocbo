@@ -645,10 +645,14 @@ button.busy {
 }
 
 /* The book sets the 子/女 mark smaller than the name and leaves a small gap after
-   it; margin-inline-end is the gap below the mark in vertical text. */
+   it; margin-inline-end is the gap below the mark in vertical text. A Myeongjo
+   bold is too light at this size to tell the mark from the text around it, so it
+   takes Malgun Gothic's bold, which every Windows machine carries. */
 .genealogy-person strong i {
   margin-inline-end: 4px;
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 12px;
+  font-weight: 700;
   font-style: normal;
   letter-spacing: 0;
 }
