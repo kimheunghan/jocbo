@@ -81,7 +81,21 @@ function readingOf(text){
   changed=true;
   return reading;
  }).join('');
- return changed?out:'';
+ return changed?collapseEcho(out):'';
+}
+// Records often write a name as 東錫(동석); once the hanja is read the bracket
+// only repeats what precedes it, so 동석(동석) collapses back to 동석.
+function collapseEcho(text){
+ let out='';
+ for(let index=0;index<text.length;index++){
+  if(text[index]==='('){
+   const close=text.indexOf(')',index);
+   const inner=close>index?text.slice(index+1,close):'';
+   if(inner&&out.endsWith(inner)){index=close;continue;}
+  }
+  out+=text[index];
+ }
+ return out;
 }
 // What a label should say in the chosen script; falls back to the record itself.
 function scriptText(text){
@@ -170,17 +184,24 @@ function paintScriptToggle(){
 }
 // A person's 본관 is a stored hanja value like the book's, so it reads in the
 // chosen script and remembers what it was shown as before it is saved.
-function setPersonBonGwan(value){
- const input=$('#personForm').elements.bon_gwan;
+const PERSON_SCRIPT_FIELDS=['bon_gwan','note'];
+function setPersonScriptField(name,value){
+ const input=$('#personForm').elements[name];
  if(!input)return;
  input.dataset.stored=value||'';
  input.value=scriptText(value||'');
  input.dataset.shown=input.value;
- paintReadingFor(input);
+ if(name==='bon_gwan')paintReadingFor(input);
+}
+function setPersonScriptFields(person){
+ setPersonScriptField('bon_gwan',person.bon_gwan);
+ setPersonScriptField('note',person.note);
 }
 function paintPersonScript(){
- const input=$('#personForm').elements.bon_gwan;
- if(input)setPersonBonGwan(input.dataset.stored??input.value);
+ for(const name of PERSON_SCRIPT_FIELDS){
+  const input=$('#personForm').elements[name];
+  if(input)setPersonScriptField(name,input.dataset.stored??input.value);
+ }
 }
 function message(text, type='success') { const el=$('#message');el.textContent=text;el.classList.toggle('error',type==='error'); }
 function errorText(detail) {
@@ -537,7 +558,7 @@ function renderTree(people){
    +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}" alt="">`:''}</span>`:'')
    +`<strong>${esc(displayName(p).primary)}</strong>`
    +treeDetails(p).map(row=>`<span>${esc(row)}</span>`).join('')
-   +(treeOptions.note?`<small>${esc(p.note||'')}</small>`:'')
+   +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
    +'</button>'
    +addButton(p.id,'parent','+')+addButton(p.id,'child','+')
    +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+')
@@ -604,7 +625,7 @@ function addRelative(kind,personId){
  $('#relativeMate').onchange=event=>{pendingRelative.mateId=event.target.value?Number(event.target.value):null;};
  const form=$('#personForm');
  form.elements.generation.value=relativeGeneration(kind,anchor);
- if(kind!=='spouse')setPersonBonGwan(anchor.bon_gwan||book.bon_gwan||'');
+ if(kind!=='spouse')setPersonScriptField('bon_gwan',anchor.bon_gwan||book.bon_gwan||'');
  const pool=book.persons.filter(p=>p.id!==anchor.id);
  $('#relativePick').innerHTML=pool.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');
  $('#relativePickWrap').hidden=true;
@@ -654,7 +675,7 @@ function editPerson(id){
  $('#attachments').hidden=!p;
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
- setPersonBonGwan(p?p.bon_gwan:(book.bon_gwan||''));
+ setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
  $('#personDialog').showModal();
  setTimeout(()=>f.elements.korean_name.focus(),0);
 }
@@ -733,7 +754,7 @@ document.querySelectorAll('[data-hanja-field]').forEach(button=>{
  };
 });
 $('#personForm').oninput=event=>{if(event.target.name==='bon_gwan')paintReadingFor(event.target);};
-$('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);const bon=f.elements.bon_gwan;if(bon.dataset.shown!==undefined&&bon.value===bon.dataset.shown)data.bon_gwan=bon.dataset.stored;try{const relative=pendingRelative;const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?'인물을 저장했습니다.':relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록했습니다.`:'인물을 등록했습니다. 검색어를 해제해 전체를 보여 드립니다.');}catch(err){dialogError(err.message);}};
+$('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);for(const name of PERSON_SCRIPT_FIELDS){const box=f.elements[name];if(box&&box.dataset.shown!==undefined&&box.value===box.dataset.shown)data[name]=box.dataset.stored;}try{const relative=pendingRelative;const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?'인물을 저장했습니다.':relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록했습니다.`:'인물을 등록했습니다. 검색어를 해제해 전체를 보여 드립니다.');}catch(err){dialogError(err.message);}};
 $('#deletePerson').onclick=async()=>{if(!confirm('이 인물과 연결된 관계 및 첨부파일이 모두 삭제됩니다. 계속할까요?'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('인물을 삭제했습니다.');}catch(err){dialogError(err.message);}};
 $('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
 function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');['source_id','target_id'].forEach(n=>$('#relationForm').elements[n].innerHTML=options);$('#relationForm').querySelector('button').disabled=book.persons.length<2;$('#relationList').innerHTML=book.relations.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">관계를 등록하려면 인물을 2명 이상 추가하세요.</p>':'');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!confirm('이 관계를 삭제할까요?'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계를 삭제했습니다.');}));}
