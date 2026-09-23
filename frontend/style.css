@@ -31,9 +31,14 @@
    Chrome; the WebKit rules keep older Chrome and Safari in line, where a
    transparent border inside a wider track is what makes the thumb read as a
    slim bar rather than a chunky column. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #2624202e transparent;
+/* These two must not be declared alongside the ::-webkit-scrollbar rules below:
+   once Chrome sees either of them it drops the pseudo-elements and draws its own
+   thin bar instead. Firefox has no pseudo-elements, so it gets them here. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #26242033 transparent;
+  }
 }
 
 ::-webkit-scrollbar {
