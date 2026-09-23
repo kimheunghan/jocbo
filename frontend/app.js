@@ -1,9 +1,10 @@
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let book = null, view = 'people', hanjaIndex = null, hanjaState = null;
-$('#bookInfoForm').querySelector('h3').textContent='선택한 족보 정보';
 $('#newBook').onclick=()=>{$('#bookDialog').showModal();setTimeout(()=>$('#bookForm').elements.title.focus(),0);};
 $('#closeBookDialog').onclick=()=>$('#bookDialog').close();
+$('#editBook').onclick=()=>{$('#bookInfoDialog').showModal();setTimeout(()=>$('#bookInfoForm').elements.title.focus(),0);};
+$('#closeBookInfo').onclick=()=>$('#bookInfoDialog').close();
 const searchNotice=document.createElement('p');
 searchNotice.id='searchNotice';searchNotice.className='search-notice';searchNotice.hidden=true;
 $('#view').before(searchNotice);
@@ -61,6 +62,20 @@ $('#scriptToggle').onclick=async()=>{
  try{localStorage.setItem('jocbo.script',scriptMode);}catch{}
  await loadBooks(book?book.id:undefined);
 };
+// The book's own details read across the page under its title, where there is
+// room for them, instead of stacking down a 286px sidebar and running off screen.
+function paintBookFacts(){
+ const box=$('#bookFacts');
+ if(!book){box.hidden=true;return;}
+ const items=[['성씨 / 가문',book.clan_name],['본관',book.bon_gwan],['파명',book.branch_name],
+  ['권',book.volume?book.volume+'권':''],['비고',(book.description||'').trim().split(String.fromCharCode(10))[0]]]
+  .filter(([,value])=>value);
+ box.hidden=!items.length;
+ box.innerHTML=items.map(([label,value])=>{
+  const reading=readingOf(value);
+  return `<div><dt>${esc(label)}</dt><dd>${esc(value)}${reading?`<span>${esc(reading)}</span>`:''}</dd></div>`;
+ }).join('');
+}
 function paintScriptToggle(){
  const button=$('#scriptToggle');
  button.textContent=scriptMode==='hangul'?'한자로 보기':'한글로 보기';
@@ -88,13 +103,13 @@ function validDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;con
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(scriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book)for(const name of ['title','clan_name','bon_gwan','branch_name','volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintReadings();render();renderRelations();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#editBook').disabled=!book;if(book)for(const name of ['title','clan_name','bon_gwan','branch_name','volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintReadings();paintBookFacts();render();renderRelations();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
 $('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',formData(e.target));e.target.reset();e.target.elements.volume.value='1';$('#bookDialog').close();await loadBooks(r.id);message('새 족보를 만들었습니다.');});
 $('#bookInfoForm').oninput=paintReadings;
-$('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',formData(e.target)));await loadBooks(book.id);message('족보 기본정보를 저장했습니다.');});
+$('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',formData(e.target)));$('#bookInfoDialog').close();await loadBooks(book.id);message('족보 기본정보를 저장했습니다.');});
 $('#bookSelect').onchange=run(refresh);
 $('#search').oninput=render;
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
