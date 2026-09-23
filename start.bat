@@ -90,6 +90,14 @@ if errorlevel 1 (
   echo   판독기 준비됨
 )
 
+rem -- 처음 설치라면 족보를 넣어 둡니다 -----------
+rem 기록이 있는 설치는 건드리지 않습니다.
+if not exist "jocbo.db" (
+  echo   족보 불러오는 중...
+  "%VENV%" -m db.seed_reference_page
+  if errorlevel 1 echo   족보 불러오기 실패 - 빈 화면으로 시작합니다.
+)
+
 rem -- 브라우저 ---------------------------------
 rem 크롬이 있으면 크롬으로, 없으면 기본 브라우저로 엽니다.
 rem %ProgramFiles(x86)% 의 괄호가 for ( ) 블록을 깨뜨리므로 한 줄씩 확인합니다.
