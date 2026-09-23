@@ -43,15 +43,6 @@ button.busy {
   margin-top: 18px;
 }
 
-#newBookToggle {
-  width: 100%;
-  margin: 0 0 12px;
-}
-
-#bookForm[hidden] {
-  display: none !important;
-}
-
 .dialog-close {
   position: absolute;
   top: 10px;

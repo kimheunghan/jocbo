@@ -286,8 +286,38 @@ main {
   background: var(--paper-sunk);
 }
 
-#workspace > aside h2 {
+.side-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 18px;
+}
+
+.side-head h2 {
+  margin: 0;
+}
+
+#scriptToggle {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* The hangul reading of a hanja field, so the record stays as written while the
+   reader can still sound it out. */
+.reading {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 #workspace > aside form {
@@ -534,8 +564,22 @@ dialog::backdrop {
 
 dialog h2 {
   margin-bottom: 18px;
+  padding-right: 40px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line-soft);
+}
+
+#bookDialog {
+  width: min(480px, 94vw);
+}
+
+#bookDialog form {
+  margin: 0;
+}
+
+#bookDialog form button {
+  width: 100%;
+  margin-top: 4px;
 }
 
 .form-grid {

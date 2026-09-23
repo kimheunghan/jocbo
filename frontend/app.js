@@ -1,17 +1,71 @@
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let book = null, view = 'people', hanjaIndex = null, hanjaState = null;
-const bookForm=$('#bookForm'),bookInfoForm=$('#bookInfoForm'),newBookToggle=document.createElement('button');
-newBookToggle.type='button';newBookToggle.id='newBookToggle';newBookToggle.className='secondary';newBookToggle.textContent='+ 새 족보 만들기';
-bookForm.before(bookInfoForm);bookForm.before(newBookToggle);bookForm.hidden=true;
-bookInfoForm.querySelector('h3').textContent='선택한 족보 정보';
-newBookToggle.onclick=()=>{bookForm.hidden=!bookForm.hidden;newBookToggle.textContent=bookForm.hidden?'+ 새 족보 만들기':'새 족보 입력 닫기';if(!bookForm.hidden)bookForm.elements.title.focus();};
+$('#bookInfoForm').querySelector('h3').textContent='선택한 족보 정보';
+$('#newBook').onclick=()=>{$('#bookDialog').showModal();setTimeout(()=>$('#bookForm').elements.title.focus(),0);};
+$('#closeBookDialog').onclick=()=>$('#bookDialog').close();
 const searchNotice=document.createElement('p');
 searchNotice.id='searchNotice';searchNotice.className='search-notice';searchNotice.hidden=true;
 $('#view').before(searchNotice);
 $('#bookForm').elements.volume.value='1';
 $('#bookForm').elements.volume.readOnly=true;
 $('#bookInfoForm').elements.volume.readOnly=true;
+// A 족보 records its names in hanja, which most readers cannot sound out. The
+// dictionary gives one reading per character; a surname before 氏 and the
+// initial-sound rule are the two places that plain lookup gets wrong.
+const HANJA_SURNAME={金:'김',李:'이',柳:'유',劉:'유',羅:'나',盧:'노',梁:'양',林:'임',呂:'여',龍:'용',廉:'염',雷:'뇌',陸:'육',陰:'음'};
+const INITIAL_SOUND={라:'나',래:'내',로:'노',뢰:'뇌',루:'누',르:'느',리:'이',량:'양',려:'여',력:'역',련:'연',렬:'열',렴:'염',령:'영',례:'예',룡:'용',류:'유',륙:'육',륜:'윤',률:'율',름:'늠',릉:'능',림:'임',립:'입',녀:'여',뇨:'요',뉴:'유',니:'이',냑:'약',녕:'영'};
+let hanjaReadings=null;
+let scriptMode='hanja';
+try{scriptMode=localStorage.getItem('jocbo.script')==='hangul'?'hangul':'hanja';}catch{}
+async function loadHanjaDict(){
+ if(hanjaReadings)return hanjaReadings;
+ hanjaReadings=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});
+ return hanjaReadings;
+}
+function readingOf(text){
+ if(!hanjaReadings||!text)return '';
+ const chars=Array.from(String(text));
+ let changed=false;
+ const out=chars.map((ch,index)=>{
+  if(!/[一-鿿]/.test(ch))return ch;
+  if(chars[index+1]==='氏'&&HANJA_SURNAME[ch]){changed=true;return HANJA_SURNAME[ch];}
+  let reading=(hanjaReadings[ch]||'').split(/[,/\s]+/)[0];
+  if(!reading)return ch;
+  if(index===0&&INITIAL_SOUND[reading])reading=INITIAL_SOUND[reading];
+  changed=true;
+  return reading;
+ }).join('');
+ return changed?out:'';
+}
+// What a label should say in the chosen script; falls back to the record itself.
+function scriptText(text){
+ return scriptMode==='hangul'?(readingOf(text)||text):text;
+}
+function paintReadings(){
+ if(!book)return;
+ for(const name of ['title','clan_name','bon_gwan','branch_name']){
+  const input=$('#bookInfoForm').elements[name];
+  if(!input)continue;
+  let hint=input.parentElement.querySelector('.reading');
+  if(!hint){hint=document.createElement('small');hint.className='reading';input.after(hint);}
+  const reading=readingOf(input.value);
+  hint.textContent=reading;
+  hint.hidden=!reading;
+ }
+}
+$('#scriptToggle').onclick=async()=>{
+ await busy($('#scriptToggle'),'불러오는 중…',loadHanjaDict).catch(err=>message(err.message,'error'));
+ if(!hanjaReadings)return;
+ scriptMode=scriptMode==='hangul'?'hanja':'hangul';
+ try{localStorage.setItem('jocbo.script',scriptMode);}catch{}
+ await loadBooks(book?book.id:undefined);
+};
+function paintScriptToggle(){
+ const button=$('#scriptToggle');
+ button.textContent=scriptMode==='hangul'?'한자로 보기':'한글로 보기';
+ button.setAttribute('aria-pressed',String(scriptMode==='hangul'));
+}
 function message(text, type='success') { const el=$('#message');el.textContent=text;el.classList.toggle('error',type==='error'); }
 function errorText(detail) {
   if (typeof detail === 'string') return detail;
@@ -31,13 +85,15 @@ function formData(form){return Object.fromEntries(new FormData(form));}
 async function busy(button, label, task){const original=button.textContent;button.disabled=true;button.classList.add('busy');button.textContent=label;try{return await task();}finally{button.disabled=false;button.classList.remove('busy');button.textContent=original;}}
 function dialogError(text='', field){const el=$('#personError');el.classList.remove('success');el.textContent=text;el.hidden=!text;$('#personForm').querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));if(field){field.setAttribute('aria-invalid','true');field.focus();}}
 function validDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const [y,m,d]=value.split('-').map(Number),parsed=new Date(Date.UTC(y,m-1,d));return parsed.getUTCFullYear()===y&&parsed.getUTCMonth()===m-1&&parsed.getUTCDate()===d;}
-async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;await loadBooks();}
-async function loadBooks(selected){const all=await api('/books');$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(b.title)}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?.title||'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book)for(const name of ['title','clan_name','bon_gwan','branch_name','volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';render();renderRelations();}
+async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
+ await loadHanjaDict().catch(()=>{});await loadBooks();}
+async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(scriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book)for(const name of ['title','clan_name','bon_gwan','branch_name','volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintReadings();render();renderRelations();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
-$('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',formData(e.target));e.target.reset();e.target.elements.volume.value='1';e.target.hidden=true;newBookToggle.textContent='+ 새 족보 만들기';await loadBooks(r.id);message('새 족보를 만들었습니다.');});
+$('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',formData(e.target));e.target.reset();e.target.elements.volume.value='1';$('#bookDialog').close();await loadBooks(r.id);message('새 족보를 만들었습니다.');});
+$('#bookInfoForm').oninput=paintReadings;
 $('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',formData(e.target)));await loadBooks(book.id);message('족보 기본정보를 저장했습니다.');});
 $('#bookSelect').onchange=run(refresh);
 $('#search').oninput=render;
