@@ -27,6 +27,37 @@
   box-sizing: border-box;
 }
 
+/* Thin, floating scrollbars. The standard properties cover Firefox and current
+   Chrome; the WebKit rules keep older Chrome and Safari in line, where a
+   transparent border inside a wider track is what makes the thumb read as a
+   slim bar rather than a chunky column. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2624202e transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 99px;
+  background: #2624202e;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #26242059;
+  background-clip: content-box;
+}
+
 body {
   margin: 0;
   background: var(--paper);
@@ -271,27 +302,45 @@ a:focus-visible {
 /* ── 작업 화면 ──────────────────────────────────────── */
 main {
   display: grid;
-  grid-template-columns: var(--side-width, 286px) 7px minmax(0, 1fr);
+  grid-template-columns: var(--side-width, 286px) 1px minmax(0, 1fr);
   align-items: start;
   min-height: 74vh;
 }
 
-/* Drag the rule between the sidebar and the page to widen either one. */
+/* The rule stays a hairline; only the area you may grab is wider, which is how
+   VS Code's explorer, Chrome's DevTools and Figma's inspector handle it. */
 .side-resizer {
   position: sticky;
   top: 0;
   height: 100vh;
-  border-right: 1px solid var(--line);
-  background: transparent;
+  background: var(--line);
   cursor: col-resize;
 }
 
+.side-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.side-resizer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--green);
+  opacity: 0;
+  transition: opacity .15s;
+}
+
 .side-resizer:hover,
-.side-resizer:focus-visible,
-body.resizing .side-resizer {
-  border-right-color: var(--green);
-  background: var(--green-wash);
+.side-resizer:focus-visible {
   outline: 0;
+}
+
+.side-resizer:hover::after,
+.side-resizer:focus-visible::after,
+body.resizing .side-resizer::after {
+  opacity: 1;
 }
 
 body.resizing {
