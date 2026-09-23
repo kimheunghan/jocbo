@@ -551,11 +551,14 @@ button.busy {
   font-family: "Batang", serif;
 }
 
-/* Batang has no heavier face; asking for one makes the browser smear the glyph
-   sideways into a doubled outline, so the names keep the face it has. */
+/* Batang has no bold face; asking it for one makes the browser overprint the
+   glyph a pixel to the side, which reads as a smeared double outline. The bold
+   names come from a Myeongjo that ships a real bold, and synthesis stays off so a
+   machine with none of them shows clean regular type rather than the smear. */
 .genealogy-side strong {
+  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
   font-size: 21px;
-  font-weight: 400;
+  font-weight: 700;
   font-synthesis: none;
 }
 
@@ -572,7 +575,8 @@ button.busy {
 .genealogy-branch {
   grid-column: 2;
   grid-row: 1;
-  font: 700 18px/1 "Batang", serif;
+  font: 700 18px/1 "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font-synthesis: none;
 }
 
 .genealogy-body {
@@ -633,8 +637,9 @@ button.busy {
 }
 
 .genealogy-person strong {
+  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
   font-size: 18px;
-  font-weight: 400;
+  font-weight: 700;
   font-synthesis: none;
   letter-spacing: 0;
 }
