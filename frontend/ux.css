@@ -247,7 +247,10 @@ button.busy {
 .zoom-scroll .genealogy-person,
 .zoom-scroll .genealogy-side,
 .zoom-scroll .genealogy-branch,
-.zoom-scroll .genealogy-generation h3 {
+.zoom-scroll .genealogy-generation h3,
+.tree-card strong,
+.tree-card small,
+.tree-line {
   cursor: text;
 }
 
@@ -308,6 +311,7 @@ button.busy {
 .tree-card {
   position: absolute;
   inset: 0;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;

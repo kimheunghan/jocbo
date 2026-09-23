@@ -499,7 +499,7 @@ function bindZoom(key){
  // them — moves the view, since a press inside a button never starts a selection
  // anyway and a drag there would otherwise do nothing at all. A press that does
  // not move still counts as a click.
- const KEEPS_ITS_OWN_DRAG='.genealogy-person,.genealogy-side,.genealogy-branch,.genealogy-generation h3,input,textarea,select,a';
+ const KEEPS_ITS_OWN_DRAG='.tree-card strong,.tree-card small,.tree-line,.genealogy-person,.genealogy-side,.genealogy-branch,.genealogy-generation h3,input,textarea,select,a';
  // Nothing is cancelled on the press itself: doing so swallows the click the
  // browser would fire afterwards, and a card could no longer be opened. The press
  // only notes where it began; the drag declares itself on the first real movement.
@@ -652,12 +652,12 @@ function renderTree(people){
   const at=pos.get(p.id),photo=photoOf(p.id);
   const tone=treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'';
   return `<div class="tree-node" style="left:${at.x}px;top:${at.y}px;width:${nodeW}px;height:${nodeH}px">`
-   +`<button type="button" class="tree-card${tone}" data-tree-person="${p.id}">`
+   +`<div class="tree-card${tone}" data-tree-person="${p.id}" role="button" tabindex="0">`
    +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}" alt="">`:''}</span>`:'')
    +`<strong>${esc(displayName(p).primary)}</strong>`
-   +treeDetails(p).map(row=>`<span>${esc(row)}</span>`).join('')
+   +treeDetails(p).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
    +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
-   +'</button>'
+   +'</div>'
    +addButton(p.id,'parent','+')+addButton(p.id,'child','+')
    +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+')
    +'</div>';
@@ -666,7 +666,17 @@ function renderTree(people){
   +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${mateLines}${labels}</svg>${cards}</div>`);
  bindTreeOptions();
  bindZoom('tree');
- document.querySelectorAll('[data-tree-person]').forEach(node=>node.onclick=()=>editPerson(Number(node.dataset.treePerson)));
+ document.querySelectorAll('[data-tree-person]').forEach(node=>{
+  const open=()=>editPerson(Number(node.dataset.treePerson));
+  node.onclick=()=>{
+   // Finishing a sweep inside the card means the reader wanted the text, not the
+   // person window.
+   const selection=window.getSelection();
+   if(selection&&String(selection).trim()&&node.contains(selection.anchorNode))return;
+   open();
+  };
+  node.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}};
+ });
  document.querySelectorAll('[data-add]').forEach(node=>node.onclick=()=>addRelative(node.dataset.add,Number(node.dataset.person)));
 }
 function bindTreeOptions(){
