@@ -670,9 +670,10 @@ function renderTree(people){
   const open=()=>editPerson(Number(node.dataset.treePerson));
   node.onclick=()=>{
    // Finishing a sweep inside the card means the reader wanted the text, not the
-   // person window.
+   // person window. A plain click leaves the selection collapsed, so the hand
+   // shaking by a pixel never costs you the click.
    const selection=window.getSelection();
-   if(selection&&String(selection).trim()&&node.contains(selection.anchorNode))return;
+   if(selection&&!selection.isCollapsed&&String(selection).trim()&&node.contains(selection.anchorNode))return;
    open();
   };
   node.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}};
