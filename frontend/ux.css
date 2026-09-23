@@ -220,9 +220,19 @@ button.busy {
 
 .zoom-scroll {
   overflow: auto;
+  /* A bounded window is what makes dragging mean anything. */
+  max-height: 74vh;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper-raised);
+  cursor: grab;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+
+.zoom-scroll.panning {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .zoom-sizer {
@@ -449,6 +459,7 @@ button.busy {
 
   /* Paper prints at full size whatever the screen is zoomed to. */
   .zoom-scroll {
+    max-height: none;
     overflow: visible;
     border: 0;
     background: none;

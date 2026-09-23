@@ -453,7 +453,7 @@ function wrapZoom(inner){
   +'<button type="button" class="secondary" data-zoom="in" aria-label="확대">+</button>'
   +'<button type="button" class="secondary" data-zoom="reset">100%</button>'
   +'<button type="button" class="secondary" data-zoom="fit">맞추기</button>'
-  +'<small>Ctrl + 마우스 휠로도 확대·축소</small></div>'
+  +'<small>끌어서 이동 · Ctrl + 휠로 확대·축소</small></div>'
   +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`;
 }
 function bindZoom(key){
@@ -479,11 +479,40 @@ function bindZoom(key){
   try{localStorage.setItem('jocbo.zoom.'+key,String(zoom));}catch{}
  };
  apply(zoom);
+ // Dragging the canvas beats reaching for the scrollbar once the tree is wider
+ // than the window. The plain wheel keeps scrolling; Ctrl with it zooms about the
+ // pointer, which stays put while everything around it grows.
  scroll.addEventListener('wheel',event=>{
   if(!event.ctrlKey&&!event.metaKey)return;
   event.preventDefault();
   apply(zoom*(event.deltaY<0?1.12:1/1.12),event.clientX,event.clientY);
  },{passive:false});
+ let pan=null,dragged=false;
+ scroll.addEventListener('pointerdown',event=>{
+  if(event.button!==0&&event.button!==1)return;
+  pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
+  dragged=false;
+  try{scroll.setPointerCapture(event.pointerId);}catch{}
+ });
+ scroll.addEventListener('pointermove',event=>{
+  if(!pan)return;
+  const dx=event.clientX-pan.x,dy=event.clientY-pan.y;
+  if(!dragged&&Math.abs(dx)<4&&Math.abs(dy)<4)return;
+  dragged=true;
+  scroll.classList.add('panning');
+  scroll.scrollLeft=pan.left-dx;
+  scroll.scrollTop=pan.top-dy;
+ });
+ const endPan=()=>{pan=null;scroll.classList.remove('panning');};
+ scroll.addEventListener('pointerup',endPan);
+ scroll.addEventListener('pointercancel',endPan);
+ // A drag that ends on a card must not also open that card.
+ scroll.addEventListener('click',event=>{
+  if(!dragged)return;
+  dragged=false;
+  event.preventDefault();
+  event.stopPropagation();
+ },true);
  $('[data-zoom="in"]').onclick=()=>apply(zoom*1.2);
  $('[data-zoom="out"]').onclick=()=>apply(zoom/1.2);
  $('[data-zoom="reset"]').onclick=()=>apply(1);
