@@ -3,8 +3,3 @@ uvicorn==0.53.0
 SQLAlchemy==2.0.54
 psycopg[binary]==3.3.6
 python-multipart==0.0.32
-
-# 족보 이미지 판독 — 없어도 앱은 돌아가고, 판독 버튼만 설치를 안내합니다.
-rapidocr-onnxruntime==1.4.4
-opencc-python-reimplemented==0.1.7
-pillow==12.3.0
