@@ -669,6 +669,13 @@ button.busy {
   display: block;
 }
 
+/* Trim the empty space around 一 (top, then bottom in vertical text) to about
+   the gap between other characters; trimmed any further, 一 would touch them. */
+.genealogy-person b.thin-one {
+  margin-inline: -0.1em -0.2em;
+  font-weight: inherit;
+}
+
 .genealogy-person .genealogy-note {
   color: #47504a;
   font-size: 10px;

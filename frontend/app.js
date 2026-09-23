@@ -461,6 +461,9 @@ function lineName(person,surname){
   return {hanja:hanja.slice(1),korean:korean.length>1&&korean[0]!==hanja[0]?korean.slice(1):korean};
  return {hanja:hanja||korean,korean};
 }
+// 一 is a single stroke in a full square, so in a column it leaves a wider gap
+// around it than its neighbours do; it is marked so the sheet can close the gap.
+function evenText(text){return esc(text).replace(/一/g,'<b class="thin-one">一</b>');}
 function personEntry(person,spouses,surname){
  const hangul=scriptMode==='hangul';
  const prefix=person.gender==='여'?bookWord('女','딸'):bookWord('子','아들'),name=lineName(person,surname);
@@ -468,9 +471,9 @@ function personEntry(person,spouses,surname){
  const note=hangul?(readingOf(person.note)||person.note):person.note;
  return `<section class="genealogy-person" data-book-person="${person.id}"><strong><i>${prefix}</i>`
   +`${esc(hangul?name.korean:name.hanja)}<em>${esc(hangul?name.hanja:name.korean)}</em></strong>`
-  +lines.map(line=>`<span>${esc(line)}</span>`).join('')
-  +(note?`<span class="genealogy-note">${esc(note)}</span>`:'')
-  +spouses.map(spouse=>`<span>${esc(spousePhrase(spouse))}</span>`).join('')
+  +lines.map(line=>`<span>${evenText(line)}</span>`).join('')
+  +(note?`<span class="genealogy-note">${evenText(note)}</span>`:'')
+  +spouses.map(spouse=>`<span>${evenText(spousePhrase(spouse))}</span>`).join('')
   +'</section>';
 }
 // Columns are printed in the book's own order: each father's children stand under
