@@ -1092,7 +1092,28 @@ async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await
 // The picker walks a queue of fields, one syllable at a time, writing each
 // finished field back where it came from. A person's name is a queue of one.
 const HANJA_FIELD_LABELS={title:'족보명',clan_name:'성씨 / 가문',bon_gwan:'본관',branch_name:'파명',founder:'시조',hanja_name:'한자명'};
-function hanjaCandidates(syllable,index){const surnameAliases={김:['김','금'],이:['이','리'],임:['임','림'],유:['유','류'],나:['나','라'],노:['노','로'],여:['여','려'],양:['양','량']},readings=index===0?(surnameAliases[syllable]||[syllable]):[syllable],preferred={김:'金',이:'李',박:'朴',최:'崔',정:'鄭',강:'姜',조:'趙',윤:'尹',장:'張',임:'林',한:'韓',오:'吳',서:'徐',신:'申',권:'權',황:'黃',안:'安',송:'宋',전:'全',홍:'洪',유:'柳',고:'高',문:'文',양:'梁',손:'孫',배:'裵',백:'白',허:'許',남:'南',심:'沈',노:'盧'};const result=[...new Set(readings.flatMap(r=>hanjaIndex[r]||[]))].sort((a,b)=>{const common=c=>{const n=c.codePointAt(0);return n>=0x4e00&&n<=0x9fff?0:1;};return common(a)-common(b)||a.localeCompare(b,'ko');}),first=index===0?preferred[syllable]:null;if(first&&result.includes(first))return [first,...result.filter(x=>x!==first)];return result;}
+// 金 is filed in the dictionary under 금; 김 is how it is read as a surname. The
+// surname sits at the head of a person's name but in the middle of a book's —
+// 청도김씨대동보 — so the reading is tried wherever the syllable stands, with the
+// plain reading's characters first and the surname's own put at the front.
+const SURNAME_READINGS={김:'금',이:'리',임:'림',유:'류',나:'라',노:'로',여:'려',양:'량',륙:'유',령:'영'};
+const SURNAME_HANJA={김:'金',이:'李',박:'朴',최:'崔',정:'鄭',강:'姜',조:'趙',윤:'尹',장:'張',임:'林',한:'韓',오:'吳',서:'徐',신:'申',권:'權',황:'黃',안:'安',송:'宋',전:'全',홍:'洪',유:'柳',고:'高',문:'文',양:'梁',손:'孫',배:'裴',백:'白',허:'許',남:'南',심:'沈',노:'盧',추:'秋',우:'禹',구:'具',류:'柳'};
+function hanjaCandidates(syllable){
+ const byStroke=(a,b)=>{
+  const common=ch=>{const at=ch.codePointAt(0);return at>=0x4e00&&at<=0x9fff?0:1;};
+  return common(a)-common(b)||a.localeCompare(b,'ko');
+ };
+ const readings=[syllable];
+ if(SURNAME_READINGS[syllable])readings.push(SURNAME_READINGS[syllable]);
+ const seen=new Set(),result=[];
+ for(const reading of readings)
+  for(const hanja of (hanjaIndex[reading]||[]).slice().sort(byStroke))
+   if(!seen.has(hanja)){seen.add(hanja);result.push(hanja);}
+ const first=SURNAME_HANJA[syllable];
+ if(first&&result.includes(first))return [first,...result.filter(one=>one!==first)];
+ return result;
+}
+
 function finishHanjaField(){
  const {target,chosen,rest}=hanjaState;
  target.value=chosen.join('')+rest;
@@ -1115,13 +1136,13 @@ function renderHanjaStep(){
  const {chars,chosen,index,label}=hanjaState;
  if(index>=chars.length){finishHanjaField();return;}
  const syllable=chars[index];
- const candidates=hanjaCandidates(syllable,index);
+ const candidates=hanjaCandidates(syllable);
  $('#hanjaStep').textContent=`${label?label+' — ':''}'${syllable}'의 한자를 고르세요`;
  $('#hanjaPreview').textContent=`${chars.join('')} · 고른 글자: ${chosen.join('')||'아직 없음'}`;
  $('#hanjaCandidates').innerHTML=candidates.length
   ?candidates.map(h=>`<button type="button" data-hanja="${h}" title="${syllable}">${h}</button>`).join('')
-  :`<p>'${esc(syllable)}' 음의 한자가 사전에 없습니다. 그대로 두고 넘어갑니다.</p>`;
- if(!candidates.length){chosen.push(syllable);hanjaState.index++;renderHanjaStep();return;}
+  :`<p class="hanja-none">'${esc(syllable)}' 음의 한자 없음 · 한글 그대로 두고 다음 글자로</p>`
+   +`<button type="button" class="secondary" data-hanja="${esc(syllable)}">'${esc(syllable)}' 그대로 두기</button>`;
  document.querySelectorAll('[data-hanja]').forEach(button=>button.onclick=()=>{
   chosen.push(button.dataset.hanja);hanjaState.index++;renderHanjaStep();
  });

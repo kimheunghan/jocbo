@@ -1166,3 +1166,10 @@ button.busy {
 .marriage-actions {
   justify-content: flex-end;
 }
+
+/* A syllable the dictionary does not hold: said, not skipped past. */
+.hanja-none {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
