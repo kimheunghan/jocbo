@@ -241,11 +241,16 @@ button.busy {
   cursor: grab;
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
+  /* Dragging here moves the canvas; it never sweeps a text selection. */
+  user-select: none;
+}
+
+.zoom-scroll img {
+  -webkit-user-drag: none;
 }
 
 .zoom-scroll.panning {
   cursor: grabbing;
-  user-select: none;
 }
 
 .zoom-sizer {

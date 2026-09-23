@@ -496,6 +496,9 @@ function bindZoom(key){
  let pan=null,dragged=false;
  scroll.addEventListener('pointerdown',event=>{
   if(event.button!==0&&event.button!==1)return;
+  // Without this the browser starts selecting the text under the pointer, and the
+  // whole canvas lights up blue as you drag across it.
+  event.preventDefault();
   pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
   dragged=false;
   try{scroll.setPointerCapture(event.pointerId);}catch{}
