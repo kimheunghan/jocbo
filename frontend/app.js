@@ -347,9 +347,12 @@ function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classLis
  // family, so they keep everyone and move to the person who was found instead.
  if(q){
   searchNotice.hidden=false;
-  searchNotice.innerHTML=view==='people'
+  searchNotice.innerHTML=(view==='people'
    ?`<span>검색 <strong>${esc($('#search').value.trim())}</strong> · 전체 ${book.persons.length}명 중 <strong>${people.length}명</strong></span>`
-   :`<span>검색 <strong>${esc($('#search').value.trim())}</strong> · ${people.length?'<strong>'+esc(displayName(people[0]).primary)+'</strong> 위치로 이동':'결과 없음'}</span>`;
+   :`<span>검색 <strong>${esc($('#search').value.trim())}</strong> · ${people.length?'<strong>'+esc(displayName(people[0]).primary)+'</strong> 위치로 이동':'결과 없음'}</span>`)
+   +'<button type="button" id="clearSearch">전체 보기</button>';
+  // Clearing the box puts the list back and takes the ring off the tree.
+  $('#clearSearch').onclick=()=>{$('#search').value='';render();renderRelations();};
  }
  if(view==='tree'){renderTree(book.persons);markFound(people[0],'[data-tree-person]');return;}
  if(view==='book'){const sheets=bookHTML(book.persons);$('#view').innerHTML=sheets.includes('traditional-book')?wrapZoom(sheets):sheets;bindZoom('book');markFound(people[0],'[data-book-person]');return;}
@@ -847,7 +850,7 @@ function addRelative(kind,personId){
  const anchor=book.persons.find(p=>p.id===personId);
  if(!anchor)return;
  if(kind==='sibling'&&!parentsOfPerson(anchor.id).length){
-  message(`${anchor.korean_name} — 부모 기록 없음 · 형제자매는 공통 부모로 연결 · 카드 위쪽 +로 부모 먼저 등록`,'error');
+  message(`${anchor.korean_name} — 부모 기록 없음 · 형제자매는 공통 부모로 연결 · 부모 등록 먼저 필요`,'error');
   return;
  }
  editPerson();
@@ -1096,14 +1099,14 @@ function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<o
  anchor.value=found?String(found.id):(kept||anchor.value);
  $('#relationForm').querySelector('button').disabled=!book.persons.length;$('#relationList').innerHTML=book.relations.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">관계를 등록하려면 인물을 2명 이상 추가하세요.</p>':'');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));}
 // 부모 → 자녀 and 배우자 ↔ 배우자 were the only two shapes this form could make,
-// and it could not make a sibling at all. It now opens the same window the tree
-// cards use, which knows all four and can register a new person on the way.
+// and it could not make a sibling at all. All four are on the list now, and the
+// button opens the same registration the tree cards use, already set to the one
+// that was picked — so a new person can be entered or an existing one chosen.
 $('#relationForm').onsubmit=e=>{
  e.preventDefault();
- const id=Number($('#relationForm').elements.source_id.value);
+ const form=$('#relationForm'),id=Number(form.elements.source_id.value);
  if(!id){message('기준 인물 선택 필요','error');return;}
- editPerson(id);
- openRelativeKinds();
+ addRelative(form.elements.kind.value,id);
 };
 $('#print').onclick=()=>{view='book';$('#search').value='';render();window.print();};
 $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books','POST',{title:'가상 가족의 기록 (샘플)',clan_name:'예시 김씨',description:'실존 인물과 무관한 예제입니다.'});const people=[{korean_name:'김예시',hanja_name:'金例示',generation:1,birth_date:'1940-01-01',gender:'남'},{korean_name:'이샘플',hanja_name:'李樣本',generation:1,birth_date:'1942-02-02',gender:'여'},{korean_name:'김가상',hanja_name:'金假想',generation:2,birth_date:'1970-03-03',gender:'남'},{korean_name:'김미래',hanja_name:'金未來',generation:3,birth_date:'2000-04-04',gender:'미상'}];const ids=[];for(const p of people)ids.push((await api('/books/'+b.id+'/persons','POST',{...p,note:'실제 개인정보가 아닌 가상 인물입니다.'})).id);for(const [s,t,kind] of [[0,1,'spouse'],[0,2,'parent'],[1,2,'parent'],[2,3,'parent']])await api('/relations','POST',{source_id:ids[s],target_id:ids[t],kind});await loadBooks(b.id);message('예제 족보 추가 완료');}finally{button.disabled=false;}});
