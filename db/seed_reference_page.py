@@ -9,6 +9,8 @@ called out in each person's note.  Later generations and the forebears of people
 who married in were entered by hand afterwards and are kept here so a fresh
 install holds the same book.  Re-running the script updates in place.
 """
+import os
+
 from sqlalchemy import or_, select
 
 from backend.main import books, engine, meta, persons, relations, users
@@ -133,18 +135,24 @@ def ensure_relation(connection, source_id, target_id, kind):
             source_id=source_id, target_id=target_id, kind=kind))
 
 
-# A fresh install has no account and no book yet, so the demo one is made here
-# and the records go into it. An install that already has book 1 keeps its own.
-DEMO = ('demo@example.test', '0123456789abcdef0123456789abcdef:93cfafd8c504fc83830b907059229aa08a3702a6f231ee1ad28e675e7d4039ee33ac3cb91e9e2b1329178d3e0c3c275e386c35fd30f57e1cadd2e8cd6e633182')
+# The book belongs to whoever is using this install. On a machine that already
+# has an account it goes to that one; on a bare machine the owner's account is
+# made so the same email opens the same book everywhere.
+OWNER = os.getenv('JOCBO_EMAIL', 'hung6789@naver.com')
+OWNER_PASSWORD = '5140cae88a4b872bba90894cd8ea3a7b:3515ec0db96fd5dbd7ff518ab28dad8a75309208b5ff0d08bf807c33390605ecf2fbd79d8a7e87e6df2405f2289be98caa16969516bc9a8bcbd2c5a539a297cb'
 
 
 def ensure_book(connection):
     if connection.execute(select(books.c.id).where(books.c.id == BOOK_ID)).scalar_one_or_none():
         return
-    user_id = connection.execute(select(users.c.id).where(users.c.email == DEMO[0])).scalar_one_or_none()
+    user_id = connection.execute(select(users.c.id).where(users.c.email == OWNER)).scalar_one_or_none()
+    if user_id is None:
+        # An account already here is the person's own, whatever they signed up as.
+        user_id = connection.execute(select(users.c.id).order_by(users.c.id)).scalars().first()
     if user_id is None:
         user_id = connection.execute(users.insert().values(
-            email=DEMO[0], password_hash=DEMO[1])).inserted_primary_key[0]
+            email=OWNER, password_hash=OWNER_PASSWORD)).inserted_primary_key[0]
+        print(f'Account created: {OWNER} / Jocbo2026!  (change it after signing in)')
     connection.execute(books.insert().values(id=BOOK_ID, user_id=user_id, **BOOK))
 
 
@@ -174,4 +182,4 @@ with engine.begin() as connection:
                     ensure_relation(connection, ids[parent], ids[child], 'parent')
 
 print(f'{len(PEOPLE)} people and {len(SPOUSES)} marriages applied to family book {BOOK_ID}.')
-print(f'Sign in as {DEMO[0]} / DemoFamily123! if this install had no account.')
+print(f'Book {BOOK_ID} belongs to the account already on this install, or to {OWNER}.')
