@@ -293,129 +293,24 @@ function dialogError(text='', field){const el=$('#personError');el.classList.rem
 // novalidate so that this speaks before the browser refuses the submit with a
 // bubble of its own — which is what used to happen, leaving nothing filed and
 // nothing said. reportValidity still follows, for the required boxes.
-// A book often knows only part of a date, so the year alone, the year and month,
-// or the month and day alone are each taken as they stand.
 function dateProblem(get){
  const today=todayISO();
  for(const [name,label] of [['birth_date','출생일'],['death_date','사망일']]){
   const box=get(name);
   if(!box)continue;
-  if(box.dataset.problem)return [datePart(box,box.dataset.part),`${label} — ${box.dataset.problem}`];
-  const value=normalDate(box.value);
-  if(value===null)
-   return [datePart(box,'y'),`${label} — 없는 날짜 · 월 1~12, 일은 해당 월의 마지막 날까지`];
-  box.value=value;
-  if(value&&!value.startsWith('--')&&value>today.slice(0,value.length))
-   return [datePart(box,'y'),`${label} — 아직 오지 않은 날 · 오늘(${today}) 이후 불가`];
+  // A date the browser could not make sense of — 31 February, 29 February in a
+  // year with 28 — reads back empty while its segments still show the typing.
+  if(box.validity.badInput)
+   return [box,`${label} — 없는 날짜 · 월 1~12, 일은 해당 월의 마지막 날까지 · 예: 1956-02-07`];
+  if(box.value&&!validDate(box.value))
+   return [box,`${label} — 연도 4자리 형식 · 예: 1956-02-07`];
+  if(box.value&&box.value>today)
+   return [box,`${label} — 아직 오지 않은 날 · 오늘(${today}) 이후 불가`];
  }
  const birth=get('birth_date'),death=get('death_date');
- if(birth&&death&&birth.value&&death.value&&!birth.value.startsWith('--')&&!death.value.startsWith('--')){
-  // Only as far as both are known: 1956 and 1956-03-02 do not contradict.
-  const known=Math.min(birth.value.length,death.value.length);
-  if(death.value.slice(0,known)<birth.value.slice(0,known))return [datePart(death,'y'),'사망일이 출생일보다 이름'];
- }
+ if(birth&&death&&birth.value&&death.value&&death.value<birth.value)
+  return [death,'사망일이 출생일보다 이름'];
  return null;
-}
-// ── 날짜 칸 ──
-// A date is typed in three boxes, each held to its own rule — a year of four
-// figures, a month of 1 to 12, a day up to the end of that month — and any of
-// them is left empty where the book does not say. The calendar fills all three.
-// The date itself is kept in a hidden box under the field's name, so a form
-// reads and fills it like any other field.
-function dateControlHTML(name,clear){
- const options=(count,unit)=>`<option value="">${unit}</option>`
-  +Array.from({length:count},(_,i)=>`<option value="${i+1}">${i+1}${unit}</option>`).join('');
- return `<input type="hidden" name="${name}">`
-  +`<input data-part="y" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="연도" placeholder="연도">`
-  +`<select data-part="m" aria-label="월">${options(12,'월')}</select>`
-  +`<select data-part="d" aria-label="일">${options(31,'일')}</select>`
-  +`<input type="date" data-part="picker" tabindex="-1" aria-hidden="true" min="0001-01-01">`
-  +`<button type="button" class="secondary" data-part="calendar" title="달력에서 고르기" aria-label="달력에서 고르기">달력</button>`
-  +(clear?`<button type="button" class="secondary" data-part="clear" title="지우기" aria-label="지우기">지우기</button>`:'');
-}
-function datePart(box,part){
- return box.closest?.('.date-parts')?.querySelector(`[data-part="${part||'y'}"]`)||box;
-}
-// The three boxes as one kept date, or the rule that one of them breaks.
-function composeDate(y,m,d){
- if(!y&&!m&&!d)return {value:''};
- if(y&&!/^\d{4}$/.test(y))return {problem:'연도는 숫자 4자리',part:'y'};
- if(y&&Number(y)<1)return {problem:'연도는 1년부터',part:'y'};
- if(d&&!m)return {problem:'일만 있고 월 없음 · 월 선택',part:'m'};
- if(!y&&!d)return {problem:'연도 없이 월만은 불가 · 일도 선택',part:'d'};
- const pad=n=>String(n).padStart(2,'0');
- const value=y?[y,m&&pad(m),d&&pad(d)].filter(Boolean).join('-'):`--${pad(m)}-${pad(d)}`;
- if(!validDate(value))return {problem:`${m}월에는 ${d}일이 없음`,part:'d'};
- return {value};
-}
-function syncDate(control){
- const hidden=control.querySelector('input[type="hidden"]');
- const part=name=>control.querySelector(`[data-part="${name}"]`).value.trim();
- const found=composeDate(part('y'),part('m'),part('d'));
- hidden.value=found.value||'';
- hidden.dataset.problem=found.problem||'';
- hidden.dataset.part=found.part||'';
- paintDateClears();
-}
-// After a form is filled by hand in code, the boxes are set from the kept date.
-function paintDateParts(root){
- for(const control of root.querySelectorAll('.date-parts')){
-  const hidden=control.querySelector('input[type="hidden"]');
-  const {y,m,d}=dateParts(hidden.value);
-  control.querySelector('[data-part="y"]').value=y?String(y).padStart(4,'0'):'';
-  control.querySelector('[data-part="m"]').value=m?String(m):'';
-  control.querySelector('[data-part="d"]').value=d?String(d):'';
-  hidden.dataset.problem='';
-  hidden.dataset.part='';
- }
- paintDateClears();
-}
-function mountDateControls(root,clear){
- for(const control of root.querySelectorAll('[data-date-field]:not(.date-parts)')){
-  control.classList.add('date-parts');
-  control.innerHTML=dateControlHTML(control.dataset.dateField,clear);
-  const hidden=control.querySelector('input[type="hidden"]');
-  const picker=control.querySelector('[data-part="picker"]');
-  for(const name of ['y','m','d']){
-   const part=control.querySelector(`[data-part="${name}"]`);
-   part.addEventListener('input',()=>syncDate(control));
-   part.addEventListener('change',()=>syncDate(control));
-  }
-  control.querySelector('[data-part="calendar"]').onclick=()=>{
-   // The calendar stops at today, so a later day is never offered.
-   picker.max=todayISO();
-   picker.value=/^\d{4}-\d{2}-\d{2}$/.test(hidden.value)?hidden.value:'';
-   try{picker.showPicker();}catch{picker.focus();}
-  };
-  picker.addEventListener('change',()=>{
-   if(!picker.value)return;
-   hidden.value=picker.value;
-   paintDateParts(control.parentElement);
-   syncDate(control);
-  });
-  const clearButton=control.querySelector('[data-part="clear"]');
-  if(clearButton)clearButton.onclick=()=>{
-   hidden.value='';
-   paintDateParts(control.parentElement);
-   syncDate(control);
-   control.querySelector('[data-part="y"]').focus();
-  };
- }
-}
-// What was typed, as the date it is kept as: 1956, 1956-03, 1956-03-02, or
-// --03-02 for a month and day without a year. 1956.3.2, 1956년 3월 2일 and
-// 3월 2일 are all taken. Empty stays empty; a date that is not one is null.
-function normalDate(text){
- const value=String(text||'').trim();
- if(!value)return '';
- const parts=value.replace(/^--/,'').split(/\s*(?:[-./]|년|월|일)\s*|\s+/).filter(Boolean);
- if(!parts.length||!parts.every(part=>/^\d+$/.test(part)))return null;
- const pad=n=>String(n).padStart(2,'0');
- let result;
- if(parts[0].length===4&&parts.length<=3)result=[parts[0],...parts.slice(1).map(Number).map(pad)].join('-');
- else if(parts.length===2&&parts[0].length<=2)result='--'+parts.map(Number).map(pad).join('-');
- else return null;
- return validDate(result)?result:null;
 }
 // By the browser's own clock, not UTC: in Korea the two differ for the first
 // nine hours of every day, and a birth recorded this morning is not the future.
@@ -1149,7 +1044,7 @@ function editPerson(id){
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
  setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
- paintDateParts(f);
+ paintDateClears();
  // The relation window reopens this one in place, so it may already be up.
  if(!$('#personDialog').open)$('#personDialog').showModal();
  personSnapshot=personState();
@@ -1189,15 +1084,31 @@ $('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.on
  $('#relativeKindDialog').close();
  addRelative(kind,relativeAnchorId);
 });
-// 지우기 empties the year, the month and the day in one press, and stays greyed
-// out while there is nothing in them to clear.
+// A date box has no clear of its own: emptying it means deleting the year, the
+// month and the day one at a time. This empties the whole date in one press, and
+// stays greyed out while there is nothing in it to clear.
+// The calendar stops at today as well, so a later day is never offered.
+for(const name of ['birth_date','death_date']){
+ const input=$('#personForm').elements[name];
+ if(input)input.max=todayISO();
+}
 function paintDateClears(){
- for(const control of $('#personForm').querySelectorAll('.date-parts')){
-  const button=control.querySelector('[data-part="clear"]');
-  if(button)button.disabled=![...control.querySelectorAll('[data-part="y"],[data-part="m"],[data-part="d"]')].some(part=>part.value);
+ for(const button of document.querySelectorAll('[data-clear-date]')){
+  const input=$('#personForm').elements[button.dataset.clearDate];
+  button.disabled=!input||!input.value;
  }
 }
-mountDateControls($('#personForm'),true);
+for(const button of document.querySelectorAll('[data-clear-date]')){
+ const input=$('#personForm').elements[button.dataset.clearDate];
+ if(!input)continue;
+ button.onclick=()=>{
+  input.value='';
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+  input.focus();
+ };
+ input.addEventListener('input',paintDateClears);
+ input.addEventListener('change',paintDateClears);
+}
 $('#personForm').elements.gender.onchange=paintGenderScript;
 $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#personDialog').close();$('#closePersonDialog').onclick=()=>$('#personDialog').close();
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
@@ -1406,8 +1317,8 @@ function scanRowHTML(id,generation){
   <label>성별<select name="gender">${genders}</select></label>
   <button type="button" class="scan-drop" data-drop="${id}" aria-label="이 줄 지우기" title="이 줄 지우기">×</button>
   <label>본관<input name="bon_gwan" maxlength="200" autocomplete="off"></label>
-  <label>출생일<div data-date-field="birth_date"></div></label>
-  <label>사망일<div data-date-field="death_date"></div></label>
+  <label>출생일<input name="birth_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
+  <label>사망일<input name="death_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
   <label>기록<input name="note" maxlength="10000" autocomplete="off" placeholder="예: 父 東國(동국)"></label>
   <p class="scan-match" hidden></p>
  </div>`;
@@ -1420,7 +1331,6 @@ function scanAddRow(){
  const generation=last?(scanRowFields(last)('generation').value||1):1;
  $('#scanList').insertAdjacentHTML('beforeend',scanRowHTML(++scanRowSeq,generation));
  const added=$('#scanList').lastElementChild;
- mountDateControls(added,false);
  scanRowFields(added)('bon_gwan').value=book?dialogScriptText(book.bon_gwan||''):'';
  bindScanRow(added);
  paintScanCount();
@@ -1683,7 +1593,6 @@ function scanFillRow(row,person,generation){
  get('gender').value=person.gender||'미상';
  get('birth_date').value=person.birth_date||'';
  get('death_date').value=person.death_date||'';
- paintDateParts(row);
  // 字·初名·墓, a daughter's husband, a day remembered without a year.
  get('note').value=person.note||'';
  // A year and its 간지 that disagree mean one of the two was misread.
