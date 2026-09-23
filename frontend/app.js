@@ -647,7 +647,12 @@ function renderTree(people){
  })).join('');
  const labels=levels.map((generation,index)=>`<text class="level-label" x="16" y="${padY+index*(nodeH+rowGap)+34}">${generation}세대</text>`).join('');
  const photoOf=id=>treeOptions.photo?book.files.find(file=>file.person_id===id&&/\.(png|jpe?g)$/i.test(file.name)):null;
- const addButton=(id,kind,glyph)=>`<button type="button" class="tree-add ${kind}" data-add="${kind}" data-person="${id}" title="${RELATIVE_LABELS[kind]} 추가" aria-label="${RELATIVE_LABELS[kind]} 추가">${glyph}</button>`;
+ // A sibling is reached through a shared parent, so the handle says up front when
+ // there is no parent to share.
+ const addButton=(id,kind,glyph,unavailable)=>{
+  const label=unavailable?'형제자매 추가 — 부모를 먼저 등록해야 합니다':RELATIVE_LABELS[kind]+' 추가';
+  return `<button type="button" class="tree-add ${kind}${unavailable?' off':''}" data-add="${kind}" data-person="${id}" title="${label}" aria-label="${label}">${glyph}</button>`;
+ };
  const cards=people.filter(p=>pos.has(p.id)).map(p=>{
   const at=pos.get(p.id),photo=photoOf(p.id);
   const tone=treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'';
@@ -659,7 +664,7 @@ function renderTree(people){
    +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
    +'</div>'
    +addButton(p.id,'parent','+')+addButton(p.id,'child','+')
-   +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+')
+   +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+',!parentsOf.has(p.id))
    +'</div>';
  }).join('');
  $('#view').innerHTML=options+wrapZoom(`<div class="tree-canvas" style="width:${width}px;height:${height}px">`
@@ -718,7 +723,7 @@ function addRelative(kind,personId){
  const anchor=book.persons.find(p=>p.id===personId);
  if(!anchor)return;
  if(kind==='sibling'&&!parentsOfPerson(anchor.id).length){
-  message(`${anchor.korean_name}의 부모가 아직 없습니다. 형제자매는 부모를 통해 이어지므로 부모부터 등록해 주세요.`,'error');
+  message(`${anchor.korean_name}은(는) 부모가 기록되어 있지 않습니다. 형제자매는 같은 부모로 이어지므로, 먼저 카드 위쪽 + 로 부모를 등록한 뒤 다시 눌러 주세요.`,'error');
   return;
  }
  editPerson();

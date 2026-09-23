@@ -171,7 +171,11 @@ header small {
 }
 
 /* ── 알림줄 ─────────────────────────────────────────── */
+/* Notices ride with the page; one shown at the very top is one nobody reads. */
 #message {
+  position: sticky;
+  top: 0;
+  z-index: 9;
   margin: 0;
   padding: 0 clamp(16px, 5vw, 56px);
   background: var(--green-wash);

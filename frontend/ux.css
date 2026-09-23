@@ -404,6 +404,11 @@ button.busy {
   opacity: 1;
 }
 
+.tree-add.off {
+  border-style: dashed;
+  color: var(--ink-faint);
+}
+
 .tree-add.parent {
   top: -13px;
   left: 50%;
