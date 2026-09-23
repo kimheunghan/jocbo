@@ -576,7 +576,6 @@ $('#relativeLink').onclick=async()=>{
 function editPerson(id){
  const f=$('#personForm');
  f.reset();dialogError();
- $('#hanjaPicker').hidden=true;
  pendingRelative=null;
  $('#relativeBanner').hidden=true;
  f.querySelector('.form-grid').hidden=false;
@@ -595,10 +594,78 @@ function editPerson(id){
 }
 $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#personDialog').close();$('#closePersonDialog').onclick=()=>$('#personDialog').close();
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
+// The picker walks a queue of fields, one syllable at a time, writing each
+// finished field back where it came from. A person's name is a queue of one.
+const HANJA_FIELD_LABELS={title:'족보명',clan_name:'성씨 / 가문',bon_gwan:'본관',branch_name:'파명',founder:'시조',hanja_name:'한자명'};
 function hanjaCandidates(syllable,index){const surnameAliases={김:['김','금'],이:['이','리'],임:['임','림'],유:['유','류'],나:['나','라'],노:['노','로'],여:['여','려'],양:['양','량']},readings=index===0?(surnameAliases[syllable]||[syllable]):[syllable],preferred={김:'金',이:'李',박:'朴',최:'崔',정:'鄭',강:'姜',조:'趙',윤:'尹',장:'張',임:'林',한:'韓',오:'吳',서:'徐',신:'申',권:'權',황:'黃',안:'安',송:'宋',전:'全',홍:'洪',유:'柳',고:'高',문:'文',양:'梁',손:'孫',배:'裵',백:'白',허:'許',남:'南',심:'沈',노:'盧'};const result=[...new Set(readings.flatMap(r=>hanjaIndex[r]||[]))].sort((a,b)=>{const common=c=>{const n=c.codePointAt(0);return n>=0x4e00&&n<=0x9fff?0:1;};return common(a)-common(b)||a.localeCompare(b,'ko');}),first=index===0?preferred[syllable]:null;if(first&&result.includes(first))return [first,...result.filter(x=>x!==first)];return result;}
-function renderHanjaStep(){const {chars,chosen,index}=hanjaState;if(index>=chars.length){$('#personForm').elements.hanja_name.value=chosen.join('');$('#hanjaPicker').hidden=true;return;}const syllable=chars[index],candidates=hanjaCandidates(syllable,index),givenName=chars.slice(1).join('');$('#hanjaStep').textContent=index===0?`성 '${syllable}'의 한자를 선택하세요`:`이름 '${givenName}' 중 '${syllable}'의 한자를 선택하세요`;$('#hanjaPreview').textContent=`선택 결과: ${chosen.join('')||'아직 선택하지 않음'}`;$('#hanjaCandidates').innerHTML=candidates.length?candidates.map(h=>`<button type="button" data-hanja="${h}" title="${syllable}">${h}</button>`).join(''):'<p>해당 음의 한자 후보가 없습니다.</p>';document.querySelectorAll('[data-hanja]').forEach(button=>button.onclick=()=>{chosen.push(button.dataset.hanja);hanjaState.index++;renderHanjaStep();});}
-$('#convertHanja').onclick=async()=>{const f=$('#personForm'),chars=Array.from(f.elements.korean_name.value.trim());if(chars.length<2){dialogError('한글 성명을 먼저 입력하세요.',f.elements.korean_name);return;}dialogError();try{await busy($('#convertHanja'),'불러오는 중…',loadHanjaIndex);hanjaState={chars,chosen:[],index:0};$('#hanjaPicker').hidden=false;renderHanjaStep();}catch(err){dialogError(err.message);}};
-$('#closeHanja').onclick=()=>{$('#hanjaPicker').hidden=true;};
+function finishHanjaField(){
+ const {target,chosen,rest}=hanjaState;
+ target.value=chosen.join('')+rest;
+ target.dispatchEvent(new Event('input',{bubbles:true}));
+ startHanjaField();
+}
+function startHanjaField(){
+ const queue=hanjaState?hanjaState.queue:[];
+ const next=queue.shift();
+ if(!next){$('#hanjaDialog').close();hanjaState=null;return;}
+ // Only hangul syllables are picked; anything else rides along untouched.
+ const text=next.value.trim(),chars=Array.from(text).filter(ch=>/[가-힣]/.test(ch));
+ const rest=Array.from(text).filter(ch=>!/[가-힣]/.test(ch)).join('');
+ if(!chars.length){hanjaState.queue=queue;startHanjaField();return;}
+ hanjaState={chars,chosen:[],index:0,target:next,rest,queue,label:HANJA_FIELD_LABELS[next.name]||''};
+ if(!$('#hanjaDialog').open)$('#hanjaDialog').showModal();
+ renderHanjaStep();
+}
+function renderHanjaStep(){
+ const {chars,chosen,index,label}=hanjaState;
+ if(index>=chars.length){finishHanjaField();return;}
+ const syllable=chars[index];
+ const candidates=hanjaCandidates(syllable,index);
+ $('#hanjaStep').textContent=`${label?label+' — ':''}'${syllable}'의 한자를 고르세요`;
+ $('#hanjaPreview').textContent=`${chars.join('')} · 고른 글자: ${chosen.join('')||'아직 없음'}`;
+ $('#hanjaCandidates').innerHTML=candidates.length
+  ?candidates.map(h=>`<button type="button" data-hanja="${h}" title="${syllable}">${h}</button>`).join('')
+  :`<p>'${esc(syllable)}' 음의 한자가 사전에 없습니다. 그대로 두고 넘어갑니다.</p>`;
+ if(!candidates.length){chosen.push(syllable);hanjaState.index++;renderHanjaStep();return;}
+ document.querySelectorAll('[data-hanja]').forEach(button=>button.onclick=()=>{
+  chosen.push(button.dataset.hanja);hanjaState.index++;renderHanjaStep();
+ });
+}
+async function openHanjaPicker(fields,busyButton){
+ const queue=fields.filter(field=>field&&field.value.trim());
+ if(!queue.length)return '한글로 적은 칸이 없습니다.';
+ await busy(busyButton,'사전 여는 중…',loadHanjaIndex);
+ hanjaState={queue};
+ startHanjaField();
+ return '';
+}
+$('#closeHanja').onclick=()=>{
+ if(hanjaState&&hanjaState.target)finishHanjaField();
+ else{$('#hanjaDialog').close();hanjaState=null;}
+};
+$('#convertHanja').onclick=async()=>{
+ const form=$('#personForm'),name=form.elements.korean_name.value.trim();
+ if(Array.from(name).filter(ch=>/[가-힣]/.test(ch)).length<2){
+  dialogError('한글 성명을 먼저 입력하세요.',form.elements.korean_name);return;
+ }
+ dialogError();
+ // The picker writes into 한자명, so it reads the hangul name through a stand-in.
+ const source=Object.assign(document.createElement('input'),{name:'hanja_name',value:name});
+ try{
+  await openHanjaPicker([source],$('#convertHanja'));
+  if(hanjaState)hanjaState.target=form.elements.hanja_name;
+ }catch(err){dialogError(err.message);}
+};
+document.querySelectorAll('[data-hanja-form]').forEach(button=>{
+ button.onclick=async()=>{
+  const form=button.closest('form');
+  const fields=['title','clan_name','bon_gwan','branch_name','founder'].map(name=>form.elements[name]);
+  try{
+   const note=await openHanjaPicker(fields,button);
+   if(note)message(note,'error');
+  }catch(err){message(err.message,'error');}
+ };
+});
 $('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);try{const relative=pendingRelative;const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?'인물을 저장했습니다.':relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록했습니다.`:'인물을 등록했습니다. 검색어를 해제해 전체를 보여 드립니다.');}catch(err){dialogError(err.message);}};
 $('#deletePerson').onclick=async()=>{if(!confirm('이 인물과 연결된 관계 및 첨부파일이 모두 삭제됩니다. 계속할까요?'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('인물을 삭제했습니다.');}catch(err){dialogError(err.message);}};
 $('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};

@@ -697,6 +697,20 @@ dialog h2 {
   width: min(480px, 94vw);
 }
 
+#hanjaDialog {
+  width: min(430px, 94vw);
+}
+
+#hanjaDialog h2 {
+  margin-bottom: 10px;
+  padding-bottom: 12px;
+  font-size: 17px;
+}
+
+#hanjaDialog p {
+  margin: 0 0 12px;
+}
+
 #bookDialog form {
   margin: 0;
 }
