@@ -507,11 +507,12 @@ function spouseHosts(){
 }
 // The list is read the way the book is: generation by generation, and within
 // one each father's children together, sons before daughters, eldest first.
-// Someone who married in follows their spouse, as the book sets them in the
-// spouse's column.
+// Those who married in take no part in that order: they come after the line's
+// own people of their generation, in the order of the spouses they married.
 function inBookOrder(people){
  const {byId,hostOf}=spouseHosts();
  const fatherOf=fatherIndex(byId),keys=new Map();
+ const guest=person=>byId.has(hostOf.get(person.id))?1:0;
  const keyOf=person=>{
   if(!keys.has(person.id)){
    const host=byId.get(hostOf.get(person.id));
@@ -519,7 +520,7 @@ function inBookOrder(people){
   }
   return keys.get(person.id);
  };
- return people.slice().sort((a,b)=>a.generation-b.generation||compareKeys(keyOf(a),keyOf(b)));
+ return people.slice().sort((a,b)=>a.generation-b.generation||guest(a)-guest(b)||compareKeys(keyOf(a),keyOf(b)));
 }
 function fatherIndex(byId){
  const fatherOf=new Map();
