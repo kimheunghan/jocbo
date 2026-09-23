@@ -170,24 +170,42 @@ header small {
   font: 24px/1 var(--serif);
 }
 
-/* ── 알림줄 ─────────────────────────────────────────── */
-/* Notices ride with the page; one shown at the very top is one nobody reads. */
+/* ── 알림창 ─────────────────────────────────── */
+/* A squared-off box held in the middle of the screen. Stretched along the top
+   edge it fell outside a zoomed tree's view, so nobody read it. */
 #message {
-  position: sticky;
-  top: 0;
-  z-index: 9;
+  position: fixed;
+  top: 18vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(380px, calc(100vw - 32px));
   margin: 0;
-  padding: 0 clamp(16px, 5vw, 56px);
-  background: var(--green-wash);
+  padding: 26px 28px 20px;
+  border: 1px solid #b7c7bc;
+  background: var(--paper-raised);
+  box-shadow: 0 20px 52px #26242033, 0 2px 8px #2624201a;
   color: var(--green-deep);
   font-size: 14px;
+  line-height: 1.7;
+  text-align: center;
   white-space: pre-wrap;
+  cursor: pointer;
 }
 
-#message:not(:empty) {
+/* The box says how to dismiss it, so no stray close glyph is needed. */
+#message::after {
+  display: block;
+  margin-top: 18px;
   padding-top: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line-soft);
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-faint);
+  font-size: 12px;
+  content: "누르면 닫힙니다";
+}
+
+#message:empty {
+  display: none;
 }
 
 /* ── 입력과 단추 ────────────────────────────────────── */

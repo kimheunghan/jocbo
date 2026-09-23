@@ -203,7 +203,17 @@ function paintPersonScript(){
   if(input)setPersonScriptField(name,input.dataset.stored??input.value);
  }
 }
-function message(text, type='success') { const el=$('#message');el.textContent=text;el.classList.toggle('error',type==='error'); }
+// The notice now covers part of the page, so it clears itself once it has been
+// read — an error is left up longer than a confirmation.
+let messageTimer;
+function message(text, type='success') {
+ const el=$('#message');
+ el.textContent=text;
+ el.classList.toggle('error',type==='error');
+ clearTimeout(messageTimer);
+ if(text)messageTimer=setTimeout(()=>{el.textContent='';},type==='error'?14000:4500);
+}
+$('#message').onclick=()=>message('');
 function errorText(detail) {
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) return detail.map(x => x.msg?.replace(/^Value error, /, '') || '입력값을 확인해 주세요.').join('\n');
