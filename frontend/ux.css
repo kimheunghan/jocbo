@@ -192,12 +192,25 @@ button.busy {
 }
 
 /* The sizer is the scrollable box; the body inside it is what gets scaled. */
+/* The bar floats with the page so the controls stay in reach part way down a
+   three-sheet book. */
 .zoom-bar {
+  position: sticky;
+  top: 64px;
+  z-index: 6;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  width: max-content;
+  max-width: 100%;
   margin-bottom: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fffdf8f2;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(3px);
 }
 
 .zoom-bar button {

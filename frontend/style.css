@@ -392,14 +392,20 @@ body.resizing {
   font-size: 12px;
 }
 
-/* The view tabs and the script switch share one row. */
+/* The view tabs and the script switch share one row, and that row rides with the
+   page so both stay in reach part way down a long tree or book. */
 .view-bar {
+  position: sticky;
+  top: 0;
+  z-index: 7;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 22px;
+  margin-bottom: 14px;
+  padding: 10px 0;
+  background: var(--paper);
 }
 
 .view-bar nav {
