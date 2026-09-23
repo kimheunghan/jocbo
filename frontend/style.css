@@ -37,8 +37,8 @@
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track,
@@ -46,15 +46,22 @@
   background: transparent;
 }
 
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* 3px of transparent border either side leaves a 2px bar — a line, not a column.
+   Under the pointer it thickens to 4px so it is still easy to take hold of. */
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 99px;
-  background: #2624202e;
+  background: #26242033;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #26242059;
+  border-width: 2px;
+  background: #2624206b;
   background-clip: content-box;
 }
 

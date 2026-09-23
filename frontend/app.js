@@ -65,7 +65,10 @@ function readingOf(text){
  let changed=false;
  const out=chars.map((ch,index)=>{
   if(!/[一-鿿]/.test(ch))return ch;
-  if(chars[index+1]==='氏'&&HANJA_SURNAME[ch]){changed=true;return HANJA_SURNAME[ch];}
+  // A surname reads as a surname where a name begins: before 氏, or at the start of
+  // a word, which is what 金之岱 is inside 英憲公(金之岱).
+  const opensWord=index===0||!/[一-鿿]/.test(chars[index-1]);
+  if(HANJA_SURNAME[ch]&&(chars[index+1]==='氏'||opensWord)){changed=true;return HANJA_SURNAME[ch];}
   let reading=(hanjaReadings[ch]||'').split(/[,/\s]+/)[0];
   if(!reading)return ch;
   if(index===0&&INITIAL_SOUND[reading])reading=INITIAL_SOUND[reading];
@@ -126,8 +129,14 @@ $('#scriptToggle').onclick=async()=>{
 function paintBookFacts(){
  const box=$('#bookFacts');
  if(!book){box.hidden=true;return;}
+ // A 족보's description opens with its 始祖, so that line is labelled as such and
+ // the word itself is dropped — the label already says it.
+ let note=(book.description||'').trim().split(String.fromCharCode(10))[0].trim(),noteLabel='비고';
+ for(const mark of ['始祖','시조']){
+  if(note.startsWith(mark)){noteLabel='시조';note=note.slice(mark.length).trim();break;}
+ }
  const items=[['성씨 / 가문',book.clan_name],['본관',book.bon_gwan],['파명',book.branch_name],
-  ['권',book.volume?book.volume+'권':''],['비고',(book.description||'').trim().split(String.fromCharCode(10))[0]]]
+  ['권',book.volume?book.volume+'권':''],[noteLabel,note]]
   .filter(([,value])=>value);
  box.hidden=!items.length;
  box.innerHTML=items.map(([label,value])=>{
