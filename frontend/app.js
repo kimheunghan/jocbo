@@ -3,6 +3,43 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 let book = null, view = 'people', hanjaIndex = null, hanjaState = null;
 $('#newBook').onclick=()=>{$('#bookDialog').showModal();setTimeout(()=>$('#bookForm').elements.title.focus(),0);};
 $('#closeBookDialog').onclick=()=>$('#bookDialog').close();
+// The sidebar width is the reader's to set, and it is remembered per browser.
+const SIDE_MIN=200,SIDE_MAX=620;
+let sideWidth=286;
+try{sideWidth=Number(localStorage.getItem('jocbo.sideWidth'))||sideWidth;}catch{}
+function applySideWidth(px){
+ sideWidth=Math.min(SIDE_MAX,Math.max(SIDE_MIN,Math.round(px)));
+ document.documentElement.style.setProperty('--side-width',sideWidth+'px');
+ $('#sideResizer').setAttribute('aria-valuenow',String(sideWidth));
+ try{localStorage.setItem('jocbo.sideWidth',String(sideWidth));}catch{}
+}
+applySideWidth(sideWidth);
+$('#sideResizer').setAttribute('aria-valuemin',String(SIDE_MIN));
+$('#sideResizer').setAttribute('aria-valuemax',String(SIDE_MAX));
+$('#sideResizer').onpointerdown=event=>{
+ event.preventDefault();
+ const handle=$('#sideResizer'),left=$('#workspace').getBoundingClientRect().left;
+ // Capture keeps the drag alive over the page; the window listeners keep it alive
+ // even where capture is refused.
+ try{handle.setPointerCapture(event.pointerId);}catch{}
+ document.body.classList.add('resizing');
+ const move=moved=>applySideWidth(moved.clientX-left);
+ const stop=()=>{
+  window.removeEventListener('pointermove',move);
+  window.removeEventListener('pointerup',stop);
+  window.removeEventListener('pointercancel',stop);
+  document.body.classList.remove('resizing');
+ };
+ window.addEventListener('pointermove',move);
+ window.addEventListener('pointerup',stop);
+ window.addEventListener('pointercancel',stop);
+};
+$('#sideResizer').ondblclick=()=>applySideWidth(286);
+$('#sideResizer').onkeydown=event=>{
+ const step=event.shiftKey?48:16;
+ if(event.key==='ArrowLeft'){applySideWidth(sideWidth-step);event.preventDefault();}
+ if(event.key==='ArrowRight'){applySideWidth(sideWidth+step);event.preventDefault();}
+};
 const searchNotice=document.createElement('p');
 searchNotice.id='searchNotice';searchNotice.className='search-notice';searchNotice.hidden=true;
 $('#view').before(searchNotice);
@@ -41,13 +78,37 @@ function readingOf(text){
 function scriptText(text){
  return scriptMode==='hangul'?(readingOf(text)||text):text;
 }
+const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name'];
+// The edit fields read in whichever script is switched on. Each remembers what is
+// on record and what it was shown as, so reading a book in hangul and saving it
+// never overwrites the hanja — only a field the user actually typed into changes.
+function paintBookFields(){
+ if(!book)return;
+ for(const name of BOOK_SCRIPT_FIELDS){
+  const input=$('#bookInfoForm').elements[name];
+  if(!input)continue;
+  const stored=book[name]||'';
+  input.dataset.stored=stored;
+  input.value=scriptText(stored);
+  input.dataset.shown=input.value;
+ }
+}
+function bookFormValues(form){
+ const data=formData(form);
+ for(const name of BOOK_SCRIPT_FIELDS){
+  const input=form.elements[name];
+  if(input&&input.value===input.dataset.shown)data[name]=input.dataset.stored;
+ }
+ return data;
+}
 function paintReadings(){
  if(!book)return;
- for(const name of ['title','clan_name','bon_gwan','branch_name']){
+ for(const name of BOOK_SCRIPT_FIELDS){
   const input=$('#bookInfoForm').elements[name];
   if(!input)continue;
   let hint=input.parentElement.querySelector('.reading');
   if(!hint){hint=document.createElement('small');hint.className='reading';input.after(hint);}
+  // Only hanja needs explaining; in hangul the box already reads plainly.
   const reading=readingOf(input.value);
   hint.textContent=reading;
   hint.hidden=!reading;
@@ -70,8 +131,8 @@ function paintBookFacts(){
   .filter(([,value])=>value);
  box.hidden=!items.length;
  box.innerHTML=items.map(([label,value])=>{
-  const reading=readingOf(value);
-  return `<div><dt>${esc(label)}</dt><dd>${esc(value)}${reading?`<span>${esc(reading)}</span>`:''}</dd></div>`;
+  const primary=scriptText(value),other=primary===value?readingOf(value):value;
+  return `<div><dt>${esc(label)}</dt><dd>${esc(primary)}${other?`<span>${esc(other)}</span>`:''}</dd></div>`;
  }).join('');
 }
 function paintScriptToggle(){
@@ -101,13 +162,13 @@ function validDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;con
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(scriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book)for(const name of ['title','clan_name','bon_gwan','branch_name','volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintReadings();paintBookFacts();render();renderRelations();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'새 족보를 만들어 주세요';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
 $('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',formData(e.target));e.target.reset();e.target.elements.volume.value='1';$('#bookDialog').close();await loadBooks(r.id);message('새 족보를 만들었습니다.');});
 $('#bookInfoForm').oninput=paintReadings;
-$('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',formData(e.target)));await loadBooks(book.id);message('족보 기본정보를 저장했습니다.');});
+$('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',bookFormValues(e.target)));await loadBooks(book.id);message('족보 기본정보를 저장했습니다.');});
 $('#bookSelect').onchange=run(refresh);
 $('#search').oninput=render;
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
