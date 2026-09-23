@@ -456,9 +456,13 @@ function wrapZoom(inner){
   +'<small>끌어서 이동 · Ctrl + 휠로 확대·축소</small></div>'
   +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`;
 }
+// Switching script or a display option redraws the whole view, so where the
+// reader had scrolled to is kept and put back rather than snapping to the corner.
+const zoomScrollAt=new Map();
 function bindZoom(key){
  const scroll=$('.zoom-scroll'),sizer=$('.zoom-sizer'),body=$('.zoom-body'),level=$('.zoom-level');
  if(!scroll)return;
+ const wasAt=zoomScrollAt.get(key);
  body.style.transform='none';
  const base={w:body.scrollWidth,h:body.scrollHeight};
  let zoom=1;
@@ -479,6 +483,8 @@ function bindZoom(key){
   try{localStorage.setItem('jocbo.zoom.'+key,String(zoom));}catch{}
  };
  apply(zoom);
+ if(wasAt){scroll.scrollLeft=wasAt.left;scroll.scrollTop=wasAt.top;}
+ scroll.addEventListener('scroll',()=>zoomScrollAt.set(key,{left:scroll.scrollLeft,top:scroll.scrollTop}));
  // Dragging the canvas beats reaching for the scrollbar once the tree is wider
  // than the window. The plain wheel keeps scrolling; Ctrl with it zooms about the
  // pointer, which stays put while everything around it grows.
