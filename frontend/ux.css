@@ -191,11 +191,47 @@ button.busy {
   accent-color: var(--green);
 }
 
-.tree-scroll {
+/* The sizer is the scrollable box; the body inside it is what gets scaled. */
+.zoom-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.zoom-bar button {
+  min-width: 36px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.zoom-level {
+  min-width: 54px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-align: center;
+}
+
+.zoom-bar small {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.zoom-scroll {
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper-raised);
+}
+
+.zoom-sizer {
+  position: relative;
+}
+
+.zoom-body {
+  width: max-content;
+  transform-origin: 0 0;
 }
 
 .tree-canvas {
@@ -406,8 +442,25 @@ button.busy {
 }
 
 @media print {
-  .tree-options {
+  .tree-options,
+  .zoom-bar {
     display: none;
+  }
+
+  /* Paper prints at full size whatever the screen is zoomed to. */
+  .zoom-scroll {
+    overflow: visible;
+    border: 0;
+    background: none;
+  }
+
+  .zoom-sizer {
+    width: auto !important;
+    height: auto !important;
+  }
+
+  .zoom-body {
+    transform: none !important;
   }
 }
 

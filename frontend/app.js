@@ -243,7 +243,7 @@ function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classLis
  // A filter left in the search box silently empties the tree and the book, so say so.
  if(q){searchNotice.hidden=false;searchNotice.innerHTML=`<span>검색 <strong>${esc($('#search').value.trim())}</strong> · 전체 ${book.persons.length}명 중 <strong>${people.length}명</strong>만 보고 있습니다.</span><button type="button" id="clearSearch">전체 보기</button>`;$('#clearSearch').onclick=()=>{$('#search').value='';render();};}
  if(view==='tree'){renderTree(people);return;}
- if(view==='book'){$('#view').innerHTML=bookHTML(people);return;}
+ if(view==='book'){const sheets=bookHTML(people);$('#view').innerHTML=sheets.includes('traditional-book')?wrapZoom(sheets):sheets;bindZoom('book');return;}
  $('#view').innerHTML=people.length?'<div class="cards">'+people.map(personCard).join('')+'</div>':'<p class="empty">등록된 인물 또는 검색 결과가 없습니다.</p>';
  document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>editPerson(Number(b.dataset.person)));
 }
@@ -443,6 +443,52 @@ function orderMembers(host,mates){
  mates.forEach((mate,index)=>(index%2?left:right).push(mate));
  return [...left.reverse(),host,...right];
 }
+// Zooming keeps the point under the pointer still, so a wide tree can be pulled
+// back to see its shape and pushed in to read a card without losing your place.
+const ZOOM_MIN=0.25,ZOOM_MAX=3;
+function wrapZoom(inner){
+ return '<div class="zoom-bar">'
+  +'<button type="button" class="secondary" data-zoom="out" aria-label="축소">−</button>'
+  +'<span class="zoom-level">100%</span>'
+  +'<button type="button" class="secondary" data-zoom="in" aria-label="확대">+</button>'
+  +'<button type="button" class="secondary" data-zoom="reset">100%</button>'
+  +'<button type="button" class="secondary" data-zoom="fit">맞추기</button>'
+  +'<small>Ctrl + 마우스 휠로도 확대·축소</small></div>'
+  +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`;
+}
+function bindZoom(key){
+ const scroll=$('.zoom-scroll'),sizer=$('.zoom-sizer'),body=$('.zoom-body'),level=$('.zoom-level');
+ if(!scroll)return;
+ body.style.transform='none';
+ const base={w:body.scrollWidth,h:body.scrollHeight};
+ let zoom=1;
+ try{zoom=Number(localStorage.getItem('jocbo.zoom.'+key))||1;}catch{}
+ const apply=(next,pointerX,pointerY)=>{
+  const previous=zoom;
+  zoom=Math.min(ZOOM_MAX,Math.max(ZOOM_MIN,next));
+  const box=scroll.getBoundingClientRect();
+  const ax=pointerX===undefined?box.width/2:pointerX-box.left;
+  const ay=pointerY===undefined?box.height/2:pointerY-box.top;
+  const px=(scroll.scrollLeft+ax)/previous,py=(scroll.scrollTop+ay)/previous;
+  body.style.transform=`scale(${zoom})`;
+  sizer.style.width=Math.round(base.w*zoom)+'px';
+  sizer.style.height=Math.round(base.h*zoom)+'px';
+  scroll.scrollLeft=px*zoom-ax;
+  scroll.scrollTop=py*zoom-ay;
+  level.textContent=Math.round(zoom*100)+'%';
+  try{localStorage.setItem('jocbo.zoom.'+key,String(zoom));}catch{}
+ };
+ apply(zoom);
+ scroll.addEventListener('wheel',event=>{
+  if(!event.ctrlKey&&!event.metaKey)return;
+  event.preventDefault();
+  apply(zoom*(event.deltaY<0?1.12:1/1.12),event.clientX,event.clientY);
+ },{passive:false});
+ $('[data-zoom="in"]').onclick=()=>apply(zoom*1.2);
+ $('[data-zoom="out"]').onclick=()=>apply(zoom/1.2);
+ $('[data-zoom="reset"]').onclick=()=>apply(1);
+ $('[data-zoom="fit"]').onclick=()=>apply((scroll.clientWidth-26)/base.w);
+}
 function renderTree(people){
  const options=treeOptionsHTML();
  if(!people.length){$('#view').innerHTML=options+'<p class="empty">표시할 인물이 없습니다.</p>';bindTreeOptions();return;}
@@ -564,9 +610,10 @@ function renderTree(people){
    +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+')
    +'</div>';
  }).join('');
- $('#view').innerHTML=options+`<div class="tree-scroll"><div class="tree-canvas" style="width:${width}px;height:${height}px">`
-  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${mateLines}${labels}</svg>${cards}</div></div>`;
+ $('#view').innerHTML=options+wrapZoom(`<div class="tree-canvas" style="width:${width}px;height:${height}px">`
+  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${mateLines}${labels}</svg>${cards}</div>`);
  bindTreeOptions();
+ bindZoom('tree');
  document.querySelectorAll('[data-tree-person]').forEach(node=>node.onclick=()=>editPerson(Number(node.dataset.treePerson)));
  document.querySelectorAll('[data-add]').forEach(node=>node.onclick=()=>addRelative(node.dataset.add,Number(node.dataset.person)));
 }
