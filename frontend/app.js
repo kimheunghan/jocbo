@@ -1358,3 +1358,50 @@ $('#scanSave').onclick=async()=>{
    '가족 관계는 각 인물의 가족 추가로 이어 주세요.'].filter(Boolean).join(' '));
  }catch(err){scanError(err.message);}
 };
+
+// ── 판독 ─────────────────────────────────
+// The reader proposes; it never files. Every line it offers lands in the same
+// boxes a hand would have typed into, so it is corrected before it counts — and
+// a woodblock page will always give it some trouble.
+function scanFillRow(row,person,generation){
+ const get=scanRowFields(row);
+ get('generation').value=generation;
+ get('hanja_name').value=person.hanja_name||'';
+ // The page gives the characters; the reading follows from them.
+ get('korean_name').value=readingOf(person.hanja_name||'')||'';
+ get('bon_gwan').value=person.bon_gwan||(book?book.bon_gwan||'':'');
+ get('gender').value=person.gender||'미상';
+ get('birth_date').value=person.birth_date||'';
+ get('note').value='';
+ // A year and its 간지 that disagree mean one of the two was misread.
+ row.classList.toggle('doubted',person.ganji_agrees===false);
+ row.title=person.ganji_agrees===false?'연도와 간지가 어긋납니다. 원본을 다시 보세요.':'';
+ paintScanMatch(row);
+}
+$('#scanRead').onclick=async()=>{
+ scanError();
+ const id=Number($('#scanPick').value);
+ if(!id){scanError('먼저 족보 이미지를 올리세요.');return;}
+ let found;
+ try{
+  found=await busy($('#scanRead'),'판독 중…',()=>api('/scans/'+id+'/read','POST'));
+ }catch(err){scanError(err.message);return;}
+ const people=found.people||[];
+ const note=$('#scanReadNote');
+ note.hidden=false;
+ if(!people.length){
+  note.textContent='이 이미지에서는 사람을 찾지 못했습니다. 더 선명한 이미지를 올리거나 직접 적어 주세요.';
+  return;
+ }
+ const first=Number($('#scanFirstGeneration').value)||1;
+ $('#scanList').innerHTML='';
+ scanRowSeq=0;
+ for(const person of people){
+  const row=scanAddRow();
+  scanFillRow(row,person,Math.min(200,first+(person.band||0)));
+ }
+ const doubted=people.filter(person=>person.ganji_agrees===false).length;
+ note.textContent=`${people.length}명을 읽었습니다. 목판 인쇄는 빠지거나 틀리는 글자가 있으니 원본과 대조해 고친 뒤 등록하세요.`
+  +(doubted?` 연도와 간지가 어긋난 줄 ${doubted}개는 붉게 표시했습니다.`:' 적힌 연도와 간지는 모두 서로 맞습니다.');
+ paintScanCount();
+};

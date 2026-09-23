@@ -1021,3 +1021,28 @@ button.busy {
   background: #23456f;
   color: #fff;
 }
+
+.scan-start {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.scan-start label {
+  flex: none;
+  width: 150px;
+  margin: 0;
+}
+
+#scanReadNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* A year that does not match its 간지 means one of the two was misread. */
+.scan-row.doubted {
+  border-color: #dfaaa4;
+  background: #fff5f3;
+}

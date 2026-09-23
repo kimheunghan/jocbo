@@ -345,6 +345,26 @@ async def upload_scan(bid: int, file: UploadFile, uid=Depends(auth)):
         raise
     return {'id': sid, 'name': name}
 
+@app.post('/api/scans/{sid}/read')
+def read_page(sid: int, uid=Depends(auth)):
+    # The reading is only ever a proposal: it is handed back for correction and
+    # nothing is written to the record here.
+    from backend import readscan
+    if not readscan.available():
+        raise HTTPException(503, '판독기가 설치되어 있지 않습니다. requirements.txt의 rapidocr-onnxruntime을 설치해 주세요.')
+    with engine.connect() as c:
+        row = c.execute(select(scans).where(scans.c.id == sid)).mappings().first()
+        if not row:
+            raise HTTPException(404, '스캔이 없습니다.')
+        book = own_book(c, row['book_id'], uid)
+    # The page leaves the family name off a child of the line, so it is taken
+    # from the book itself.
+    surname = (book['clan_name'] or '').replace('氏', '').strip()[:1]
+    try:
+        return readscan.read(str(UPLOADS / row['storage_key']), surname=surname)
+    except Exception as problem:
+        raise HTTPException(500, f'판독하지 못했습니다: {problem}')
+
 @app.get('/api/scans/{sid}')
 def read_scan(sid: int, uid=Depends(auth)):
     with engine.connect() as c:
