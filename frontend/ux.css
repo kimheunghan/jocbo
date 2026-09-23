@@ -243,7 +243,7 @@ button.busy {
   touch-action: pan-x pan-y;
 }
 
-/* Text stays selectable where there is text; only the empty canvas is a handle. */
+/* The sheet's prose keeps a text cursor; the rest of the canvas is a handle. */
 .zoom-scroll .genealogy-person,
 .zoom-scroll .genealogy-side,
 .zoom-scroll .genealogy-branch,

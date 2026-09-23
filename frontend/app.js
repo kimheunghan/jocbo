@@ -494,10 +494,12 @@ function bindZoom(key){
   apply(zoom*(event.deltaY<0?1.12:1/1.12),event.clientX,event.clientY);
  },{passive:false});
  let pan=null,dragged=false;
- // Where the press lands decides what the drag means: empty canvas moves the
- // view, a card or a line of text is left alone so it can be selected or clicked.
- // The middle button moves the view from anywhere.
- const KEEPS_ITS_OWN_DRAG='.tree-card,.tree-add,.genealogy-person,.genealogy-side,.genealogy-branch,.genealogy-generation h3,button,a,input,textarea,select';
+ // Where the press lands decides what the drag means. Running prose is left alone
+ // so it can be swept and copied; everywhere else — canvas, cards, the handles on
+ // them — moves the view, since a press inside a button never starts a selection
+ // anyway and a drag there would otherwise do nothing at all. A press that does
+ // not move still counts as a click.
+ const KEEPS_ITS_OWN_DRAG='.genealogy-person,.genealogy-side,.genealogy-branch,.genealogy-generation h3,input,textarea,select,a';
  scroll.addEventListener('pointerdown',event=>{
   const middle=event.button===1;
   if(!middle&&event.button!==0)return;
