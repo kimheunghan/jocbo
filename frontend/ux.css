@@ -420,13 +420,16 @@ button.busy {
   }
 }
 
+/* The sheet is one A4 page at 96dpi, so the preview is laid out exactly as it
+   prints — same columns, same type, same line breaks. */
 .traditional-book {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px 88px;
+  grid-template-columns: minmax(0, 1fr) 44px 72px;
   grid-template-rows: 1fr;
-  min-width: 900px;
-  min-height: 1240px;
+  width: 680px;
+  height: 945px;
   padding: 0;
+  overflow: hidden;
   border: 4px double #555747;
   background: #fffdf4;
   color: #1f241f;
@@ -440,11 +443,11 @@ button.busy {
 .genealogy-branch {
   writing-mode: vertical-rl;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
-  padding: 26px 10px;
+  padding: 18px 7px;
   border-left: 1px solid #77796a;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
 }
 
 .genealogy-side {
@@ -455,12 +458,12 @@ button.busy {
 }
 
 .genealogy-side strong {
-  font-size: 25px;
+  font-size: 21px;
   font-weight: 500;
 }
 
 .genealogy-side span {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .genealogy-side small {
@@ -472,7 +475,7 @@ button.busy {
 .genealogy-branch {
   grid-column: 2;
   grid-row: 1;
-  font: 700 21px/1 "Batang", serif;
+  font: 700 18px/1 "Batang", serif;
 }
 
 .genealogy-body {
@@ -487,7 +490,7 @@ button.busy {
    run edge to edge even where a generation has no entry yet. */
 .genealogy-generation {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px;
+  grid-template-columns: minmax(0, 1fr) 40px;
   flex: 1 1 0;
   min-height: 0;
   border-bottom: 1px solid #77796a;
@@ -505,10 +508,10 @@ button.busy {
   align-items: center;
   justify-content: center;
   margin: 0;
-  padding: 10px 8px;
+  padding: 8px 5px;
   border-left: 1px solid #77796a;
-  font: 400 17px/1.3 "Batang", serif;
-  letter-spacing: 2px;
+  font: 400 14px/1.3 "Batang", serif;
+  letter-spacing: 1px;
 }
 
 .genealogy-entries {
@@ -519,7 +522,7 @@ button.busy {
   justify-content: flex-start;
   align-items: stretch;
   min-width: 0;
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 /* One person is one vertical text block; long lines wrap into further columns to
@@ -528,28 +531,28 @@ button.busy {
   writing-mode: vertical-rl;
   flex: 0 0 auto;
   height: 100%;
-  padding: 14px 8px 14px 15px;
-  font: 14px/1.32 "Batang", serif;
+  padding: 8px 4px 8px 7px;
+  font: 11px/1.28 "Batang", serif;
 }
 
 .genealogy-person strong {
-  font-size: 25px;
+  font-size: 18px;
   font-weight: 500;
-  letter-spacing: 1px;
+  letter-spacing: 0;
 }
 
 /* The book sets the 子/女 mark smaller than the name and leaves a small gap after
    it; margin-inline-end is the gap below the mark in vertical text. */
 .genealogy-person strong i {
-  margin-inline-end: 5px;
-  font-size: 16px;
+  margin-inline-end: 4px;
+  font-size: 12px;
   font-style: normal;
   letter-spacing: 0;
 }
 
 .genealogy-person strong em {
   color: #39443d;
-  font-size: 12px;
+  font-size: 9.5px;
   font-style: normal;
   letter-spacing: 0;
 }
@@ -560,8 +563,8 @@ button.busy {
 
 .genealogy-person .genealogy-note {
   color: #47504a;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .genealogy-empty {
@@ -570,12 +573,13 @@ button.busy {
 }
 
 @media print {
+  /* The screen sheet is already one A4 page; print only restates it in mm so the
+     browser fits it to the paper, and keeps the grid from being split up. */
   .traditional-book {
-    width: 182mm;
-    min-width: 0;
-    min-height: 258mm;
+    width: 180mm;
+    height: 250mm;
     margin: 0;
-    padding: 0;
+    break-inside: avoid;
     break-after: page;
   }
 
@@ -583,26 +587,18 @@ button.busy {
     break-after: auto;
   }
 
-  .genealogy-entries {
-    overflow: visible;
+  .traditional-book + .traditional-book {
+    margin-top: 0;
   }
 
+  .genealogy-body,
+  .genealogy-generation,
+  .genealogy-entries,
   .genealogy-person {
-    padding: 9px 5px 9px 10px;
-    font-size: 11.5px;
-    line-height: 1.3;
+    break-inside: avoid;
   }
 
-  .genealogy-person strong {
-    font-size: 20px;
-  }
-
-  .genealogy-person strong i {
-    margin-inline-end: 4px;
-    font-size: 13px;
-  }
-
-  .genealogy-person .genealogy-note {
-    font-size: 10.5px;
+  .tree-options {
+    display: none;
   }
 }

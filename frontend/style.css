@@ -276,7 +276,9 @@ main {
   min-height: 74vh;
 }
 
-aside {
+/* The book page uses <aside> for its title and branch columns too, so the
+   sidebar rules are tied to the workspace sidebar alone. */
+#workspace > aside {
   position: sticky;
   top: 0;
   padding: 26px 22px 34px;
@@ -284,11 +286,11 @@ aside {
   background: var(--paper-sunk);
 }
 
-aside h2 {
+#workspace > aside h2 {
   margin-bottom: 18px;
 }
 
-aside form {
+#workspace > aside form {
   margin: 20px 0;
   padding: 18px 16px;
   border: 1px solid var(--line);
@@ -296,14 +298,14 @@ aside form {
   background: var(--paper-raised);
 }
 
-aside form h3 {
+#workspace > aside form h3 {
   margin-bottom: 14px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--green-deep);
 }
 
-aside form button {
+#workspace > aside form button {
   width: 100%;
 }
 
@@ -582,7 +584,7 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  aside {
+  #workspace > aside {
     position: static;
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -631,7 +633,9 @@ footer {
   }
 
   header,
-  aside,
+  /* Only the app's own sidebar — the book page's title and branch columns are
+     <aside> too, and hiding those blanked them out of every printed sheet. */
+  #workspace > aside,
   footer,
   #message,
   .page-title,
