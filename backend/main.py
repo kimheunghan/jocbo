@@ -287,4 +287,18 @@ def download(fid: int, uid=Depends(auth)):
         own_person(c, row['person_id'], uid)
     return FileResponse(UPLOADS / row['storage_key'], filename=row['name'], media_type='application/octet-stream', headers={'X-Content-Type-Options': 'nosniff'})
 
-app.mount('/', StaticFiles(directory=ROOT / 'frontend', html=True), name='frontend')
+class FreshStatic(StaticFiles):
+    """Ask the browser to revalidate every file.
+
+    Without a Cache-Control header the browser is free to guess how long a file
+    stays good, and it guesses long enough that an edited page keeps loading the
+    old script until someone forces a reload.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
+
+
+app.mount('/', FreshStatic(directory=ROOT / 'frontend', html=True), name='frontend')
