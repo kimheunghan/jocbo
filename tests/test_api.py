@@ -161,3 +161,27 @@ def test_password_is_hashed_and_session_expires(client):
         assert cred['password'] not in user['password_hash']
         c.execute(m.sessions.update().where(m.sessions.c.user_id == user['id']).values(expires=0))
     assert client.get('/api/me').status_code == 401
+
+
+def test_dates_must_be_real_and_past(client):
+    account(client)
+    bid = book(client)
+
+    def make(value):
+        return client.post(f'/api/books/{bid}/persons',
+                           json={'korean_name': '아무개', 'generation': 1, 'birth_date': value})
+
+    # A month past 12, a day past the end of its month, and 29 February in a
+    # year that has 28 are each not a date at all.
+    for value in ['1956-43-27', '1956-02-31', '1957-02-29', '1956-04-31']:
+        assert make(value).status_code == 422, value
+
+    # Nobody was born or died on a day that has not come yet.
+    for value in ['8900-08-31', '3000-01-01']:
+        answer = make(value)
+        assert answer.status_code == 422, value
+        assert '아직 오지 않은 날' in answer.text
+
+    # A leap day in a leap year, and any ordinary past date, are fine.
+    for value in ['1956-02-29', '1956-07-27']:
+        assert make(value).status_code == 201, value

@@ -289,17 +289,34 @@ function run(fn){return async e=>{try{message('');await fn(e);}catch(err){messag
 function formData(form){return Object.fromEntries(new FormData(form));}
 async function busy(button, label, task){const original=button.textContent;button.disabled=true;button.classList.add('busy');button.textContent=label;try{return await task();}finally{button.disabled=false;button.classList.remove('busy');button.textContent=original;}}
 function dialogError(text='', field){const el=$('#personError');el.classList.remove('success');el.textContent=text;el.hidden=!text;$('#personForm').querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));if(field){field.setAttribute('aria-invalid','true');field.focus();}}
-// A date the browser could not make sense of — 31 February, say — leaves the box
-// reading empty while its segments still show what was typed. The browser then
-// refused the submit on its own, before this handler ran, so nothing was filed
-// and nothing was said either; the form carries novalidate now and answers for
-// itself, with reportValidity still called below for the required boxes.
-function badDateField(form){
+// Every rule a date has to keep, in one place and asked first. The form carries
+// novalidate so that this speaks before the browser refuses the submit with a
+// bubble of its own — which is what used to happen, leaving nothing filed and
+// nothing said. reportValidity still follows, for the required boxes.
+function dateProblem(form){
+ const today=todayISO();
  for(const [name,label] of [['birth_date','출생일'],['death_date','사망일']]){
   const box=form.elements[name];
-  if(box&&box.validity.badInput)return [box,label];
+  if(!box)continue;
+  // A date the browser could not make sense of — 31 February, 29 February in a
+  // year with 28 — reads back empty while its segments still show the typing.
+  if(box.validity.badInput)
+   return [box,`${label}에 없는 날짜가 적혀 있습니다. 월은 1~12, 일은 그 달의 마지막 날까지만 쓸 수 있습니다. 예: 1956-02-07`];
+  if(box.value&&!validDate(box.value))
+   return [box,`${label}을(를) 연도 4자리로 바르게 적어 주세요. 예: 1956-02-07`];
+  if(box.value&&box.value>today)
+   return [box,`${label}에 아직 오지 않은 날이 적혀 있습니다. 오늘(${today})보다 뒤인 날은 쓸 수 없습니다.`];
  }
+ const birth=form.elements.birth_date,death=form.elements.death_date;
+ if(birth.value&&death.value&&death.value<birth.value)
+  return [death,'사망일은 출생일보다 빠를 수 없습니다.'];
  return null;
+}
+// By the browser's own clock, not UTC: in Korea the two differ for the first
+// nine hours of every day, and a birth recorded this morning is not the future.
+function todayISO(){
+ const now=new Date();
+ return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 // 1956-04-27 read back as words, so a month the box quietly corrected is seen
 // before it is filed. Typing 43 for a month leaves 4 behind without a murmur.
@@ -936,6 +953,11 @@ $('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.on
 // A date box has no clear of its own: emptying it means deleting the year, the
 // month and the day one at a time. This empties the whole date in one press, and
 // stays greyed out while there is nothing in it to clear.
+// The calendar stops at today as well, so a later day is never offered.
+for(const name of ['birth_date','death_date']){
+ const input=$('#personForm').elements[name];
+ if(input)input.max=todayISO();
+}
 function paintDateClears(){
  for(const button of document.querySelectorAll('[data-clear-date]')){
   const input=$('#personForm').elements[button.dataset.clearDate];
@@ -1030,12 +1052,10 @@ document.querySelectorAll('[data-hanja-field]').forEach(button=>{
 });
 $('#personForm').oninput=event=>{if(event.target.name==='bon_gwan')paintReadingFor(event.target);};
 $('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();
- const bad=badDateField(f);
- if(bad){
-  dialogError(`${bad[1]}에 없는 날짜가 적혀 있습니다. 월은 1~12, 일은 그 달의 마지막 날까지만 쓸 수 있습니다. 예: 1956-02-07`,bad[0]);
-  return;
- }
- if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);for(const name of PERSON_SCRIPT_FIELDS){const box=f.elements[name];if(box&&box.dataset.shown!==undefined&&box.value===box.dataset.shown)data[name]=box.dataset.stored;}const relative=pendingRelative;
+ const problem=dateProblem(f);
+ if(problem){dialogError(problem[1],problem[0]);return;}
+ if(!f.reportValidity())return;
+ const birth=f.elements.birth_date,death=f.elements.death_date;const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);for(const name of PERSON_SCRIPT_FIELDS){const box=f.elements[name];if(box&&box.dataset.shown!==undefined&&box.value===box.dataset.shown)data[name]=box.dataset.stored;}const relative=pendingRelative;
  const who=data.korean_name;
  const question=relative
   ?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 ${who}을(를) 등록합니다. 계속할까요?`

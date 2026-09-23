@@ -5,7 +5,7 @@ import os
 import secrets
 import time
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -79,9 +79,20 @@ class Person(Input):
 
     @model_validator(mode='after')
     def dates(self):
-        for value in [self.birth_date, self.death_date]:
-            if value and date.fromisoformat(value).isoformat() != value:
-                raise ValueError('날짜는 YYYY-MM-DD 형식입니다.')
+        # A day of slack, because the browser goes by its own clock and may be a
+        # date ahead of this one.
+        latest = (date.today() + timedelta(days=1)).isoformat()
+        for label, value in (('출생일', self.birth_date), ('사망일', self.death_date)):
+            if not value:
+                continue
+            try:
+                parsed = date.fromisoformat(value)
+            except ValueError:
+                parsed = None
+            if parsed is None or parsed.isoformat() != value:
+                raise ValueError(f'{label}에 없는 날짜가 적혀 있습니다. 월은 1~12, 일은 그 달의 마지막 날까지입니다.')
+            if value > latest:
+                raise ValueError(f'{label}에 아직 오지 않은 날이 적혀 있습니다.')
         if self.birth_date and self.death_date and self.birth_date > self.death_date:
             raise ValueError('사망일은 출생일보다 빠를 수 없습니다.')
         return self
