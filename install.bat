@@ -56,9 +56,11 @@ echo.
 echo   내려받기 완료 - 설치와 실행으로 넘어갑니다.
 echo.
 
-rem 바탕화면에 바로가기를 둡니다. 다음부터는 이것만 누르면 됩니다.
+rem 바탕화면 폴더 이름은 언어마다 다릅니다(Desktop / 바탕 화면).
+rem 윈도우에 직접 묻고 거기에 둡니다. 다음부터는 이것만 누르면 됩니다.
 powershell -NoProfile -WindowStyle Hidden -Command ^
-  "$s=(New-Object -ComObject WScript.Shell).CreateShortcut(\"$env:USERPROFILE\Desktop\우리의 족보.lnk\");" ^
+  "$d=[Environment]::GetFolderPath('Desktop');" ^
+  "$s=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d '우리의 족보.lnk'));" ^
   "$s.TargetPath='%TARGET%\start.bat'; $s.WorkingDirectory='%TARGET%'; $s.Save()" >nul 2>&1
 
 cd /d "%TARGET%"
