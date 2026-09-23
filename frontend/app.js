@@ -507,9 +507,39 @@ function personCard(person){
   +`<span class="badge">${person.generation}세대 · ${esc(genderText(person.gender))}</span>`
   +'</span></button>';
 }
+// The book records one lineage. Whoever married into it is set under their
+// spouse as 配, and their own forebears — kept so the marriage can be traced —
+// belong to another clan's book, not to a 世 of this one. Anyone whose only
+// issue married in is in the record for that reason alone, and so is anyone
+// above them.
+function outsideTheLine(hostOf){
+ const parentsOf=new Map(),childrenOf=new Map();
+ for(const link of book.relations){
+  if(link.kind!=='parent')continue;
+  if(!childrenOf.has(link.source_id))childrenOf.set(link.source_id,[]);
+  childrenOf.get(link.source_id).push(link.target_id);
+  if(!parentsOf.has(link.target_id))parentsOf.set(link.target_id,[]);
+  parentsOf.get(link.target_id).push(link.source_id);
+ }
+ const outside=new Set(hostOf.keys());
+ for(let pass=0;pass<book.persons.length;pass++){
+  let grew=false;
+  for(const person of book.persons){
+   if(outside.has(person.id))continue;
+   const children=childrenOf.get(person.id)||[];
+   if(!children.length||!children.every(id=>outside.has(id)))continue;
+   // Someone with a forebear of this line in the book is of it, whoever they married.
+   if((parentsOf.get(person.id)||[]).some(id=>!outside.has(id)))continue;
+   outside.add(person.id);
+   grew=true;
+  }
+  if(!grew)break;
+ }
+ return outside;
+}
 function bookHTML(people){
  const {byId,surname,married,hostOf}=spouseHosts();
- const printed=new Set(hostOf.keys());
+ const printed=outsideTheLine(hostOf);
  const keys=new Map(book.persons.map(p=>[p.id,columnKey(p,byId,fatherIndex(byId))]));
  const columns=people.filter(p=>!printed.has(p.id)).sort((a,b)=>compareKeys(keys.get(a.id),keys.get(b.id)));
  if(!columns.length)return '<p class="empty">인쇄할 기록이 없습니다.</p>';
