@@ -129,9 +129,14 @@ async function toggleScript(button){
  await loadBooks(book?book.id:undefined);
 }
 $('#scriptToggle').onclick=()=>toggleScript($('#scriptToggle'));
-document.querySelectorAll('[data-script-toggle]').forEach(button=>{
- button.onclick=()=>toggleScript(button);
-});
+// The tree redraws its own bar, so the switches are rebound after every render.
+function bindScriptToggles(){
+ document.querySelectorAll('[data-script-toggle]').forEach(button=>{
+  button.onclick=()=>toggleScript(button);
+ });
+ paintScriptToggle();
+}
+bindScriptToggles();
 // The book's own details read across the page under its title, where there is
 // room for them, instead of stacking down a 286px sidebar and running off screen.
 function paintBookFacts(){
@@ -361,15 +366,16 @@ function treeDetails(person){
  const rows=[];
  if(treeOptions.generation||treeOptions.hanja)
   rows.push([treeOptions.generation?person.generation+'세대':'',treeOptions.hanja?person.hanja_name:''].filter(Boolean).join(' · '));
- if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+person.bon_gwan:'');
+ if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+scriptText(person.bon_gwan):'');
  if(treeOptions.birth||treeOptions.death)
   rows.push([treeOptions.birth?person.birth_date:'',treeOptions.death&&person.death_date?'— '+person.death_date:''].filter(Boolean).join(' '));
  if(treeOptions.age)rows.push(ageText(person));
  return rows;
 }
 function treeOptionsHTML(){
- return `<form id="treeOptions" class="tree-options"><strong>표시 항목</strong>${TREE_FIELDS.map(([name,label])=>
-  `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`;
+ return `<div class="tree-options"><form id="treeOptions"><strong>표시 항목</strong>${TREE_FIELDS.map(([name,label])=>
+  `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`
+  +`<button type="button" class="secondary" data-script-toggle>한글로 보기</button></div>`;
 }
 const RELATIVE_LABELS={parent:'부모',child:'자녀',spouse:'배우자',sibling:'형제자매'};
 // Spouses alternate to the right and left of the lineage member so that every
@@ -508,6 +514,7 @@ function renderTree(people){
  document.querySelectorAll('[data-add]').forEach(node=>node.onclick=()=>addRelative(node.dataset.add,Number(node.dataset.person)));
 }
 function bindTreeOptions(){
+ bindScriptToggles();
  $('#treeOptions').onchange=event=>{
   treeOptions[event.target.name]=event.target.checked;
   saveTreeOptions();
