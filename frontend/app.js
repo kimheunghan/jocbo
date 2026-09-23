@@ -1190,7 +1190,23 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
  // it, and listing those under a name the reader just searched for is noise.
  const chosen=book.persons.find(p=>p.id===Number(anchor.value));
  const kin=chosen?directLine(chosen.id):null;
- const shown=kin?book.relations.filter(r=>kin.has(r.source_id)&&kin.has(r.target_id)):book.relations;
+ const shown=(kin?book.relations.filter(r=>kin.has(r.source_id)&&kin.has(r.target_id)):book.relations).slice();
+ // The list was in the order the relations happened to be entered, so a forebear
+ // registered late sat under his own descendants. It reads like the book now:
+ // the oldest generation first, and each person's marriage before their issue.
+ const whom=new Map(book.persons.map(p=>[p.id,p]));
+ const order=new Map(book.persons.map((p,index)=>[p.id,index]));
+ const rank=link=>[
+  whom.get(link.source_id)?whom.get(link.source_id).generation:999,
+  order.has(link.source_id)?order.get(link.source_id):999,
+  link.kind==='spouse'?0:1,
+  whom.get(link.target_id)?whom.get(link.target_id).generation:999,
+  order.has(link.target_id)?order.get(link.target_id):999];
+ shown.sort((a,b)=>{
+  const x=rank(a),y=rank(b);
+  for(let at=0;at<x.length;at++)if(x[at]!==y[at])return x[at]-y[at];
+  return 0;
+ });
  $('#relationScope').hidden=!chosen;
  if(chosen)$('#relationScope').textContent=`${displayName(chosen).primary} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
  $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));}
