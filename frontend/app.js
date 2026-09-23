@@ -368,7 +368,7 @@ function personName(id){return book.persons.find(p=>p.id===id)?.korean_name||'';
 function hanjaNumber(value){const n=Number(value);if(!Number.isInteger(n)||n<0||n>99)return String(value||'');const digits='零一二三四五六七八九';if(n<10)return digits[n];if(n===10)return '十';const tens=n>19?digits[Math.floor(n/10)]+'十':'十';return tens+(n%10?digits[n%10]:'');}
 function normalizeBookGenerations(){const byId=new Map(book.persons.map(p=>[p.id,p])),parents=book.relations.filter(r=>r.kind==='parent');for(let pass=0;pass<book.persons.length;pass++){let changed=false;for(const r of parents){const parent=byId.get(r.source_id),child=byId.get(r.target_id);if(parent&&child&&child.generation<parent.generation+1){child.generation=parent.generation+1;changed=true;}}if(!changed)break;}}
 function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));searchNotice.hidden=true;if(!book){$('#view').innerHTML='<p class="empty">족보 없음 — 왼쪽에서 새 족보 또는 예제 추가</p>';return;}
- const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>searchText(p).includes(q));
+ const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>searchMatches(p,q));
  // A search narrows the list. The tree and the book are drawings of the whole
  // family, so they keep everyone and move to the person who was found instead.
  if(q){
@@ -533,8 +533,24 @@ function otherNames(person){
  }
  return found;
 }
+// The family name a person's own name opens with: 김 of 김상석, 제갈 of 제갈지봉.
+// A given name is two characters almost without exception.
+function familyName(name){
+ const text=String(name||'').trim();
+ return text.length>=4?text.slice(0,2):text.slice(0,1);
+}
+// Another name is looked for as the whole name it makes with the family name —
+// 김용학, 金龍鶴 — as well as by itself.
 function searchText(person){
- return [person.korean_name,person.hanja_name,person.note,...otherNames(person).map(name=>name.korean)].join(' ').toLowerCase();
+ const korean=familyName(person.korean_name),hanja=familyName(person.hanja_name);
+ const others=otherNames(person).flatMap(name=>[
+  name.korean,name.korean&&korean+name.korean,name.hanja&&hanja+name.hanja]);
+ return [person.korean_name,person.hanja_name,person.note,...others].filter(Boolean).join(' ').toLowerCase();
+}
+// Spaces are not held against a search: 김 용학 finds 김용학.
+function searchMatches(person,query){
+ const text=searchText(person),q=String(query||'').toLowerCase().trim();
+ return text.includes(q)||text.replace(/\s+/g,'').includes(q.replace(/\s+/g,''));
 }
 function personCard(person){
  const photo=book.files.find(file=>file.person_id===person.id&&/\.(png|jpe?g)$/i.test(file.name));
@@ -1353,7 +1369,7 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
  // Whoever was searched for is the one the reader has in mind, so the form
  // starts from them rather than from the first name in the book.
  const q=$('#search').value.toLowerCase().trim();
- const found=q?book.persons.find(p=>searchText(p).includes(q)):null;
+ const found=q?book.persons.find(p=>searchMatches(p,q)):null;
  anchor.value=found?String(found.id):kept;
  $('#relationForm').querySelector('button').disabled=!book.persons.length;
  // A search is about one family. The book holds other branches that never meet
