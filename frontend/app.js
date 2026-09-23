@@ -128,15 +128,10 @@ async function toggleScript(button){
  paintPersonScript();
  await loadBooks(book?book.id:undefined);
 }
-$('#scriptToggle').onclick=()=>toggleScript($('#scriptToggle'));
-// The tree redraws its own bar, so the switches are rebound after every render.
-function bindScriptToggles(){
- document.querySelectorAll('[data-script-toggle]').forEach(button=>{
-  button.onclick=()=>toggleScript(button);
- });
- paintScriptToggle();
-}
-bindScriptToggles();
+// One switch beside the view tabs, plus one in each window that covers them.
+document.querySelectorAll('[data-script-toggle]').forEach(button=>{
+ button.onclick=()=>toggleScript(button);
+});
 // The book's own details read across the page under its title, where there is
 // room for them, instead of stacking down a 286px sidebar and running off screen.
 function paintBookFacts(){
@@ -152,7 +147,7 @@ function paintBookFacts(){
  }).join('');
 }
 function paintScriptToggle(){
- document.querySelectorAll('#scriptToggle,[data-script-toggle]').forEach(button=>{
+ document.querySelectorAll('[data-script-toggle]').forEach(button=>{
   button.textContent=scriptMode==='hangul'?'한자로 보기':'한글로 보기';
   button.setAttribute('aria-pressed',String(scriptMode==='hangul'));
  });
@@ -373,9 +368,8 @@ function treeDetails(person){
  return rows;
 }
 function treeOptionsHTML(){
- return `<div class="tree-options"><form id="treeOptions"><strong>표시 항목</strong>${TREE_FIELDS.map(([name,label])=>
-  `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`
-  +`<button type="button" class="secondary" data-script-toggle>한글로 보기</button></div>`;
+ return `<form id="treeOptions" class="tree-options"><strong>표시 항목</strong>${TREE_FIELDS.map(([name,label])=>
+  `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`;
 }
 const RELATIVE_LABELS={parent:'부모',child:'자녀',spouse:'배우자',sibling:'형제자매'};
 // Spouses alternate to the right and left of the lineage member so that every
@@ -514,7 +508,6 @@ function renderTree(people){
  document.querySelectorAll('[data-add]').forEach(node=>node.onclick=()=>addRelative(node.dataset.add,Number(node.dataset.person)));
 }
 function bindTreeOptions(){
- bindScriptToggles();
  $('#treeOptions').onchange=event=>{
   treeOptions[event.target.name]=event.target.checked;
   saveTreeOptions();

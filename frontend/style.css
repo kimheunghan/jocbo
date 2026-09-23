@@ -373,21 +373,23 @@ body.resizing {
   background: var(--paper-sunk);
 }
 
-.side-head {
+/* The view tabs and the script switch share one row. */
+.view-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 22px;
 }
 
-.side-head h2 {
-  margin: 0;
+.view-bar nav {
+  margin-bottom: 0;
 }
 
-#scriptToggle {
-  padding: 5px 10px;
+.view-bar > button {
+  flex: none;
+  padding: 6px 12px;
   font-size: 12px;
 }
 
