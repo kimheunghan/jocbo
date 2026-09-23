@@ -19,6 +19,16 @@
 
 이미 받아 둔 폴더에서는 `start.bat`을 두 번 누릅니다. 설치는 처음 한 번만 하고, 다음부터는 바로 열립니다.
 
+| 파일 | 하는 일 |
+| --- | --- |
+| `install.bat` | 내려받기 · 설치 · 실행 (처음 한 번). 이미 받아 둔 폴더면 서버를 멈추고 최신으로 맞춘 뒤 실행 |
+| `start.bat` | 설치 확인 후 실행 |
+| `stop.bat` | 돌고 있는 서버 중지 |
+
+**갱신할 때는 먼저 `stop.bat`으로 멈춥니다.** 서버가 도는 중에는 파일이 잠겨 `git pull`이 깨집니다. `install.bat`은 이 절차를 스스로 밟으므로 그것만 눌러도 됩니다.
+
+`stop.bat`은 이 폴더의 파이썬으로 뜬 uvicorn과 8000번을 잡고 있는 파이썬을 멈추고, 포트가 실제로 풀렸는지 확인합니다. 돌고 있는 서버가 없으면 그렇게 알립니다.
+
 어느 계정·어느 폴더에서도 그대로 동작합니다. 배치는 자기 파일이 있는 폴더를 기준으로 삼고, 앱도 DB와 첨부 경로를 파일 위치에서 계산합니다.
 
 ## 손으로 실행 (Python 3.12 권장)
@@ -155,6 +165,7 @@ uploads/               비공개 첨부파일 (Git 제외)
 tests/test_api.py      API 통합 테스트
 tests/test_readscan.py 판독 지면 문법 테스트 (판독기 없이도 실행)
 start.bat              설치·실행 한꺼번에 (Windows)
+stop.bat, stop.ps1     실행 중인 서버 중지
 install.bat            내려받기까지 한꺼번에 (Windows)
 requirements-ocr.txt   판독기 (선택 설치)
 compose.yaml           PostgreSQL + 앱 실행

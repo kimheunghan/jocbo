@@ -19,6 +19,8 @@ echo.
 rem -- 이미 받아 둔 폴더가 있으면 최신으로만 ----
 if exist "%TARGET%\start.bat" (
   echo   이미 설치됨 - 최신으로 맞춥니다.
+  rem 서버가 도는 중이면 파일이 잠겨 git pull 이 깨집니다.
+  if exist "%TARGET%\stop.bat" call "%TARGET%\stop.bat"
   where git >nul 2>&1
   if not errorlevel 1 (
     pushd "%TARGET%"
