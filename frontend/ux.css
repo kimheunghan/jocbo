@@ -1107,3 +1107,62 @@ button.busy {
   border-style: dashed;
   background: var(--paper);
 }
+
+#marriageDialog {
+  width: min(480px, 94vw);
+}
+
+#marriageText {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.marriage-children {
+  max-height: 46vh;
+  overflow: auto;
+  margin-bottom: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.marriage-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.marriage-child:last-child {
+  border-bottom: 0;
+}
+
+.marriage-child input {
+  flex: none;
+  margin: 0;
+}
+
+.marriage-child span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Which marriage it is under now, so a move is a known change. */
+.marriage-child em {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+.marriage-child input:disabled + span {
+  color: var(--ink-faint);
+}
+
+.marriage-actions {
+  justify-content: flex-end;
+}

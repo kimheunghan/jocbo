@@ -995,11 +995,13 @@ $('#relativeLink').onclick=async()=>{
  dialogError();
  const otherId=Number($('#relativePick').value);
  if(!otherId){dialogError('연결할 인물을 선택하세요.',$('#relativePick'));return;}
+ const {kind,anchor}=pendingRelative;
  try{
   await busy($('#relativeLink'),'연결 중…',()=>linkRelative(otherId));
   $('#personDialog').close();
+  const also=await settleMarriage(kind,anchor.id,otherId);
   await refresh();
-  message('가족 관계 추가 완료');
+  message('가족 관계 추가 완료'+also);
  }catch(err){dialogError(err.message);}
 };
 function editPerson(id){
@@ -1173,7 +1175,8 @@ $('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogEr
  const dates=[birth.value?`출생 ${plainDate(birth.value)}`:'',
   death.value?`사망 ${plainDate(death.value)}`:''].filter(Boolean).join('  ·  ');
  if(!await ask(dates?`${question}\n\n${dates}`:question,'저장'))return;
- try{const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?`${who} — 저장 완료`:relative?`${who} — ${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록 완료`:`${who} — 등록 완료 · 검색어 해제됨`);}catch(err){dialogError(err.message);}};
+ try{const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();
+  const alsoTook=relative&&!id?await settleMarriage(relative.kind,relative.anchor.id,saved.id):'';if(!id)$('#search').value='';await refresh();message(id?`${who} — 저장 완료`:relative?`${who} — ${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록 완료${alsoTook}`:`${who} — 등록 완료 · 검색어 해제됨`);}catch(err){dialogError(err.message);}};
 $('#deletePerson').onclick=async()=>{if(!await ask(`${$('#personForm').elements.korean_name.value} — 연결된 관계와 첨부파일까지 모두 삭제 · 되돌릴 수 없음`,'삭제'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('삭제 완료');}catch(err){dialogError(err.message);}};
 $('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
 function renderRelations(){if(!book)return;const options='<option value="">인물 선택</option>'+book.persons.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');const anchor=$('#relationForm').elements.source_id;const kept=anchor.value;anchor.innerHTML=options;
@@ -1560,4 +1563,95 @@ $('#scanRead').onclick=async()=>{
  note.textContent=`판독 ${people.length}명 · 원본 대조 후 등록 — 목판 인쇄는 누락·오독 있음`
   +(doubted?` · 간지 불일치 ${doubted}줄(붉은 줄)`:' · 간지 전수 일치');
  paintScanCount();
+};
+
+// ── 혼인과 자녀 ─────────────────────────────────────
+// A child recorded under one parent alone belongs to that parent's marriage as
+// soon as there is one, so the first spouse is entered as a parent too. A second
+// marriage is a question the record cannot answer by itself — which children are
+// of which — so it is asked rather than guessed.
+function childrenOf(id){
+ return book.relations.filter(r=>r.kind==='parent'&&r.source_id===id)
+  .map(r=>book.persons.find(p=>p.id===r.target_id)).filter(Boolean);
+}
+function otherParentsOf(childId,exceptId){
+ return book.relations.filter(r=>r.kind==='parent'&&r.target_id===childId&&r.source_id!==exceptId)
+  .map(r=>book.persons.find(p=>p.id===r.source_id)).filter(Boolean);
+}
+let marriageState=null;
+async function settleMarriage(kind,anchorId,spouseId){
+ if(kind!=='spouse')return '';
+ await refresh();
+ const anchor=book.persons.find(p=>p.id===anchorId);
+ const spouse=book.persons.find(p=>p.id===spouseId);
+ if(!anchor||!spouse)return '';
+ const spouses=spousesOf(anchorId);
+ if(spouses.length<=1){
+  // The first marriage takes in the children already standing under one parent.
+  const solo=childrenOf(anchorId).filter(child=>!otherParentsOf(child.id,anchorId).length);
+  for(const child of solo){
+   try{await api('/relations','POST',{source_id:spouseId,target_id:child.id,kind:'parent'});}
+   catch(err){if(!/이미 등록된 관계/.test(err.message))throw err;}
+  }
+  if(solo.length)await refresh();
+  return solo.length?` 자녀 ${solo.length}명도 ${displayName(spouse).primary}의 자녀로 함께 기록`:'';
+ }
+ openMarriageDialog(anchorId,spouseId);
+ return '';
+}
+function openMarriageDialog(anchorId,spouseId){
+ const anchor=book.persons.find(p=>p.id===anchorId);
+ const spouse=book.persons.find(p=>p.id===spouseId);
+ if(!anchor||!spouse)return;
+ marriageState={anchorId,spouseId,mates:spousesOf(anchorId).map(m=>m.id)};
+ const name=p=>esc(displayName(p,dialogScriptMode).primary);
+ $('#marriageText').innerHTML=`<strong>${name(anchor)}</strong> · <strong>${name(spouse)}</strong> 혼인 · `
+  +`${name(anchor)}의 배우자 ${marriageState.mates.length}명 — 자녀가 어느 혼인 소생인지 기록 필요`;
+ const children=childrenOf(anchorId);
+ $('#marriageChildren').innerHTML=children.length?children.map(child=>{
+  const others=otherParentsOf(child.id,anchorId).filter(p=>p.id!==spouseId);
+  const here=otherParentsOf(child.id,anchorId).some(p=>p.id===spouseId);
+  const where=here?`이 혼인`:(others.length?others.map(p=>esc(displayName(p,dialogScriptMode).primary)).join('·'):'미정');
+  return `<label class="marriage-child"><input type="checkbox" value="${child.id}"${here?' disabled':''}>`
+   +`<span><strong>${name(child)}</strong> · ${child.generation}세대</span>`
+   +`<em>${esc(where)}</em></label>`;
+ }).join(''):'<p class="muted">기준 인물에게 기록된 자녀 없음</p>';
+ $('#marriageMove').disabled=!children.length;
+ if(!$('#marriageDialog').open)$('#marriageDialog').showModal();
+}
+$('#closeMarriage').onclick=()=>$('#marriageDialog').close();
+$('#marriageSkip').onclick=()=>$('#marriageDialog').close();
+$('#marriageNew').onclick=()=>{
+ const {anchorId,spouseId}=marriageState||{};
+ $('#marriageDialog').close();
+ if(!anchorId)return;
+ addRelative('child',anchorId);
+ // The new child belongs to the marriage just made, so that is the one set.
+ if(pendingRelative)pendingRelative.mateId=spouseId;
+ const mate=$('#relativeMate');
+ if(mate)mate.value=String(spouseId);
+};
+$('#marriageMove').onclick=async()=>{
+ const picked=[...document.querySelectorAll('#marriageChildren input:checked')].map(box=>Number(box.value));
+ if(!picked.length){message('옮길 자녀 선택 필요','error');return;}
+ const {anchorId,spouseId,mates}=marriageState;
+ const names=picked.map(id=>displayName(book.persons.find(p=>p.id===id)).primary).join(', ');
+ const spouse=displayName(book.persons.find(p=>p.id===spouseId)).primary;
+ if(!await ask(`${names} — ${spouse}과(와)의 혼인 소생으로 옮김\n\n다른 배우자와의 부모 연결은 끊김 · 기준 인물은 그대로 부모`,'옮기기'))return;
+ try{
+  await busy($('#marriageMove'),'옮기는 중…',async()=>{
+   for(const childId of picked){
+    // Only the anchor's other marriages are let go of; a parent recorded outside
+    // them is nothing to do with this choice.
+    for(const link of book.relations.filter(r=>r.kind==='parent'&&r.target_id===childId
+      &&r.source_id!==anchorId&&r.source_id!==spouseId&&mates.includes(r.source_id)))
+     await api('/relations/'+link.id,'DELETE');
+    try{await api('/relations','POST',{source_id:spouseId,target_id:childId,kind:'parent'});}
+    catch(err){if(!/이미 등록된 관계/.test(err.message))throw err;}
+   }
+  });
+  $('#marriageDialog').close();
+  await refresh();
+  message(`${names} — ${spouse}과(와)의 혼인 소생으로 기록`);
+ }catch(err){message(err.message,'error');}
 };
