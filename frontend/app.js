@@ -104,26 +104,34 @@ function bookFormValues(form){
  }
  return data;
 }
+function paintReadingFor(input){
+ if(!input)return;
+ // The hint belongs under the whole row, not between the box and its 한자 button.
+ const row=input.closest('label')||input.parentElement;
+ let hint=row.querySelector('.reading');
+ if(!hint){hint=document.createElement('small');hint.className='reading';row.append(hint);}
+ // Only hanja needs explaining; in hangul the box already reads plainly.
+ const reading=readingOf(input.value);
+ hint.textContent=reading;
+ hint.hidden=!reading;
+}
 function paintReadings(){
  if(!book)return;
- for(const name of BOOK_SCRIPT_FIELDS){
-  const input=$('#bookInfoForm').elements[name];
-  if(!input)continue;
-  let hint=input.parentElement.querySelector('.reading');
-  if(!hint){hint=document.createElement('small');hint.className='reading';input.after(hint);}
-  // Only hanja needs explaining; in hangul the box already reads plainly.
-  const reading=readingOf(input.value);
-  hint.textContent=reading;
-  hint.hidden=!reading;
- }
+ for(const name of BOOK_SCRIPT_FIELDS)paintReadingFor($('#bookInfoForm').elements[name]);
 }
-$('#scriptToggle').onclick=async()=>{
- await busy($('#scriptToggle'),'불러오는 중…',loadHanjaDict).catch(err=>message(err.message,'error'));
+async function toggleScript(button){
+ await busy(button,'불러오는 중…',loadHanjaDict).catch(err=>message(err.message,'error'));
  if(!hanjaReadings)return;
  scriptMode=scriptMode==='hangul'?'hanja':'hangul';
  try{localStorage.setItem('jocbo.script',scriptMode);}catch{}
+ paintScriptToggle();
+ paintPersonScript();
  await loadBooks(book?book.id:undefined);
-};
+}
+$('#scriptToggle').onclick=()=>toggleScript($('#scriptToggle'));
+document.querySelectorAll('[data-script-toggle]').forEach(button=>{
+ button.onclick=()=>toggleScript(button);
+});
 // The book's own details read across the page under its title, where there is
 // room for them, instead of stacking down a 286px sidebar and running off screen.
 function paintBookFacts(){
@@ -139,9 +147,24 @@ function paintBookFacts(){
  }).join('');
 }
 function paintScriptToggle(){
- const button=$('#scriptToggle');
- button.textContent=scriptMode==='hangul'?'한자로 보기':'한글로 보기';
- button.setAttribute('aria-pressed',String(scriptMode==='hangul'));
+ document.querySelectorAll('#scriptToggle,[data-script-toggle]').forEach(button=>{
+  button.textContent=scriptMode==='hangul'?'한자로 보기':'한글로 보기';
+  button.setAttribute('aria-pressed',String(scriptMode==='hangul'));
+ });
+}
+// A person's 본관 is a stored hanja value like the book's, so it reads in the
+// chosen script and remembers what it was shown as before it is saved.
+function setPersonBonGwan(value){
+ const input=$('#personForm').elements.bon_gwan;
+ if(!input)return;
+ input.dataset.stored=value||'';
+ input.value=scriptText(value||'');
+ input.dataset.shown=input.value;
+ paintReadingFor(input);
+}
+function paintPersonScript(){
+ const input=$('#personForm').elements.bon_gwan;
+ if(input)setPersonBonGwan(input.dataset.stored??input.value);
 }
 function message(text, type='success') { const el=$('#message');el.textContent=text;el.classList.toggle('error',type==='error'); }
 function errorText(detail) {
@@ -539,7 +562,7 @@ function addRelative(kind,personId){
  $('#relativeMate').onchange=event=>{pendingRelative.mateId=event.target.value?Number(event.target.value):null;};
  const form=$('#personForm');
  form.elements.generation.value=relativeGeneration(kind,anchor);
- if(kind!=='spouse')form.elements.bon_gwan.value=anchor.bon_gwan||book.bon_gwan||'';
+ if(kind!=='spouse')setPersonBonGwan(anchor.bon_gwan||book.bon_gwan||'');
  const pool=book.persons.filter(p=>p.id!==anchor.id);
  $('#relativePick').innerHTML=pool.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');
  $('#relativePickWrap').hidden=true;
@@ -589,6 +612,7 @@ function editPerson(id){
  $('#attachments').hidden=!p;
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
+ setPersonBonGwan(p?p.bon_gwan:(book.bon_gwan||''));
  $('#personDialog').showModal();
  setTimeout(()=>f.elements.korean_name.focus(),0);
 }
@@ -656,17 +680,18 @@ $('#convertHanja').onclick=async()=>{
   if(hanjaState)hanjaState.target=form.elements.hanja_name;
  }catch(err){dialogError(err.message);}
 };
-document.querySelectorAll('[data-hanja-form]').forEach(button=>{
+// One button per field, beside the box it fills.
+document.querySelectorAll('[data-hanja-field]').forEach(button=>{
  button.onclick=async()=>{
-  const form=button.closest('form');
-  const fields=['title','clan_name','bon_gwan','branch_name','founder'].map(name=>form.elements[name]);
+  const input=button.parentElement.querySelector('input');
   try{
-   const note=await openHanjaPicker(fields,button);
-   if(note)message(note,'error');
+   const note=await openHanjaPicker([input],button);
+   if(note)message('한글로 먼저 적어 주세요.','error');
   }catch(err){message(err.message,'error');}
  };
 });
-$('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);try{const relative=pendingRelative;const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?'인물을 저장했습니다.':relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록했습니다.`:'인물을 등록했습니다. 검색어를 해제해 전체를 보여 드립니다.');}catch(err){dialogError(err.message);}};
+$('#personForm').oninput=event=>{if(event.target.name==='bon_gwan')paintReadingFor(event.target);};
+$('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);const bon=f.elements.bon_gwan;if(bon.dataset.shown!==undefined&&bon.value===bon.dataset.shown)data.bon_gwan=bon.dataset.stored;try{const relative=pendingRelative;const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?'인물을 저장했습니다.':relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록했습니다.`:'인물을 등록했습니다. 검색어를 해제해 전체를 보여 드립니다.');}catch(err){dialogError(err.message);}};
 $('#deletePerson').onclick=async()=>{if(!confirm('이 인물과 연결된 관계 및 첨부파일이 모두 삭제됩니다. 계속할까요?'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('인물을 삭제했습니다.');}catch(err){dialogError(err.message);}};
 $('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
 function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');['source_id','target_id'].forEach(n=>$('#relationForm').elements[n].innerHTML=options);$('#relationForm').querySelector('button').disabled=book.persons.length<2;$('#relationList').innerHTML=book.relations.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">관계를 등록하려면 인물을 2명 이상 추가하세요.</p>':'');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!confirm('이 관계를 삭제할까요?'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계를 삭제했습니다.');}));}

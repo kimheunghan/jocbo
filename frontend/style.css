@@ -422,7 +422,8 @@ body.resizing {
   color: var(--green-deep);
 }
 
-#workspace > aside form button {
+/* The submit button alone spans the panel; the per-field buttons must not. */
+#workspace > aside form > button {
   width: 100%;
 }
 
@@ -693,6 +694,30 @@ dialog h2 {
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* Heading and the script switch share one ruled row. */
+.dialog-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-right: 40px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dialog-head h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dialog-head button {
+  flex: none;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 #bookDialog {
   width: min(480px, 94vw);
 }
@@ -715,7 +740,7 @@ dialog h2 {
   margin: 0;
 }
 
-#bookDialog form button {
+#bookDialog form > button {
   width: 100%;
   margin-top: 4px;
 }
