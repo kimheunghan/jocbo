@@ -631,7 +631,11 @@ button.busy {
 
 .genealogy-person strong {
   font-size: 18px;
-  font-weight: 500;
+  /* The book sets 子/女 and the name in a heavier face than the lines under it.
+     Batang has no bold of its own: the browser thickens it on screen but not in
+     print or PDF, so the strokes are drawn heavier as well, which holds in both. */
+  font-weight: 700;
+  -webkit-text-stroke: 0.45px currentColor;
   letter-spacing: 0;
 }
 
@@ -647,6 +651,8 @@ button.busy {
 .genealogy-person strong em {
   color: #39443d;
   font-size: 9.5px;
+  font-weight: 400;
+  -webkit-text-stroke: 0;
   font-style: normal;
   letter-spacing: 0;
 }
