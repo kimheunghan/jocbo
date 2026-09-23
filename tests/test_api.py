@@ -259,3 +259,22 @@ def test_a_scan_belongs_to_the_book_and_is_served_as_a_picture(client):
     assert client.get(f'/api/scans/{sid}').status_code == 404
 
     assert client.delete(f'/api/scans/{sid}').status_code == 404
+
+
+def test_a_date_is_kept_as_far_as_it_is_known(client):
+    account(client)
+    bid = book(client)
+
+    def make(birth, death=''):
+        return client.post(f'/api/books/{bid}/persons',
+                           json={'korean_name': '아무개', 'generation': 1, 'birth_date': birth, 'death_date': death})
+
+    # The year alone, the year and month, or a day remembered without a year.
+    for value in ['1956', '1956-03', '--09-19', '--02-29']:
+        assert make(value).status_code == 201, value
+    for value in ['1956-13', '--02-30', '56', '1956-3', '--9-19']:
+        assert make(value).status_code == 422, value
+    # Only as far as both are known: 1956 and 1956-03-02 do not contradict.
+    assert make('1956-03-02', '1956').status_code == 201
+    assert make('1956', '1955-12-31').status_code == 422
+    assert make('--09-19', '1900').status_code == 201

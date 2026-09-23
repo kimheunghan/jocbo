@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -68,6 +69,25 @@ class Book(Input):
     founder: str = Field(default='', max_length=200)
     description: str = Field(default='', max_length=5000)
 
+# A book often knows only part of a date: the year alone, the year and month, or
+# the month and day a spouse is remembered on with no year at all. Each is kept
+# as far as it is known — 1956, 1956-03, 1956-03-02, or --03-02 without a year.
+def partial_date(value):
+    whole = re.fullmatch(r'(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?', value)
+    yearless = re.fullmatch(r'--(\d{2})-(\d{2})', value)
+    if whole:
+        year, month, day = whole.groups()
+    elif yearless:
+        # A leap year, so that 29 February stands when the year is not known.
+        year, (month, day) = '2000', yearless.groups()
+    else:
+        return False
+    try:
+        date(int(year), int(month or 1), int(day or 1))
+    except ValueError:
+        return False
+    return True
+
 class Person(Input):
     korean_name: str = Field(min_length=1, max_length=100)
     hanja_name: str = Field(default='', max_length=100)
@@ -86,16 +106,16 @@ class Person(Input):
         for label, value in (('출생일', self.birth_date), ('사망일', self.death_date)):
             if not value:
                 continue
-            try:
-                parsed = date.fromisoformat(value)
-            except ValueError:
-                parsed = None
-            if parsed is None or parsed.isoformat() != value:
+            if not partial_date(value):
                 raise ValueError(f'{label}에 없는 날짜가 적혀 있습니다. 월은 1~12, 일은 그 달의 마지막 날까지입니다.')
-            if value > latest:
+            if not value.startswith('--') and value > latest[:len(value)]:
                 raise ValueError(f'{label}에 아직 오지 않은 날이 적혀 있습니다.')
-        if self.birth_date and self.death_date and self.birth_date > self.death_date:
-            raise ValueError('사망일은 출생일보다 빠를 수 없습니다.')
+        # Only as far as both are known: 1956 and 1956-03-02 do not contradict.
+        birth, death = self.birth_date, self.death_date
+        if birth and death and not birth.startswith('--') and not death.startswith('--'):
+            known = min(len(birth), len(death))
+            if birth[:known] > death[:known]:
+                raise ValueError('사망일은 출생일보다 빠를 수 없습니다.')
         return self
 
 class PersonLine(Person):

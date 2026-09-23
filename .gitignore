@@ -3,7 +3,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.db
+# 이 설치의 족보 DB는 올려서 다른 컴퓨터에서도 같은 기록을 씁니다.
+!jocbo.db
 .env
-uploads/*
-!uploads/.gitkeep
 test-results/

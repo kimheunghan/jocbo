@@ -1,2 +1,6 @@
 # 배치 파일은 cp949·CRLF 그대로 두어야 cmd가 해석합니다.
 *.bat -text
+# 족보 DB와 사진은 줄 단위로 합치지 않습니다.
+*.db binary
+*.jpg binary
+*.png binary

@@ -298,18 +298,24 @@ function dateProblem(get){
  for(const [name,label] of [['birth_date','출생일'],['death_date','사망일']]){
   const box=get(name);
   if(!box)continue;
+  const shown=dateShown(box);
+  // A year, a month or a day may be left empty; each one filled keeps its rule.
+  if(box.dataset.problem)return [shown,`${label} — ${box.dataset.problem}`];
   // A date the browser could not make sense of — 31 February, 29 February in a
   // year with 28 — reads back empty while its segments still show the typing.
   if(box.validity.badInput)
-   return [box,`${label} — 없는 날짜 · 월 1~12, 일은 해당 월의 마지막 날까지 · 예: 1956-02-07`];
+   return [shown,`${label} — 없는 날짜 · 월 1~12, 일은 해당 월의 마지막 날까지 · 예: 1956-02-07`];
   if(box.value&&!validDate(box.value))
-   return [box,`${label} — 연도 4자리 형식 · 예: 1956-02-07`];
-  if(box.value&&box.value>today)
-   return [box,`${label} — 아직 오지 않은 날 · 오늘(${today}) 이후 불가`];
+   return [shown,`${label} — 연도 4자리 형식 · 예: 1956-02-07`];
+  if(box.value&&!box.value.startsWith('--')&&box.value>today.slice(0,box.value.length))
+   return [shown,`${label} — 아직 오지 않은 날 · 오늘(${today}) 이후 불가`];
  }
  const birth=get('birth_date'),death=get('death_date');
- if(birth&&death&&birth.value&&death.value&&death.value<birth.value)
-  return [death,'사망일이 출생일보다 이름'];
+ if(birth&&death&&birth.value&&death.value&&!birth.value.startsWith('--')&&!death.value.startsWith('--')){
+  // Only as far as both are known: 1956 and 1956-03-02 do not contradict.
+  const known=Math.min(birth.value.length,death.value.length);
+  if(death.value.slice(0,known)<birth.value.slice(0,known))return [dateShown(death),'사망일이 출생일보다 이름'];
+ }
  return null;
 }
 // By the browser's own clock, not UTC: in Korea the two differ for the first
@@ -321,10 +327,30 @@ function todayISO(){
 // 1956-04-27 read back as words, so a month the box quietly corrected is seen
 // before it is filed. Typing 43 for a month leaves 4 behind without a murmur.
 function plainDate(value){
- const [y,m,d]=value.split('-').map(Number);
- return `${y}년 ${m}월 ${d}일`;
+ const {y,m,d}=dateParts(value);
+ return [y?`${y}년`:'',m?`${m}월`:'',d?`${d}일`:''].filter(Boolean).join(' ');
 }
-function validDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const [y,m,d]=value.split('-').map(Number),parsed=new Date(Date.UTC(y,m-1,d));return parsed.getUTCFullYear()===y&&parsed.getUTCMonth()===m-1&&parsed.getUTCDate()===d;}
+// A kept date as far as it goes: {y:1956,m:3,d:0} for 1956-03, y is 0 without a year.
+function dateParts(value){
+ const text=String(value||'');
+ const yearless=/^--(\d{2})-(\d{2})$/.exec(text);
+ if(yearless)return {y:0,m:Number(yearless[1]),d:Number(yearless[2])};
+ const [y,m,d]=text.split('-').map(Number);
+ return {y:y||0,m:m||0,d:d||0};
+}
+// A list or a tree shows a whole date as it is kept and a part of one in words.
+function shownDate(value){
+ return /^\d{4}-\d{2}-\d{2}$/.test(value||'')?value:plainDate(value);
+}
+function validDate(value){
+ if(!/^(\d{4}(-\d{2}(-\d{2})?)?|--\d{2}-\d{2})$/.test(value))return false;
+ // A leap year stands in for a missing one, so that 29 February is let through.
+ const {y,m,d}=dateParts(value),year=y||2000,month=m||1,day=d||1;
+ if(!value.startsWith('--')&&!y)return false;
+ const parsed=new Date(Date.UTC(2000,month-1,day));
+ parsed.setUTCFullYear(year,month-1,day);
+ return parsed.getUTCFullYear()===year&&parsed.getUTCMonth()===month-1&&parsed.getUTCDate()===day;
+}
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
@@ -342,7 +368,7 @@ function personName(id){return book.persons.find(p=>p.id===id)?.korean_name||'';
 function hanjaNumber(value){const n=Number(value);if(!Number.isInteger(n)||n<0||n>99)return String(value||'');const digits='零一二三四五六七八九';if(n<10)return digits[n];if(n===10)return '十';const tens=n>19?digits[Math.floor(n/10)]+'十':'十';return tens+(n%10?digits[n%10]:'');}
 function normalizeBookGenerations(){const byId=new Map(book.persons.map(p=>[p.id,p])),parents=book.relations.filter(r=>r.kind==='parent');for(let pass=0;pass<book.persons.length;pass++){let changed=false;for(const r of parents){const parent=byId.get(r.source_id),child=byId.get(r.target_id);if(parent&&child&&child.generation<parent.generation+1){child.generation=parent.generation+1;changed=true;}}if(!changed)break;}}
 function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));searchNotice.hidden=true;if(!book){$('#view').innerHTML='<p class="empty">족보 없음 — 왼쪽에서 새 족보 또는 예제 추가</p>';return;}
- const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>[p.korean_name,p.hanja_name,p.note].join(' ').toLowerCase().includes(q));
+ const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>searchMatches(p,q));
  // A search narrows the list. The tree and the book are drawings of the whole
  // family, so they keep everyone and move to the person who was found instead.
  if(q){
@@ -364,7 +390,7 @@ function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classLis
  }
  if(view==='tree'){renderTree(book.persons);markFound(q?people[0]:null,'[data-tree-person]');return;}
  if(view==='book'){const sheets=bookHTML(book.persons);$('#view').innerHTML=sheets.includes('traditional-book')?wrapZoom(sheets):sheets;bindZoom('book');markFound(q?people[0]:null,'[data-book-person]');return;}
- $('#view').innerHTML=people.length?'<div class="cards">'+people.map(personCard).join('')+'</div>':'<p class="empty">등록된 인물 없음</p>';
+ $('#view').innerHTML=people.length?'<div class="cards">'+inBookOrder(people).map(personCard).join('')+'</div>':'<p class="empty">등록된 인물 없음</p>';
  document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>editPerson(Number(b.dataset.person)));
 }
 // A whole tree or a whole book is too large to search by eye, so the person who
@@ -393,10 +419,12 @@ const KR_BRANCHES='자축인묘진사오미신유술해';
 function ganjiKorean(year){const n=year-4;return KR_STEMS[((n%10)+10)%10]+KR_BRANCHES[((n%12)+12)%12];}
 // The sheet keeps its shape in either script; only the words change.
 function bookDate(iso,kind){
- if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||''))return '';
- const [y,m,d]=iso.split('-').map(Number);
- if(scriptMode==='hangul')return `${y}년 ${ganjiKorean(y)} ${m}월 ${d}일${kind==='生'?'생':'졸'}`;
- return `${hanjaYear(y)}年${ganji(y)}${hanjaNumber(m)}月${hanjaNumber(d)}日${kind}`;
+ if(!validDate(iso||''))return '';
+ // Set down only as far as the date is known.
+ const {y,m,d}=dateParts(iso);
+ if(scriptMode==='hangul')
+  return [y?`${y}년 ${ganjiKorean(y)}`:'',m?`${m}월`:'',d?`${d}일`:''].filter(Boolean).join(' ')+(kind==='生'?'생':'졸');
+ return (y?`${hanjaYear(y)}年${ganji(y)}`:'')+(m?`${hanjaNumber(m)}月`:'')+(d?`${hanjaNumber(d)}日`:'')+kind;
 }
 function bookWord(hanja,hangul){return scriptMode==='hangul'?hangul:hanja;}
 function clanSurname(){const hanja=(book.clan_name||'').replace(/[氏씨\s]/g,'');return {hanja:/[一-鿿]/.test(hanja)?hanja[0]:'',korean:/[가-힣]/.test(hanja)?hanja[0]:''};}
@@ -450,7 +478,7 @@ function personEntry(person,spouses,surname){
 function columnKey(person,byId,fatherOf){
  const path=[];
  for(let node=person,guard=0;node&&guard<200;guard++){
-  path.unshift([node.gender==='여'?1:0,node.birth_date||'9999-99-99',node.id]);
+  path.unshift([node.gender==='여'?1:0,/^\d{4}/.test(node.birth_date||'')?node.birth_date:'9999-99-99',node.id]);
   node=byId.get(fatherOf.get(node.id));
  }
  return path;
@@ -477,6 +505,23 @@ function spouseHosts(){
  }
  return {byId,surname,married,hostOf};
 }
+// The list is read the way the book is: generation by generation, and within
+// one each father's children together, sons before daughters, eldest first.
+// Those who married in take no part in that order: they come after the line's
+// own people of their generation, in the order of the spouses they married.
+function inBookOrder(people){
+ const {byId,hostOf}=spouseHosts();
+ const fatherOf=fatherIndex(byId),keys=new Map();
+ const guest=person=>byId.has(hostOf.get(person.id))?1:0;
+ const keyOf=person=>{
+  if(!keys.has(person.id)){
+   const host=byId.get(hostOf.get(person.id));
+   keys.set(person.id,host?[...columnKey(host,byId,fatherOf),[1,'',person.id]]:columnKey(person,byId,fatherOf));
+  }
+  return keys.get(person.id);
+ };
+ return people.slice().sort((a,b)=>a.generation-b.generation||guest(a)-guest(b)||compareKeys(keyOf(a),keyOf(b)));
+}
 function fatherIndex(byId){
  const fatherOf=new Map();
  for(const link of book.relations){
@@ -494,15 +539,46 @@ function displayName(person,mode=scriptMode){
 }
 // The list card carries the portrait and the same facts the tree card shows, so
 // browsing the list feels like reading the book rather than a bare index.
+// A person was once called by more than one name: 字, given on coming of age,
+// 初名 from childhood, 號. The record carries them as 字 龍鶴, and each is shown
+// beside the name and found by a search in either script.
+function otherNames(person){
+ const found=[];
+ for(const match of String(person.note||'').matchAll(/(字|初名|號|諱)\s*([一-鿿]{1,4}|[가-힣]{2,4})/g)){
+  const hanja=/[一-鿿]/.test(match[2])?match[2]:'';
+  found.push({kind:match[1],hanja,korean:hanja?readingOf(hanja)||'':match[2]});
+ }
+ return found;
+}
+// The family name a person's own name opens with: 김 of 김상석, 제갈 of 제갈지봉.
+// A given name is two characters almost without exception.
+function familyName(name){
+ const text=String(name||'').trim();
+ return text.length>=4?text.slice(0,2):text.slice(0,1);
+}
+// Another name is looked for as the whole name it makes with the family name —
+// 김용학, 金龍鶴 — as well as by itself.
+function searchText(person){
+ const korean=familyName(person.korean_name),hanja=familyName(person.hanja_name);
+ const others=otherNames(person).flatMap(name=>[
+  name.korean,name.korean&&korean+name.korean,name.hanja&&hanja+name.hanja]);
+ return [person.korean_name,person.hanja_name,person.note,...others].filter(Boolean).join(' ').toLowerCase();
+}
+// Spaces are not held against a search: 김 용학 finds 김용학.
+function searchMatches(person,query){
+ const text=searchText(person),q=String(query||'').toLowerCase().trim();
+ return text.includes(q)||text.replace(/\s+/g,'').includes(q.replace(/\s+/g,''));
+}
 function personCard(person){
  const photo=book.files.find(file=>file.person_id===person.id&&/\.(png|jpe?g)$/i.test(file.name));
  const tone=person.gender==='남'?' male':person.gender==='여'?' female':'';
- const dates=[person.birth_date||'출생일 미상',person.death_date?'— '+person.death_date:''].filter(Boolean).join(' ');
+ const dates=[person.birth_date?shownDate(person.birth_date):'출생일 미상',person.death_date?'— '+shownDate(person.death_date):''].filter(Boolean).join(' ');
  return `<button type="button" class="person-card${tone}" data-person="${person.id}">`
   +`<span class="person-portrait">${photo?`<img src="/api/files/${photo.id}" alt="">`:esc(person.korean_name.slice(0,1))}</span>`
   +'<span class="person-body">'
   +`<strong>${esc(displayName(person).primary)}</strong>`
   +`<span class="person-hanja">${esc(displayName(person).other||'한자명 미등록')}</span>`
+  +otherNames(person).map(name=>`<span class="person-other"><i>${esc(name.kind)}</i> ${esc(name.hanja||name.korean)}${name.hanja&&name.korean?` <em>${esc(name.korean)}</em>`:''}</span>`).join('')
   +`<small>${esc(dates)}</small>`
   +`<span class="badge">${person.generation}세대 · ${esc(genderText(person.gender))}</span>`
   +'</span></button>';
@@ -572,10 +648,11 @@ let treeOptions={generation:true,hanja:true,bon_gwan:false,birth:false,death:fal
 try{Object.assign(treeOptions,JSON.parse(localStorage.getItem('jocbo.tree')||'{}'));}catch{}
 function saveTreeOptions(){try{localStorage.setItem('jocbo.tree',JSON.stringify(treeOptions));}catch{}}
 function ageText(person){
- if(!validDate(person.birth_date||''))return '';
- const dead=validDate(person.death_date||''),end=dead?person.death_date:new Date().toISOString().slice(0,10);
+ // An age needs both years; the month and day only settle a birthday not yet reached.
+ if(!/^\d{4}/.test(person.birth_date||''))return '';
+ const dead=/^\d{4}/.test(person.death_date||''),end=dead?person.death_date:todayISO();
  let years=Number(end.slice(0,4))-Number(person.birth_date.slice(0,4));
- if(end.slice(5)<person.birth_date.slice(5))years--;
+ if(end.length===10&&person.birth_date.length===10&&end.slice(5)<person.birth_date.slice(5))years--;
  // No 졸년 on a long-past birth means the record is simply unfinished, not a 139-year-old.
  if(years<0||(!dead&&years>120))return '';
  return (dead?'향년 ':'만 ')+years+'세';
@@ -591,7 +668,7 @@ function treeDetails(person,outside){
   rows.push([treeOptions.generation?(outside?'外家':person.generation+'세대'):'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
  if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+scriptText(person.bon_gwan):'');
  if(treeOptions.birth||treeOptions.death)
-  rows.push([treeOptions.birth?person.birth_date:'',treeOptions.death&&person.death_date?'— '+person.death_date:''].filter(Boolean).join(' '));
+  rows.push([treeOptions.birth&&person.birth_date?shownDate(person.birth_date):'',treeOptions.death&&person.death_date?'— '+shownDate(person.death_date):''].filter(Boolean).join(' '));
  if(treeOptions.age)rows.push(ageText(person));
  return rows;
 }
@@ -1021,7 +1098,7 @@ function editPerson(id){
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
  setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
- paintDateClears();
+ paintDateBoxes(f);
  // The relation window reopens this one in place, so it may already be up.
  if(!$('#personDialog').open)$('#personDialog').showModal();
  personSnapshot=personState();
@@ -1061,6 +1138,111 @@ $('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.on
  $('#relativeKindDialog').close();
  addRelative(kind,relativeAnchorId);
 });
+// ── 날짜 칸 ──
+// The browser's date box gives back nothing at all while one of its year, month
+// and day is empty, so a date the book gives only in part could not be kept.
+// It is replaced by a box of the same look — 연도-월-일 and a calendar at the
+// end — whose parts may each be left empty. Every part filled keeps its rule:
+// a year of four figures, a month of 1 to 12, a day up to the end of its month.
+// The date is kept in a hidden box under the field's name, as 1956, 1956-03,
+// 1956-03-02, or --03-02 when there is no year.
+const CALENDAR_ICON='<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M4 0h1.5v2h5V0H12v2h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2zM2.5 6v8.5h11V6z"/></svg>';
+function dateShown(box){
+ const shell=box.previousElementSibling;
+ return shell&&shell.classList.contains('date-box')?shell.querySelector('[data-seg="y"]'):box;
+}
+function dateFromSegments(y,m,d){
+ if(!y&&!m&&!d)return {value:''};
+ if(y&&!/^\d{4}$/.test(y))return {problem:'연도 4자리 형식 · 예: 1956',seg:'y'};
+ if(y&&Number(y)<1)return {problem:'연도는 1년부터',seg:'y'};
+ if(m&&!(Number(m)>=1&&Number(m)<=12))return {problem:'월은 1~12',seg:'m'};
+ if(d&&!(Number(d)>=1&&Number(d)<=31))return {problem:'일은 1~31',seg:'d'};
+ if(d&&!m)return {problem:'월 없이 일만은 불가 · 월 입력',seg:'m'};
+ if(!y&&!d)return {problem:'연도 없이 월만은 불가 · 일도 입력',seg:'d'};
+ const pad=n=>String(Number(n)).padStart(2,'0');
+ const value=y?[y,m&&pad(m),d&&pad(d)].filter(Boolean).join('-'):`--${pad(m)}-${pad(d)}`;
+ if(!validDate(value))return {problem:`${Number(m)}월에는 ${Number(d)}일이 없음 · 일은 해당 월의 마지막 날까지`,seg:'d'};
+ return {value};
+}
+function readDateBox(shell){
+ const hidden=shell.nextElementSibling;
+ const seg=name=>shell.querySelector(`[data-seg="${name}"]`).value.trim();
+ const found=dateFromSegments(seg('y'),seg('m'),seg('d'));
+ hidden.value=found.value||'';
+ hidden.dataset.problem=found.problem||'';
+ hidden.dataset.seg=found.seg||'';
+ hidden.dataset.typed=['y','m','d'].some(name=>seg(name))?'1':'';
+ shell.classList.toggle('empty',!hidden.dataset.typed);
+ paintDateClears();
+}
+// After a date is set in code — a record opened, a reading filled in, 지우기 —
+// its parts are shown from it.
+function paintDateBoxes(root){
+ for(const shell of root.querySelectorAll('.date-box')){
+  const hidden=shell.nextElementSibling,{y,m,d}=dateParts(hidden.value);
+  shell.querySelector('[data-seg="y"]').value=y?String(y).padStart(4,'0'):'';
+  shell.querySelector('[data-seg="m"]').value=m?String(m).padStart(2,'0'):'';
+  shell.querySelector('[data-seg="d"]').value=d?String(d).padStart(2,'0'):'';
+  hidden.dataset.problem='';
+  hidden.dataset.seg='';
+  hidden.dataset.typed=hidden.value?'1':'';
+  shell.classList.toggle('empty',!hidden.value);
+ }
+ paintDateClears();
+}
+function upgradeDateInput(native){
+ const name=native.name;
+ const shell=document.createElement('div');
+ shell.className='date-box empty';
+ shell.innerHTML='<input data-seg="y" inputmode="numeric" maxlength="4" placeholder="연도" autocomplete="off" aria-label="연도">'
+  +'<span>-</span><input data-seg="m" inputmode="numeric" maxlength="2" placeholder="월" autocomplete="off" aria-label="월">'
+  +'<span>-</span><input data-seg="d" inputmode="numeric" maxlength="2" placeholder="일" autocomplete="off" aria-label="일">'
+  +`<button type="button" class="date-calendar" tabindex="-1" title="달력에서 고르기" aria-label="달력에서 고르기">${CALENDAR_ICON}</button>`;
+ const hidden=document.createElement('input');
+ hidden.type='hidden';
+ hidden.name=name;
+ native.removeAttribute('name');
+ native.tabIndex=-1;
+ native.setAttribute('aria-hidden','true');
+ native.classList.add('date-native');
+ native.replaceWith(shell);
+ shell.append(native);
+ shell.after(hidden);
+ const segs=['y','m','d'].map(seg=>shell.querySelector(`[data-seg="${seg}"]`));
+ segs.forEach((box,index)=>{
+  // As the browser's box does: figures only, and on to the next part once
+  // this one can take no more.
+  box.addEventListener('input',()=>{
+   box.value=box.value.replace(/\D/g,'');
+   const full=box.value.length>=Number(box.maxLength)
+    ||(box.dataset.seg==='m'&&Number(box.value)>1)||(box.dataset.seg==='d'&&Number(box.value)>3);
+   if(full&&segs[index+1])segs[index+1].focus(),segs[index+1].select();
+   readDateBox(shell);
+  });
+  box.addEventListener('keydown',event=>{
+   if(event.key==='Backspace'&&!box.value&&segs[index-1]){event.preventDefault();segs[index-1].focus();}
+   if((event.key==='-'||event.key==='/'||event.key==='.')&&segs[index+1]){event.preventDefault();segs[index+1].focus();segs[index+1].select();}
+  });
+  box.addEventListener('blur',()=>{
+   if(box.dataset.seg!=='y'&&/^\d$/.test(box.value)&&box.value!=='0')box.value='0'+box.value;
+   readDateBox(shell);
+  });
+ });
+ shell.querySelector('.date-calendar').onclick=()=>{
+  // The calendar stops at today, so a later day is never offered.
+  native.max=todayISO();
+  native.value=/^\d{4}-\d{2}-\d{2}$/.test(hidden.value)?hidden.value:'';
+  try{native.showPicker();}catch{native.focus();}
+ };
+ native.addEventListener('change',()=>{
+  if(!native.value)return;
+  hidden.value=native.value;
+  paintDateBoxes(shell.parentElement);
+ });
+ // 지우기 and anything else that sets the date from outside.
+ hidden.addEventListener('input',()=>paintDateBoxes(shell.parentElement));
+}
+for(const native of $('#personForm').querySelectorAll('input[type="date"]'))upgradeDateInput(native);
 // A date box has no clear of its own: emptying it means deleting the year, the
 // month and the day one at a time. This empties the whole date in one press, and
 // stays greyed out while there is nothing in it to clear.
@@ -1072,7 +1254,7 @@ for(const name of ['birth_date','death_date']){
 function paintDateClears(){
  for(const button of document.querySelectorAll('[data-clear-date]')){
   const input=$('#personForm').elements[button.dataset.clearDate];
-  button.disabled=!input||!input.value;
+  button.disabled=!input||!(input.value||input.dataset.typed);
  }
 }
 for(const button of document.querySelectorAll('[data-clear-date]')){
@@ -1204,7 +1386,7 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
  // Whoever was searched for is the one the reader has in mind, so the form
  // starts from them rather than from the first name in the book.
  const q=$('#search').value.toLowerCase().trim();
- const found=q?book.persons.find(p=>[p.korean_name,p.hanja_name,p.note].join(' ').toLowerCase().includes(q)):null;
+ const found=q?book.persons.find(p=>searchMatches(p,q)):null;
  anchor.value=found?String(found.id):kept;
  $('#relationForm').querySelector('button').disabled=!book.persons.length;
  // A search is about one family. The book holds other branches that never meet
@@ -1295,6 +1477,7 @@ function scanRowHTML(id,generation){
   <button type="button" class="scan-drop" data-drop="${id}" aria-label="이 줄 지우기" title="이 줄 지우기">×</button>
   <label>본관<input name="bon_gwan" maxlength="200" autocomplete="off"></label>
   <label>출생일<input name="birth_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
+  <label>사망일<input name="death_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
   <label>기록<input name="note" maxlength="10000" autocomplete="off" placeholder="예: 父 東國(동국)"></label>
   <p class="scan-match" hidden></p>
  </div>`;
@@ -1307,6 +1490,7 @@ function scanAddRow(){
  const generation=last?(scanRowFields(last)('generation').value||1):1;
  $('#scanList').insertAdjacentHTML('beforeend',scanRowHTML(++scanRowSeq,generation));
  const added=$('#scanList').lastElementChild;
+ for(const native of added.querySelectorAll('input[type="date"]'))upgradeDateInput(native);
  scanRowFields(added)('bon_gwan').value=book?dialogScriptText(book.bon_gwan||''):'';
  bindScanRow(added);
  paintScanCount();
@@ -1340,7 +1524,7 @@ function bindScanRow(row){
 }
 // What a clearer reading is allowed to fill in, and what counts as nothing known.
 const SCAN_FILLABLE=[['hanja_name','','한자명'],['bon_gwan','','본관'],
- ['gender','미상','성별'],['birth_date','','출생일'],['note','','기록']];
+ ['gender','미상','성별'],['birth_date','','출생일'],['death_date','','사망일'],['note','','기록']];
 // A name already in the book is far likelier to be the same person read again
 // than a second person of the same name, so the line offers to fill that record
 // in rather than quietly making a double.
@@ -1529,7 +1713,7 @@ $('#scanSave').onclick=async()=>{
    korean_name:line.korean,hanja_name:line.hanja,
    bon_gwan:get('bon_gwan').value.trim(),generation,
    gender:get('gender').value,birth_date:get('birth_date').value,
-   death_date:'',note:get('note').value.trim(),
+   death_date:get('death_date').value,note:get('note').value.trim(),
    ...(fillId?{id:fillId}:{})
   });
  }
@@ -1568,7 +1752,10 @@ function scanFillRow(row,person,generation){
  get('bon_gwan').value=person.bon_gwan||(book?book.bon_gwan||'':'');
  get('gender').value=person.gender||'미상';
  get('birth_date').value=person.birth_date||'';
- get('note').value='';
+ get('death_date').value=person.death_date||'';
+ paintDateBoxes(row);
+ // 字·初名·墓, a daughter's husband, a day remembered without a year.
+ get('note').value=person.note||'';
  // A year and its 간지 that disagree mean one of the two was misread.
  row.classList.toggle('doubted',person.ganji_agrees===false);
  row.title=person.ganji_agrees===false?'간지 불일치 — 원본 대조 필요':'';

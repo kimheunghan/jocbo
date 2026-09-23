@@ -656,6 +656,7 @@ button.busy {
 .genealogy-person strong em {
   color: #39443d;
   font-size: 9.5px;
+  font-weight: 400;
   font-style: normal;
   letter-spacing: 0;
 }
@@ -969,8 +970,10 @@ button.busy {
 }
 
 .scan-row label:nth-of-type(5) { grid-column: 1 / 3; }
-.scan-row label:nth-of-type(6) { grid-column: 3 / 5; }
-.scan-row label:nth-of-type(7) { grid-column: 5 / 7; }
+.scan-row label:nth-of-type(6) { grid-column: 3 / 4; }
+.scan-row label:nth-of-type(7) { grid-column: 4 / 7; }
+/* 字·墓·기일 run long, so the record takes a rank of its own. */
+.scan-row label:nth-of-type(8) { grid-column: 1 / -1; }
 
 .scan-actions {
   position: sticky;
@@ -1180,5 +1183,91 @@ button.busy {
 .hanja-none {
   margin: 0 0 10px;
   color: var(--ink-soft);
+  font-size: 13px;
+}
+
+/* The date box keeps the look of the browser's own: 연도-월-일 in one field with
+   the calendar at its end. Only now a part may be left empty. */
+.date-box {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: 15px/1.5 var(--sans);
+  cursor: text;
+}
+
+.date-control .date-box { margin: 0; }
+
+.date-box:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px #2f5d4a22;
+}
+
+.date-box:has([aria-invalid="true"]) {
+  border-color: #b83b31;
+  box-shadow: 0 0 0 2px #f8d9d5;
+}
+
+.date-box input[data-seg],
+.date-control .date-box input[data-seg],
+.scan-row .date-box input[data-seg] {
+  flex: none;
+  width: 2.2ch;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.date-box input[data-seg="y"],
+.date-control .date-box input[data-seg="y"],
+.scan-row .date-box input[data-seg="y"] { width: 4.4ch; }
+
+.date-box input[data-seg]:focus { background: #cfe3d8; }
+.date-box input[data-seg]::placeholder { color: var(--ink); }
+.date-box span { padding: 0; }
+
+.date-box .date-calendar {
+  display: grid;
+  place-items: center;
+  margin: 0 0 0 auto;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* The browser's calendar, opened from the icon and never shown as a box. */
+.date-box .date-native {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scan-row .date-box {
+  margin-top: 3px;
+  padding: 6px 8px;
   font-size: 13px;
 }
