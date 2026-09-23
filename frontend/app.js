@@ -105,8 +105,10 @@ function sideScriptText(text){
  return sideScriptMode==='hangul'?(readingOf(text)||text):text;
 }
 // 성별 is a fixed choice rather than a transcribed name, so its hanja is set
-// here instead of looked up. What is stored stays hangul in either script.
-const GENDER_HANJA={미상:'未詳',남:'男',여:'女'};
+// here instead of looked up. These are the characters the book itself uses for a
+// son and a daughter — 子 and 女, not 男 and 女. What is stored stays hangul in
+// either script.
+const GENDER_HANJA={미상:'未詳',남:'子',여:'女'};
 function genderText(gender){
  return scriptMode==='hangul'?gender:(GENDER_HANJA[gender]||gender);
 }
