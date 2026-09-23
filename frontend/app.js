@@ -298,18 +298,24 @@ function dateProblem(get){
  for(const [name,label] of [['birth_date','출생일'],['death_date','사망일']]){
   const box=get(name);
   if(!box)continue;
+  const shown=dateShown(box);
+  // A year, a month or a day may be left empty; each one filled keeps its rule.
+  if(box.dataset.problem)return [shown,`${label} — ${box.dataset.problem}`];
   // A date the browser could not make sense of — 31 February, 29 February in a
   // year with 28 — reads back empty while its segments still show the typing.
   if(box.validity.badInput)
-   return [box,`${label} — 없는 날짜 · 월 1~12, 일은 해당 월의 마지막 날까지 · 예: 1956-02-07`];
+   return [shown,`${label} — 없는 날짜 · 월 1~12, 일은 해당 월의 마지막 날까지 · 예: 1956-02-07`];
   if(box.value&&!validDate(box.value))
-   return [box,`${label} — 연도 4자리 형식 · 예: 1956-02-07`];
-  if(box.value&&box.value>today)
-   return [box,`${label} — 아직 오지 않은 날 · 오늘(${today}) 이후 불가`];
+   return [shown,`${label} — 연도 4자리 형식 · 예: 1956-02-07`];
+  if(box.value&&!box.value.startsWith('--')&&box.value>today.slice(0,box.value.length))
+   return [shown,`${label} — 아직 오지 않은 날 · 오늘(${today}) 이후 불가`];
  }
  const birth=get('birth_date'),death=get('death_date');
- if(birth&&death&&birth.value&&death.value&&death.value<birth.value)
-  return [death,'사망일이 출생일보다 이름'];
+ if(birth&&death&&birth.value&&death.value&&!birth.value.startsWith('--')&&!death.value.startsWith('--')){
+  // Only as far as both are known: 1956 and 1956-03-02 do not contradict.
+  const known=Math.min(birth.value.length,death.value.length);
+  if(death.value.slice(0,known)<birth.value.slice(0,known))return [dateShown(death),'사망일이 출생일보다 이름'];
+ }
  return null;
 }
 // By the browser's own clock, not UTC: in Korea the two differ for the first
@@ -1044,7 +1050,7 @@ function editPerson(id){
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
  setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
- paintDateClears();
+ paintDateBoxes(f);
  // The relation window reopens this one in place, so it may already be up.
  if(!$('#personDialog').open)$('#personDialog').showModal();
  personSnapshot=personState();
@@ -1084,6 +1090,111 @@ $('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.on
  $('#relativeKindDialog').close();
  addRelative(kind,relativeAnchorId);
 });
+// ── 날짜 칸 ──
+// The browser's date box gives back nothing at all while one of its year, month
+// and day is empty, so a date the book gives only in part could not be kept.
+// It is replaced by a box of the same look — 연도-월-일 and a calendar at the
+// end — whose parts may each be left empty. Every part filled keeps its rule:
+// a year of four figures, a month of 1 to 12, a day up to the end of its month.
+// The date is kept in a hidden box under the field's name, as 1956, 1956-03,
+// 1956-03-02, or --03-02 when there is no year.
+const CALENDAR_ICON='<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M4 0h1.5v2h5V0H12v2h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2zM2.5 6v8.5h11V6z"/></svg>';
+function dateShown(box){
+ const shell=box.previousElementSibling;
+ return shell&&shell.classList.contains('date-box')?shell.querySelector('[data-seg="y"]'):box;
+}
+function dateFromSegments(y,m,d){
+ if(!y&&!m&&!d)return {value:''};
+ if(y&&!/^\d{4}$/.test(y))return {problem:'연도 4자리 형식 · 예: 1956',seg:'y'};
+ if(y&&Number(y)<1)return {problem:'연도는 1년부터',seg:'y'};
+ if(m&&!(Number(m)>=1&&Number(m)<=12))return {problem:'월은 1~12',seg:'m'};
+ if(d&&!(Number(d)>=1&&Number(d)<=31))return {problem:'일은 1~31',seg:'d'};
+ if(d&&!m)return {problem:'월 없이 일만은 불가 · 월 입력',seg:'m'};
+ if(!y&&!d)return {problem:'연도 없이 월만은 불가 · 일도 입력',seg:'d'};
+ const pad=n=>String(Number(n)).padStart(2,'0');
+ const value=y?[y,m&&pad(m),d&&pad(d)].filter(Boolean).join('-'):`--${pad(m)}-${pad(d)}`;
+ if(!validDate(value))return {problem:`${Number(m)}월에는 ${Number(d)}일이 없음 · 일은 해당 월의 마지막 날까지`,seg:'d'};
+ return {value};
+}
+function readDateBox(shell){
+ const hidden=shell.nextElementSibling;
+ const seg=name=>shell.querySelector(`[data-seg="${name}"]`).value.trim();
+ const found=dateFromSegments(seg('y'),seg('m'),seg('d'));
+ hidden.value=found.value||'';
+ hidden.dataset.problem=found.problem||'';
+ hidden.dataset.seg=found.seg||'';
+ hidden.dataset.typed=['y','m','d'].some(name=>seg(name))?'1':'';
+ shell.classList.toggle('empty',!hidden.dataset.typed);
+ paintDateClears();
+}
+// After a date is set in code — a record opened, a reading filled in, 지우기 —
+// its parts are shown from it.
+function paintDateBoxes(root){
+ for(const shell of root.querySelectorAll('.date-box')){
+  const hidden=shell.nextElementSibling,{y,m,d}=dateParts(hidden.value);
+  shell.querySelector('[data-seg="y"]').value=y?String(y).padStart(4,'0'):'';
+  shell.querySelector('[data-seg="m"]').value=m?String(m).padStart(2,'0'):'';
+  shell.querySelector('[data-seg="d"]').value=d?String(d).padStart(2,'0'):'';
+  hidden.dataset.problem='';
+  hidden.dataset.seg='';
+  hidden.dataset.typed=hidden.value?'1':'';
+  shell.classList.toggle('empty',!hidden.value);
+ }
+ paintDateClears();
+}
+function upgradeDateInput(native){
+ const name=native.name;
+ const shell=document.createElement('div');
+ shell.className='date-box empty';
+ shell.innerHTML='<input data-seg="y" inputmode="numeric" maxlength="4" placeholder="연도" autocomplete="off" aria-label="연도">'
+  +'<span>-</span><input data-seg="m" inputmode="numeric" maxlength="2" placeholder="월" autocomplete="off" aria-label="월">'
+  +'<span>-</span><input data-seg="d" inputmode="numeric" maxlength="2" placeholder="일" autocomplete="off" aria-label="일">'
+  +`<button type="button" class="date-calendar" tabindex="-1" title="달력에서 고르기" aria-label="달력에서 고르기">${CALENDAR_ICON}</button>`;
+ const hidden=document.createElement('input');
+ hidden.type='hidden';
+ hidden.name=name;
+ native.removeAttribute('name');
+ native.tabIndex=-1;
+ native.setAttribute('aria-hidden','true');
+ native.classList.add('date-native');
+ native.replaceWith(shell);
+ shell.append(native);
+ shell.after(hidden);
+ const segs=['y','m','d'].map(seg=>shell.querySelector(`[data-seg="${seg}"]`));
+ segs.forEach((box,index)=>{
+  // As the browser's box does: figures only, and on to the next part once
+  // this one can take no more.
+  box.addEventListener('input',()=>{
+   box.value=box.value.replace(/\D/g,'');
+   const full=box.value.length>=Number(box.maxLength)
+    ||(box.dataset.seg==='m'&&Number(box.value)>1)||(box.dataset.seg==='d'&&Number(box.value)>3);
+   if(full&&segs[index+1])segs[index+1].focus(),segs[index+1].select();
+   readDateBox(shell);
+  });
+  box.addEventListener('keydown',event=>{
+   if(event.key==='Backspace'&&!box.value&&segs[index-1]){event.preventDefault();segs[index-1].focus();}
+   if((event.key==='-'||event.key==='/'||event.key==='.')&&segs[index+1]){event.preventDefault();segs[index+1].focus();segs[index+1].select();}
+  });
+  box.addEventListener('blur',()=>{
+   if(box.dataset.seg!=='y'&&/^\d$/.test(box.value)&&box.value!=='0')box.value='0'+box.value;
+   readDateBox(shell);
+  });
+ });
+ shell.querySelector('.date-calendar').onclick=()=>{
+  // The calendar stops at today, so a later day is never offered.
+  native.max=todayISO();
+  native.value=/^\d{4}-\d{2}-\d{2}$/.test(hidden.value)?hidden.value:'';
+  try{native.showPicker();}catch{native.focus();}
+ };
+ native.addEventListener('change',()=>{
+  if(!native.value)return;
+  hidden.value=native.value;
+  paintDateBoxes(shell.parentElement);
+ });
+ // 지우기 and anything else that sets the date from outside.
+ hidden.addEventListener('input',()=>paintDateBoxes(shell.parentElement));
+}
+for(const native of $('#personForm').querySelectorAll('input[type="date"]'))upgradeDateInput(native);
 // A date box has no clear of its own: emptying it means deleting the year, the
 // month and the day one at a time. This empties the whole date in one press, and
 // stays greyed out while there is nothing in it to clear.
@@ -1095,7 +1206,7 @@ for(const name of ['birth_date','death_date']){
 function paintDateClears(){
  for(const button of document.querySelectorAll('[data-clear-date]')){
   const input=$('#personForm').elements[button.dataset.clearDate];
-  button.disabled=!input||!input.value;
+  button.disabled=!input||!(input.value||input.dataset.typed);
  }
 }
 for(const button of document.querySelectorAll('[data-clear-date]')){
@@ -1331,6 +1442,7 @@ function scanAddRow(){
  const generation=last?(scanRowFields(last)('generation').value||1):1;
  $('#scanList').insertAdjacentHTML('beforeend',scanRowHTML(++scanRowSeq,generation));
  const added=$('#scanList').lastElementChild;
+ for(const native of added.querySelectorAll('input[type="date"]'))upgradeDateInput(native);
  scanRowFields(added)('bon_gwan').value=book?dialogScriptText(book.bon_gwan||''):'';
  bindScanRow(added);
  paintScanCount();
@@ -1593,6 +1705,7 @@ function scanFillRow(row,person,generation){
  get('gender').value=person.gender||'미상';
  get('birth_date').value=person.birth_date||'';
  get('death_date').value=person.death_date||'';
+ paintDateBoxes(row);
  // 字·初名·墓, a daughter's husband, a day remembered without a year.
  get('note').value=person.note||'';
  // A year and its 간지 that disagree mean one of the two was misread.
