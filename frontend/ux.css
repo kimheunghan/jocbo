@@ -551,9 +551,12 @@ button.busy {
   font-family: "Batang", serif;
 }
 
+/* Batang has no heavier face; asking for one makes the browser smear the glyph
+   sideways into a doubled outline, so the names keep the face it has. */
 .genealogy-side strong {
   font-size: 21px;
-  font-weight: 500;
+  font-weight: 400;
+  font-synthesis: none;
 }
 
 .genealogy-side span {
@@ -631,7 +634,8 @@ button.busy {
 
 .genealogy-person strong {
   font-size: 18px;
-  font-weight: 500;
+  font-weight: 400;
+  font-synthesis: none;
   letter-spacing: 0;
 }
 
