@@ -368,7 +368,7 @@ function personName(id){return book.persons.find(p=>p.id===id)?.korean_name||'';
 function hanjaNumber(value){const n=Number(value);if(!Number.isInteger(n)||n<0||n>99)return String(value||'');const digits='零一二三四五六七八九';if(n<10)return digits[n];if(n===10)return '十';const tens=n>19?digits[Math.floor(n/10)]+'十':'十';return tens+(n%10?digits[n%10]:'');}
 function normalizeBookGenerations(){const byId=new Map(book.persons.map(p=>[p.id,p])),parents=book.relations.filter(r=>r.kind==='parent');for(let pass=0;pass<book.persons.length;pass++){let changed=false;for(const r of parents){const parent=byId.get(r.source_id),child=byId.get(r.target_id);if(parent&&child&&child.generation<parent.generation+1){child.generation=parent.generation+1;changed=true;}}if(!changed)break;}}
 function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));searchNotice.hidden=true;if(!book){$('#view').innerHTML='<p class="empty">족보 없음 — 왼쪽에서 새 족보 또는 예제 추가</p>';return;}
- const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>[p.korean_name,p.hanja_name,p.note].join(' ').toLowerCase().includes(q));
+ const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>searchText(p).includes(q));
  // A search narrows the list. The tree and the book are drawings of the whole
  // family, so they keep everyone and move to the person who was found instead.
  if(q){
@@ -522,6 +522,20 @@ function displayName(person,mode=scriptMode){
 }
 // The list card carries the portrait and the same facts the tree card shows, so
 // browsing the list feels like reading the book rather than a bare index.
+// A person was once called by more than one name: 字, given on coming of age,
+// 初名 from childhood, 號. The record carries them as 字 龍鶴, and each is shown
+// beside the name and found by a search in either script.
+function otherNames(person){
+ const found=[];
+ for(const match of String(person.note||'').matchAll(/(字|初名|號|諱)\s*([一-鿿]{1,4}|[가-힣]{2,4})/g)){
+  const hanja=/[一-鿿]/.test(match[2])?match[2]:'';
+  found.push({kind:match[1],hanja,korean:hanja?readingOf(hanja)||'':match[2]});
+ }
+ return found;
+}
+function searchText(person){
+ return [person.korean_name,person.hanja_name,person.note,...otherNames(person).map(name=>name.korean)].join(' ').toLowerCase();
+}
 function personCard(person){
  const photo=book.files.find(file=>file.person_id===person.id&&/\.(png|jpe?g)$/i.test(file.name));
  const tone=person.gender==='남'?' male':person.gender==='여'?' female':'';
@@ -531,6 +545,7 @@ function personCard(person){
   +'<span class="person-body">'
   +`<strong>${esc(displayName(person).primary)}</strong>`
   +`<span class="person-hanja">${esc(displayName(person).other||'한자명 미등록')}</span>`
+  +otherNames(person).map(name=>`<span class="person-other"><i>${esc(name.kind)}</i> ${esc(name.hanja||name.korean)}${name.hanja&&name.korean?` <em>${esc(name.korean)}</em>`:''}</span>`).join('')
   +`<small>${esc(dates)}</small>`
   +`<span class="badge">${person.generation}세대 · ${esc(genderText(person.gender))}</span>`
   +'</span></button>';
@@ -1338,7 +1353,7 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
  // Whoever was searched for is the one the reader has in mind, so the form
  // starts from them rather than from the first name in the book.
  const q=$('#search').value.toLowerCase().trim();
- const found=q?book.persons.find(p=>[p.korean_name,p.hanja_name,p.note].join(' ').toLowerCase().includes(q)):null;
+ const found=q?book.persons.find(p=>searchText(p).includes(q)):null;
  anchor.value=found?String(found.id):kept;
  $('#relationForm').querySelector('button').disabled=!book.persons.length;
  // A search is about one family. The book holds other branches that never meet

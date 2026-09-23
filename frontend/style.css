@@ -656,6 +656,25 @@ nav .active:hover {
   font-size: 14px;
 }
 
+/* 字 龍鶴 용학 — another name the person went by, under the name itself. */
+.person-other {
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 13px;
+}
+
+.person-other i {
+  color: var(--ink-faint);
+  font-style: normal;
+}
+
+.person-other em {
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-style: normal;
+}
+
 .person-body small {
   color: var(--ink-faint);
   font-size: 12px;
