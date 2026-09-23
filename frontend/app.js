@@ -352,10 +352,18 @@ function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classLis
    :`<span>검색 <strong>${esc($('#search').value.trim())}</strong> · ${people.length?'<strong>'+esc(displayName(people[0]).primary)+'</strong> 위치로 이동':'결과 없음'}</span>`)
    +'<button type="button" id="clearSearch">전체 보기</button>';
   // Clearing the box puts the list back and takes the ring off the tree.
-  $('#clearSearch').onclick=()=>{$('#search').value='';render();renderRelations();};
+  $('#clearSearch').onclick=()=>{
+   $('#search').value='';
+   $('#relationForm').elements.source_id.value='';
+   zoomScrollAt.delete(view);
+   render();
+   renderRelations();
+   const frame=$('.zoom-scroll');
+   if(frame)frame.scrollTo(0,0);
+  };
  }
- if(view==='tree'){renderTree(book.persons);markFound(people[0],'[data-tree-person]');return;}
- if(view==='book'){const sheets=bookHTML(book.persons);$('#view').innerHTML=sheets.includes('traditional-book')?wrapZoom(sheets):sheets;bindZoom('book');markFound(people[0],'[data-book-person]');return;}
+ if(view==='tree'){renderTree(book.persons);markFound(q?people[0]:null,'[data-tree-person]');return;}
+ if(view==='book'){const sheets=bookHTML(book.persons);$('#view').innerHTML=sheets.includes('traditional-book')?wrapZoom(sheets):sheets;bindZoom('book');markFound(q?people[0]:null,'[data-book-person]');return;}
  $('#view').innerHTML=people.length?'<div class="cards">'+people.map(personCard).join('')+'</div>':'<p class="empty">등록된 인물 없음</p>';
  document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>editPerson(Number(b.dataset.person)));
 }
@@ -1091,19 +1099,20 @@ $('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogEr
  try{const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?`${who} — 저장 완료`:relative?`${who} — ${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록 완료`:`${who} — 등록 완료 · 검색어 해제됨`);}catch(err){dialogError(err.message);}};
 $('#deletePerson').onclick=async()=>{if(!await ask(`${$('#personForm').elements.korean_name.value} — 연결된 관계와 첨부파일까지 모두 삭제 · 되돌릴 수 없음`,'삭제'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('삭제 완료');}catch(err){dialogError(err.message);}};
 $('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
-function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');const anchor=$('#relationForm').elements.source_id;const kept=anchor.value;anchor.innerHTML=options;
+function renderRelations(){if(!book)return;const options='<option value="">인물 선택</option>'+book.persons.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');const anchor=$('#relationForm').elements.source_id;const kept=anchor.value;anchor.innerHTML=options;
  // Whoever was searched for is the one the reader has in mind, so the form
  // starts from them rather than from the first name in the book.
  const q=$('#search').value.toLowerCase().trim();
  const found=q?book.persons.find(p=>[p.korean_name,p.hanja_name,p.note].join(' ').toLowerCase().includes(q)):null;
- anchor.value=found?String(found.id):(kept||anchor.value);
+ anchor.value=found?String(found.id):kept;
  $('#relationForm').querySelector('button').disabled=!book.persons.length;
  // A search is about one family. The book holds other branches that never meet
  // it, and listing those under a name the reader just searched for is noise.
- const kin=found?directLine(found.id):null;
+ const chosen=book.persons.find(p=>p.id===Number(anchor.value));
+ const kin=chosen?directLine(chosen.id):null;
  const shown=kin?book.relations.filter(r=>kin.has(r.source_id)&&kin.has(r.target_id)):book.relations;
- $('#relationScope').hidden=!kin;
- if(kin)$('#relationScope').textContent=`${displayName(found).primary} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
+ $('#relationScope').hidden=!chosen;
+ if(chosen)$('#relationScope').textContent=`${displayName(chosen).primary} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
  $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));}
 // One person's line: up through their forebears, down through their issue, and
 // whoever married into either. Not their forebears' other children, which is
@@ -1131,6 +1140,8 @@ function directLine(id){
 // and it could not make a sibling at all. All four are on the list now, and the
 // button opens the same registration the tree cards use, already set to the one
 // that was picked — so a new person can be entered or an existing one chosen.
+// Choosing someone in the box narrows the list to them at once.
+$('#relationForm').elements.source_id.onchange=renderRelations;
 $('#relationForm').onsubmit=e=>{
  e.preventDefault();
  const form=$('#relationForm'),id=Number(form.elements.source_id.value);
