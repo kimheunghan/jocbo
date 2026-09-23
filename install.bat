@@ -6,7 +6,9 @@ chcp 65001 >nul
 title 우리의 족보 — 설치
 
 set "REPO=https://github.com/kimheunghan/jocbo"
+rem 받을 곳. 첫 인자로 다른 폴더를 줄 수 있습니다 — install.bat D:\어디\jocbo
 set "TARGET=%USERPROFILE%\Documents\jocbo"
+if not "%~1"=="" set "TARGET=%~1"
 
 echo.
 echo   우리의 족보 — 설치
