@@ -241,8 +241,14 @@ button.busy {
   cursor: grab;
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
-  /* Dragging here moves the canvas; it never sweeps a text selection. */
-  user-select: none;
+}
+
+/* Text stays selectable where there is text; only the empty canvas is a handle. */
+.zoom-scroll .genealogy-person,
+.zoom-scroll .genealogy-side,
+.zoom-scroll .genealogy-branch,
+.zoom-scroll .genealogy-generation h3 {
+  cursor: text;
 }
 
 .zoom-scroll img {

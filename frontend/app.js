@@ -494,10 +494,15 @@ function bindZoom(key){
   apply(zoom*(event.deltaY<0?1.12:1/1.12),event.clientX,event.clientY);
  },{passive:false});
  let pan=null,dragged=false;
+ // Where the press lands decides what the drag means: empty canvas moves the
+ // view, a card or a line of text is left alone so it can be selected or clicked.
+ // The middle button moves the view from anywhere.
+ const KEEPS_ITS_OWN_DRAG='.tree-card,.tree-add,.genealogy-person,.genealogy-side,.genealogy-branch,.genealogy-generation h3,button,a,input,textarea,select';
  scroll.addEventListener('pointerdown',event=>{
-  if(event.button!==0&&event.button!==1)return;
-  // Without this the browser starts selecting the text under the pointer, and the
-  // whole canvas lights up blue as you drag across it.
+  const middle=event.button===1;
+  if(!middle&&event.button!==0)return;
+  if(!middle&&event.target.closest(KEEPS_ITS_OWN_DRAG))return;
+  // On the background the browser would start sweeping a selection instead.
   event.preventDefault();
   pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
   dragged=false;
