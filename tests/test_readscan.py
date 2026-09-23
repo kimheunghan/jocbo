@@ -67,3 +67,43 @@ def test_the_head_of_the_sheet_is_not_a_generation():
     assert len(grouped) == 1
     # Right to left, as the page is read.
     assert [box['text'] for box in grouped[0]] == ['子壯純', '一九八三年癸亥二月三日生']
+
+
+def test_dates_the_reader_half_loses():
+    # 正月 is the first month, and 日 is sometimes left out before 卒.
+    read = r._entries('子芝淑字聲後一八九九年已亥六月十三日生一九六八年戊中正月四日卒', '金')[0]
+    assert (read['birth_date'], read['death_date']) == ('1899-06-13', '1968-01-04')
+    # 已 and 中 are how the reader sees 己 and 申, and the 간지 still checks.
+    assert read['ganji_agrees'] is True
+    assert read['note'] == '字 聲後'
+
+    later = r._entries('子相錫一九二一年辛酉十二月二十六日生一九八○年庚申三月五卒', '金')[0]
+    assert later['death_date'] == '1980-03-05'
+
+    # A 卒 misread still leaves the second date as the death.
+    lost = r._entries('子芝淑一八九九年己亥六月十三日生一九六八年戊申正月四日年墓', '金')[0]
+    assert lost['death_date'] == '1968-01-04'
+
+
+def test_what_a_spouse_and_a_daughter_bring():
+    # A spouse named with a numeral, and remembered on a day without a year.
+    wife = r._entries('配慶州崔氏三順忌二九月十九日', '金')[0]
+    assert (wife['hanja_name'], wife['bon_gwan']) == ('崔三順', '慶州')
+    assert wife['note'] == '기일 9월 19일'
+
+    # When the name after the 본관 is lost, the person is still proposed.
+    assert r._entries('配全州崔氏（對）', '金')[0]['hanja_name'] == '崔'
+
+    # A daughter's son belongs to her husband's line, not this book's.
+    band = r._entries('女點先夫諸葛芝奉（제갈지봉）子柄律子相錫一九二一年辛酉十二月二十六日生', '金')
+    assert [one['hanja_name'] for one in band] == ['金点先', '金相錫']
+    assert band[0]['note'] == '夫 諸葛芝奉 · 子 柄律'
+
+
+def test_columns_are_read_right_to_left_and_down():
+    # One column broken into two pieces stays one column; two side by side do not.
+    page = [{'x': 205, 'y': 2710, 'w': 268, 'h': 1163, 'text': '七年丁亥七月十六', 'score': 1.0},
+            {'x': 168, 'y': 2698, 'w': 156, 'h': 287, 'text': '日生', 'score': 1.0},
+            {'x': 433, 'y': 2726, 'w': 193, 'h': 561, 'text': '（종만）', 'score': 1.0},
+            {'x': 374, 'y': 3300, 'w': 197, 'h': 568, 'text': '女一九四', 'score': 1.0}]
+    assert ''.join(box['text'] for box in r.columns(page)) == '（종만）女一九四七年丁亥七月十六日生'

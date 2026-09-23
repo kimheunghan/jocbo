@@ -960,8 +960,10 @@ button.busy {
 }
 
 .scan-row label:nth-of-type(5) { grid-column: 1 / 3; }
-.scan-row label:nth-of-type(6) { grid-column: 3 / 5; }
-.scan-row label:nth-of-type(7) { grid-column: 5 / 7; }
+.scan-row label:nth-of-type(6) { grid-column: 3 / 4; }
+.scan-row label:nth-of-type(7) { grid-column: 4 / 7; }
+/* 字·墓·기일 run long, so the record takes a rank of its own. */
+.scan-row label:nth-of-type(8) { grid-column: 1 / -1; }
 
 .scan-actions {
   position: sticky;
