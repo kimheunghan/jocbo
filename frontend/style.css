@@ -278,9 +278,13 @@ main {
 
 /* The book page uses <aside> for its title and branch columns too, so the
    sidebar rules are tied to the workspace sidebar alone. */
+/* The sidebar stays put while the page scrolls, so it scrolls on its own — the
+   details of a book used to run past the bottom with no way to reach them. */
 #workspace > aside {
   position: sticky;
   top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
   padding: 26px 22px 34px;
   border-right: 1px solid var(--line);
   background: var(--paper-sunk);
@@ -606,18 +610,15 @@ dialog h2 {
   border-bottom: 1px solid var(--line-soft);
 }
 
-#bookDialog,
-#bookInfoDialog {
+#bookDialog {
   width: min(480px, 94vw);
 }
 
-#bookDialog form,
-#bookInfoDialog form {
+#bookDialog form {
   margin: 0;
 }
 
-#bookDialog form button,
-#bookInfoDialog form button {
+#bookDialog form button {
   width: 100%;
   margin-top: 4px;
 }
@@ -670,6 +671,8 @@ footer {
 
   #workspace > aside {
     position: static;
+    max-height: none;
+    overflow-y: visible;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
