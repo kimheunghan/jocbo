@@ -1602,15 +1602,18 @@ async function settleMarriage(kind,anchorId,spouseId){
  const spouse=book.persons.find(p=>p.id===spouseId);
  if(!anchor||!spouse)return '';
  const spouses=spousesOf(anchorId);
- if(spouses.length<=1){
-  // The first marriage takes in the children already standing under one parent.
-  const solo=childrenOf(anchorId).filter(child=>!otherParentsOf(child.id,anchorId).length);
-  for(const child of solo){
-   try{await api('/relations','POST',{source_id:spouseId,target_id:child.id,kind:'parent'});}
-   catch(err){if(!/이미 등록된 관계/.test(err.message))throw err;}
+ if(spouses.length<=1&&spousesOf(spouseId).length<=1){
+  // The first marriage takes in the children already standing under one parent,
+  // whichever of the two they were standing under.
+  let taken=0;
+  for(const [parent,partner] of [[anchorId,spouseId],[spouseId,anchorId]]){
+   for(const child of childrenOf(parent).filter(one=>!otherParentsOf(one.id,parent).length)){
+    try{await api('/relations','POST',{source_id:partner,target_id:child.id,kind:'parent'});taken++;}
+    catch(err){if(!/이미 등록된 관계/.test(err.message))throw err;}
+   }
+   await refresh();
   }
-  if(solo.length)await refresh();
-  return solo.length?` 자녀 ${solo.length}명도 ${displayName(spouse).primary}의 자녀로 함께 기록`:'';
+  return taken?` 자녀 ${taken}명도 두 분의 자녀로 함께 기록`:'';
  }
  openMarriageDialog(anchorId,spouseId);
  return '';
