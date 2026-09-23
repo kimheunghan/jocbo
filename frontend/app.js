@@ -500,22 +500,29 @@ function bindZoom(key){
  // anyway and a drag there would otherwise do nothing at all. A press that does
  // not move still counts as a click.
  const KEEPS_ITS_OWN_DRAG='.genealogy-person,.genealogy-side,.genealogy-branch,.genealogy-generation h3,input,textarea,select,a';
+ // Nothing is cancelled on the press itself: doing so swallows the click the
+ // browser would fire afterwards, and a card could no longer be opened. The press
+ // only notes where it began; the drag declares itself on the first real movement.
  scroll.addEventListener('pointerdown',event=>{
   const middle=event.button===1;
   if(!middle&&event.button!==0)return;
   if(!middle&&event.target.closest(KEEPS_ITS_OWN_DRAG))return;
-  // On the background the browser would start sweeping a selection instead.
-  event.preventDefault();
   pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
   dragged=false;
-  try{scroll.setPointerCapture(event.pointerId);}catch{}
  });
  scroll.addEventListener('pointermove',event=>{
   if(!pan)return;
   const dx=event.clientX-pan.x,dy=event.clientY-pan.y;
   if(!dragged&&Math.abs(dx)<4&&Math.abs(dy)<4)return;
-  dragged=true;
-  scroll.classList.add('panning');
+  if(!dragged){
+   dragged=true;
+   scroll.classList.add('panning');
+   // A selection may have begun before this became a drag; drop it.
+   const selection=window.getSelection();
+   if(selection)selection.removeAllRanges();
+   try{scroll.setPointerCapture(event.pointerId);}catch{}
+  }
+  event.preventDefault();
   scroll.scrollLeft=pan.left-dx;
   scroll.scrollTop=pan.top-dy;
  });

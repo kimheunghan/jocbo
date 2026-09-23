@@ -257,6 +257,8 @@ button.busy {
 
 .zoom-scroll.panning {
   cursor: grabbing;
+  /* Only while a drag is actually under way. */
+  user-select: none;
 }
 
 .zoom-sizer {
