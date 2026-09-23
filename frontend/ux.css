@@ -770,16 +770,20 @@ button.busy {
   margin: 0 0 12px;
 }
 
-/* 가족 추가 is neither a save nor a discard, so it takes the gold of a seal
-   rather than standing as a second white button beside 취소. */
+/* 가족 추가 is neither a save nor a discard, so it takes 단청 blue — the one hue
+   the page does not otherwise use. Gold on cream was too close in tone to read
+   from across the row. */
 #addFamily {
-  border-color: #d9c49b;
-  background: #faf2e1;
-  color: #7c6029;
+  /* Pushed clear of 저장 · 취소 · 삭제; it does something else entirely. */
+  margin-left: auto;
+  border-color: #9fb4cf;
+  background: #e9f0f8;
+  color: #23456f;
+  font-weight: 600;
 }
 
 #addFamily:hover {
-  border-color: var(--gold);
-  background: var(--gold);
+  border-color: #23456f;
+  background: #23456f;
   color: #fff;
 }

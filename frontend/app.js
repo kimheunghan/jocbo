@@ -1,7 +1,7 @@
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let book = null, view = 'people', hanjaIndex = null, hanjaState = null;
-$('#newBook').onclick=()=>{$('#bookDialog').showModal();setTimeout(()=>$('#bookForm').elements.title.focus(),0);};
+$('#newBook').onclick=()=>{paintNewBookFields();$('#bookDialog').showModal();setTimeout(()=>$('#bookForm').elements.title.focus(),0);};
 $('#closeBookDialog').onclick=()=>$('#bookDialog').close();
 // The sidebar width is the reader's to set, and it is remembered per browser.
 const SIDE_MIN=200,SIDE_MAX=620;
@@ -52,13 +52,14 @@ $('#bookInfoForm').elements.volume.readOnly=true;
 const HANJA_SURNAME={金:'김',李:'이',柳:'유',劉:'유',羅:'나',盧:'노',梁:'양',林:'임',呂:'여',龍:'용',廉:'염',雷:'뇌',陸:'육',陰:'음'};
 const INITIAL_SOUND={라:'나',래:'내',로:'노',뢰:'뇌',루:'누',르:'느',리:'이',량:'양',려:'여',력:'역',련:'연',렬:'열',렴:'염',령:'영',례:'예',룡:'용',류:'유',륙:'육',륜:'윤',률:'율',름:'늠',릉:'능',림:'임',립:'입',녀:'여',뇨:'요',뉴:'유',니:'이',냑:'약',녕:'영'};
 let hanjaReadings=null;
-// Two switches: one for the records on the page, one for the sidebar's own list
-// and edit boxes, because reading the page in hangul should not disturb the
-// boxes you are editing.
-let scriptMode='hanja',sideScriptMode='hanja';
+// Three switches: the records on the page, the sidebar's own list and edit
+// boxes, and the windows that cover them. Each stands alone, because reading one
+// of them in hangul should not turn the others over with it.
+let scriptMode='hanja',sideScriptMode='hanja',dialogScriptMode='hanja';
 try{
  scriptMode=localStorage.getItem('jocbo.script')==='hangul'?'hangul':'hanja';
  sideScriptMode=localStorage.getItem('jocbo.sideScript')==='hangul'?'hangul':'hanja';
+ dialogScriptMode=localStorage.getItem('jocbo.dialogScript')==='hangul'?'hangul':'hanja';
 }catch{}
 async function loadHanjaDict(){
  if(hanjaReadings)return hanjaReadings;
@@ -104,13 +105,16 @@ function scriptText(text){
 function sideScriptText(text){
  return sideScriptMode==='hangul'?(readingOf(text)||text):text;
 }
+function dialogScriptText(text){
+ return dialogScriptMode==='hangul'?(readingOf(text)||text):text;
+}
 // 성별 is a fixed choice rather than a transcribed name, so its hanja is set
 // here instead of looked up. These are the characters the book itself uses for a
 // son and a daughter — 子 and 女, not 男 and 女. What is stored stays hangul in
 // either script.
 const GENDER_HANJA={미상:'未詳',남:'子',여:'女'};
-function genderText(gender){
- return scriptMode==='hangul'?gender:(GENDER_HANJA[gender]||gender);
+function genderText(gender,mode=scriptMode){
+ return mode==='hangul'?gender:(GENDER_HANJA[gender]||gender);
 }
 const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder'];
 // The edit fields read in whichever script is switched on. Each remembers what is
@@ -147,28 +151,42 @@ function paintReadingFor(input,text){
  hint.textContent=reading;
  hint.hidden=!reading;
 }
+// A new book has no record behind it yet, so each box is its own: what is typed
+// becomes the value, and the switch only changes how it is shown back.
+function paintNewBookFields(){
+ const form=$('#bookForm');
+ for(const name of BOOK_SCRIPT_FIELDS){
+  const input=form.elements[name];
+  if(!input)continue;
+  if(input.value!==input.dataset.shown)input.dataset.stored=input.value;
+  input.value=dialogScriptText(input.dataset.stored||'');
+  input.dataset.shown=input.value;
+  paintReadingFor(input);
+ }
+}
 function paintReadings(){
  if(!book)return;
  for(const name of BOOK_SCRIPT_FIELDS)paintReadingFor($('#bookInfoForm').elements[name]);
 }
-async function toggleScript(button,side){
+const SCRIPT_SWITCHES={
+ page:{key:'jocbo.script',get:()=>scriptMode,set:mode=>{scriptMode=mode;}},
+ side:{key:'jocbo.sideScript',get:()=>sideScriptMode,set:mode=>{sideScriptMode=mode;}},
+ dialog:{key:'jocbo.dialogScript',get:()=>dialogScriptMode,set:mode=>{dialogScriptMode=mode;}}
+};
+async function toggleScript(button){
  await busy(button,'불러오는 중…',loadHanjaDict).catch(err=>message(err.message,'error'));
  if(!hanjaReadings)return;
- if(side){
-  sideScriptMode=sideScriptMode==='hangul'?'hanja':'hangul';
-  try{localStorage.setItem('jocbo.sideScript',sideScriptMode);}catch{}
- }else{
-  scriptMode=scriptMode==='hangul'?'hanja':'hangul';
-  try{localStorage.setItem('jocbo.script',scriptMode);}catch{}
- }
+ const which=button.dataset.scriptToggle||'page',switcher=SCRIPT_SWITCHES[which];
+ switcher.set(switcher.get()==='hangul'?'hanja':'hangul');
+ try{localStorage.setItem(switcher.key,switcher.get());}catch{}
  paintScriptToggle();
- paintPersonScript();
+ // A window's switch turns that window over and leaves the page behind it alone.
+ if(which==='dialog'){paintPersonScript();paintRelativeBanner();paintNewBookFields();return;}
  await loadBooks(book?book.id:undefined);
 }
-// One switch beside the view tabs, plus one in each window that covers them, and
-// the sidebar's own.
+// One switch beside the view tabs, one the windows share, and the sidebar's own.
 document.querySelectorAll('[data-script-toggle]').forEach(button=>{
- button.onclick=()=>toggleScript(button,button.dataset.scriptToggle==='side');
+ button.onclick=()=>toggleScript(button);
 });
 // The book's own details read across the page under its title, where there is
 // room for them, instead of stacking down a 286px sidebar and running off screen.
@@ -186,7 +204,7 @@ function paintBookFacts(){
 }
 function paintScriptToggle(){
  document.querySelectorAll('[data-script-toggle]').forEach(button=>{
-  const mode=button.dataset.scriptToggle==='side'?sideScriptMode:scriptMode;
+  const mode=SCRIPT_SWITCHES[button.dataset.scriptToggle||'page'].get();
   button.textContent=mode==='hangul'?'한자로 보기':'한글로 보기';
   button.setAttribute('aria-pressed',String(mode==='hangul'));
  });
@@ -198,14 +216,14 @@ function setPersonScriptField(name,value){
  const input=$('#personForm').elements[name];
  if(!input)return;
  input.dataset.stored=value||'';
- input.value=scriptText(value||'');
+ input.value=dialogScriptText(value||'');
  input.dataset.shown=input.value;
  if(name==='bon_gwan')paintReadingFor(input);
 }
 function paintGenderScript(){
  const select=$('#personForm').elements.gender;
  if(!select)return;
- const hanja=scriptMode!=='hangul';
+ const hanja=dialogScriptMode!=='hangul';
  for(const option of select.options)option.textContent=hanja?GENDER_HANJA[option.value]||option.value:option.value;
  paintReadingFor(select,hanja?select.value:'');
 }
@@ -257,7 +275,7 @@ async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/b
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
-$('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',formData(e.target));e.target.reset();e.target.elements.volume.value='1';$('#bookDialog').close();await loadBooks(r.id);message('새 족보를 만들었습니다.');});
+$('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',bookFormValues(e.target));e.target.reset();e.target.elements.volume.value='1';paintNewBookFields();$('#bookDialog').close();await loadBooks(r.id);message('새 족보를 만들었습니다.');});
 $('#bookInfoForm').oninput=paintReadings;
 $('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',bookFormValues(e.target)));await loadBooks(book.id);message('족보 기본정보를 저장했습니다.');});
 $('#bookSelect').onchange=run(refresh);
@@ -379,9 +397,9 @@ function fatherIndex(byId){
  return fatherOf;
 }
 // Which of a person's two names leads, and which follows underneath.
-function displayName(person){
+function displayName(person,mode=scriptMode){
  const hanja=person.hanja_name||'',korean=person.korean_name||'';
- return scriptMode==='hangul'
+ return mode==='hangul'
   ?{primary:korean,other:hanja}
   :{primary:hanja||korean,other:hanja?korean:''};
 }
@@ -759,20 +777,33 @@ function addRelative(kind,personId){
  pendingRelative={kind,anchor,mateId:mates.length?mates[0].id:null};
  $('#personHeading').textContent=`${RELATIVE_LABELS[kind]} 등록`;
  $('#relativeBanner').hidden=false;
- $('#relativeText').innerHTML=kind==='sibling'
-  ? `<strong>${esc(displayName(anchor).primary)}</strong>의 형제자매로 등록합니다. 부모 ${esc(parentsOfPerson(anchor.id).map(p=>displayName(p).primary).join('·'))}에 함께 이어집니다.`
-  : `<strong>${esc(displayName(anchor).primary)}</strong>의 ${RELATIVE_LABELS[kind]}로 등록합니다.`;
  $('#relativeMateWrap').hidden=mates.length<1;
- $('#relativeMate').innerHTML=mates.map(mate=>`<option value="${mate.id}">${esc(displayName(mate).primary)}</option>`).join('')
-  +'<option value="">배우자 없이 (이 사람만)</option>';
  $('#relativeMate').onchange=event=>{pendingRelative.mateId=event.target.value?Number(event.target.value):null;};
+ paintRelativeBanner();
  const form=$('#personForm');
  form.elements.generation.value=relativeGeneration(kind,anchor);
  if(kind!=='spouse')setPersonScriptField('bon_gwan',anchor.bon_gwan||book.bon_gwan||'');
- const pool=book.persons.filter(p=>p.id!==anchor.id);
- $('#relativePick').innerHTML=pool.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');
- $('#relativePickMode').hidden=!pool.length;
+ $('#relativePickMode').hidden=book.persons.length<2;
  setRelativeMode(false);
+}
+// The banner and both pickers name people, so they are written in the window's
+// own script and repainted whenever its switch is thrown.
+function paintRelativeBanner(){
+ if(!pendingRelative)return;
+ const {kind,anchor}=pendingRelative,name=p=>esc(displayName(p,dialogScriptMode).primary);
+ $('#relativeText').innerHTML=kind==='sibling'
+  ? `<strong>${name(anchor)}</strong>의 형제자매로 등록합니다. 부모 ${parentsOfPerson(anchor.id).map(name).join('·')}에 함께 이어집니다.`
+  : `<strong>${name(anchor)}</strong>의 ${RELATIVE_LABELS[kind]}로 등록합니다.`;
+ // Repainting must not quietly move either choice, so each is put back.
+ const mate=$('#relativeMate'),chosenMate=mate.value;
+ mate.innerHTML=(kind==='child'?spousesOf(anchor.id):[])
+  .map(m=>`<option value="${m.id}">${name(m)}</option>`).join('')
+  +'<option value="">배우자 없이 (이 사람만)</option>';
+ mate.value=chosenMate;
+ const pick=$('#relativePick'),chosenPick=pick.value;
+ pick.innerHTML=book.persons.filter(p=>p.id!==anchor.id)
+  .map(p=>`<option value="${p.id}">${name(p)} (${p.generation}세대)</option>`).join('');
+ pick.value=chosenPick;
 }
 // Registering someone new and picking someone already recorded are both offered
 // at once; a single toggle kept whichever one it was not showing out of sight.
@@ -838,7 +869,7 @@ function openRelativeKinds(){
  if(personState()!==personSnapshot
   &&!confirm('저장하지 않은 수정 내용이 있습니다. 가족 추가로 넘어가면 사라집니다. 계속할까요?'))return;
  relativeAnchorId=anchor.id;
- $('#relativeKindText').innerHTML=`<strong>${esc(displayName(anchor).primary)}</strong>과(와) 맺을 관계를 고르세요.`;
+ $('#relativeKindText').innerHTML=`<strong>${esc(displayName(anchor,dialogScriptMode).primary)}</strong>과(와) 맺을 관계를 고르세요.`;
  const hasParents=parentsOfPerson(anchor.id).length>0;
  const sibling=$('#relativeKindList').querySelector('[data-kind="sibling"]');
  sibling.classList.toggle('off',!hasParents);
