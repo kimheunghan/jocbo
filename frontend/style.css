@@ -732,6 +732,16 @@ dialog {
   color: var(--ink);
 }
 
+/* Only the person window holds a row against its bottom edge, so only it gives
+   up its padding there; the spacing moves onto what it ends with. */
+#personDialog {
+  padding-bottom: 0;
+}
+
+#personDialog > :last-child {
+  margin-bottom: 28px;
+}
+
 dialog::backdrop {
   background: #26242099;
 }

@@ -65,19 +65,22 @@ button.busy {
   background: #f0f3ef;
 }
 
-.hanja-control {
+.hanja-control,
+.date-control {
   display: flex;
   gap: 7px;
   margin-top: 6px;
 }
 
-.hanja-control input {
+.hanja-control input,
+.date-control input {
   min-width: 0;
   margin: 0;
   flex: 1;
 }
 
-.hanja-control button {
+.hanja-control button,
+.date-control button {
   flex: none;
   padding: 8px 11px;
   white-space: nowrap;
@@ -786,4 +789,34 @@ button.busy {
   border-color: #16304f;
   background: #16304f;
   color: #fff;
+}
+
+/* A window taller than the screen scrolls inside itself, and 저장 went under the
+   fold with everything else — you had to scroll to find out the window even had
+   buttons. The row now rides the bottom of the window and is always in reach. */
+#personDialog .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 10px -28px 0;
+  padding: 14px 28px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--paper-raised);
+}
+
+#confirmDialog {
+  width: min(420px, 94vw);
+}
+
+#confirmText {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  /* The dates are read back on their own line. */
+  white-space: pre-wrap;
+}
+
+/* 확인 last, so the eye passes 취소 on the way to it. */
+.confirm-actions {
+  justify-content: flex-end;
 }

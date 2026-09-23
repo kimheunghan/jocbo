@@ -239,6 +239,28 @@ function paintPersonScript(){
  }
  paintGenderScript();
 }
+// Asked before anything is written. Enter in a form submits it straight away, so
+// a stray keypress used to file a record with no sign of where it went; this
+// stops and says what is about to happen and where it will land. 취소 takes the
+// focus, so a second stray Enter turns the save down rather than waving it past.
+let confirmSettle=null;
+function ask(question,okLabel='확인'){
+ $('#confirmText').textContent=question;
+ $('#confirmOk').textContent=okLabel;
+ if(!$('#confirmDialog').open)$('#confirmDialog').showModal();
+ setTimeout(()=>$('#confirmCancel').focus(),0);
+ return new Promise(resolve=>{confirmSettle=resolve;});
+}
+function settleConfirm(answer){
+ const settle=confirmSettle;
+ confirmSettle=null;
+ if($('#confirmDialog').open)$('#confirmDialog').close();
+ if(settle)settle(answer);
+}
+$('#confirmOk').onclick=()=>settleConfirm(true);
+$('#confirmCancel').onclick=()=>settleConfirm(false);
+// Esc closes a dialog on its own, and that is a no.
+$('#confirmDialog').addEventListener('close',()=>settleConfirm(false));
 // The notice now covers part of the page, so it clears itself once it has been
 // read — an error is left up longer than a confirmation.
 let messageTimer;
@@ -267,6 +289,24 @@ function run(fn){return async e=>{try{message('');await fn(e);}catch(err){messag
 function formData(form){return Object.fromEntries(new FormData(form));}
 async function busy(button, label, task){const original=button.textContent;button.disabled=true;button.classList.add('busy');button.textContent=label;try{return await task();}finally{button.disabled=false;button.classList.remove('busy');button.textContent=original;}}
 function dialogError(text='', field){const el=$('#personError');el.classList.remove('success');el.textContent=text;el.hidden=!text;$('#personForm').querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));if(field){field.setAttribute('aria-invalid','true');field.focus();}}
+// A date the browser could not make sense of — 31 February, say — leaves the box
+// reading empty while its segments still show what was typed. The browser then
+// refused the submit on its own, before this handler ran, so nothing was filed
+// and nothing was said either; the form carries novalidate now and answers for
+// itself, with reportValidity still called below for the required boxes.
+function badDateField(form){
+ for(const [name,label] of [['birth_date','출생일'],['death_date','사망일']]){
+  const box=form.elements[name];
+  if(box&&box.validity.badInput)return [box,label];
+ }
+ return null;
+}
+// 1956-04-27 read back as words, so a month the box quietly corrected is seen
+// before it is filed. Typing 43 for a month leaves 4 behind without a murmur.
+function plainDate(value){
+ const [y,m,d]=value.split('-').map(Number);
+ return `${y}년 ${m}월 ${d}일`;
+}
 function validDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const [y,m,d]=value.split('-').map(Number),parsed=new Date(Date.UTC(y,m-1,d));return parsed.getUTCFullYear()===y&&parsed.getUTCMonth()===m-1&&parsed.getUTCDate()===d;}
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
@@ -853,6 +893,7 @@ function editPerson(id){
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
  setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
+ paintDateClears();
  // The relation window reopens this one in place, so it may already be up.
  if(!$('#personDialog').open)$('#personDialog').showModal();
  personSnapshot=personState();
@@ -863,11 +904,11 @@ function editPerson(id){
 let personSnapshot='';
 function personState(){return JSON.stringify(formData($('#personForm')));}
 let relativeAnchorId=null;
-function openRelativeKinds(){
+async function openRelativeKinds(){
  const anchor=book.persons.find(p=>p.id===Number($('#personForm').elements.id.value));
  if(!anchor)return;
  if(personState()!==personSnapshot
-  &&!confirm('저장하지 않은 수정 내용이 있습니다. 가족 추가로 넘어가면 사라집니다. 계속할까요?'))return;
+  &&!await ask('저장하지 않은 수정 내용이 있습니다. 가족 추가로 넘어가면 사라집니다.','계속'))return;
  relativeAnchorId=anchor.id;
  $('#relativeKindText').innerHTML=`<strong>${esc(displayName(anchor,dialogScriptMode).primary)}</strong>과(와) 맺을 관계를 고르세요.`;
  const hasParents=parentsOfPerson(anchor.id).length>0;
@@ -892,6 +933,26 @@ $('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.on
  $('#relativeKindDialog').close();
  addRelative(kind,relativeAnchorId);
 });
+// A date box has no clear of its own: emptying it means deleting the year, the
+// month and the day one at a time. This empties the whole date in one press, and
+// stays greyed out while there is nothing in it to clear.
+function paintDateClears(){
+ for(const button of document.querySelectorAll('[data-clear-date]')){
+  const input=$('#personForm').elements[button.dataset.clearDate];
+  button.disabled=!input||!input.value;
+ }
+}
+for(const button of document.querySelectorAll('[data-clear-date]')){
+ const input=$('#personForm').elements[button.dataset.clearDate];
+ if(!input)continue;
+ button.onclick=()=>{
+  input.value='';
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+  input.focus();
+ };
+ input.addEventListener('input',paintDateClears);
+ input.addEventListener('change',paintDateClears);
+}
 $('#personForm').elements.gender.onchange=paintGenderScript;
 $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#personDialog').close();$('#closePersonDialog').onclick=()=>$('#personDialog').close();
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
@@ -968,10 +1029,25 @@ document.querySelectorAll('[data-hanja-field]').forEach(button=>{
  };
 });
 $('#personForm').oninput=event=>{if(event.target.name==='bon_gwan')paintReadingFor(event.target);};
-$('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);for(const name of PERSON_SCRIPT_FIELDS){const box=f.elements[name];if(box&&box.dataset.shown!==undefined&&box.value===box.dataset.shown)data[name]=box.dataset.stored;}try{const relative=pendingRelative;const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?'인물을 저장했습니다.':relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록했습니다.`:'인물을 등록했습니다. 검색어를 해제해 전체를 보여 드립니다.');}catch(err){dialogError(err.message);}};
-$('#deletePerson').onclick=async()=>{if(!confirm('이 인물과 연결된 관계 및 첨부파일이 모두 삭제됩니다. 계속할까요?'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('인물을 삭제했습니다.');}catch(err){dialogError(err.message);}};
+$('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();
+ const bad=badDateField(f);
+ if(bad){
+  dialogError(`${bad[1]}에 없는 날짜가 적혀 있습니다. 월은 1~12, 일은 그 달의 마지막 날까지만 쓸 수 있습니다. 예: 1956-02-07`,bad[0]);
+  return;
+ }
+ if(!f.reportValidity())return;const birth=f.elements.birth_date,death=f.elements.death_date;if(birth.value&&!validDate(birth.value)){dialogError('출생일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 1956-02-07',birth);return;}if(death.value&&!validDate(death.value)){dialogError('사망일은 유효한 날짜를 연도 4자리로 입력하세요. 예: 2020-02-07',death);return;}if(birth.value&&death.value&&death.value<birth.value){dialogError('사망일은 출생일보다 빠를 수 없습니다.',death);return;}const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);for(const name of PERSON_SCRIPT_FIELDS){const box=f.elements[name];if(box&&box.dataset.shown!==undefined&&box.value===box.dataset.shown)data[name]=box.dataset.stored;}const relative=pendingRelative;
+ const who=data.korean_name;
+ const question=relative
+  ?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 ${who}을(를) 등록합니다. 계속할까요?`
+  :id?`${who}의 수정 내용을 저장합니다. 계속할까요?`
+  :`${who}을(를) ${data.generation}세대 인물로 등록합니다. 인물 목록과 가계도에서 볼 수 있습니다. 계속할까요?`;
+ const dates=[birth.value?`출생 ${plainDate(birth.value)}`:'',
+  death.value?`사망 ${plainDate(death.value)}`:''].filter(Boolean).join('  ·  ');
+ if(!await ask(dates?`${question}\n\n${dates}`:question,'저장'))return;
+ try{const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();if(!id)$('#search').value='';await refresh();message(id?`${who}을(를) 저장했습니다.`:relative?`${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 ${who}을(를) 등록했습니다. 가계도에서 확인하세요.`:`${who}을(를) 등록했습니다. 검색어를 해제했으니 인물 목록 맨 아래에서 찾을 수 있습니다.`);}catch(err){dialogError(err.message);}};
+$('#deletePerson').onclick=async()=>{if(!await ask(`${$('#personForm').elements.korean_name.value}을(를) 지우면 연결된 관계와 첨부파일까지 모두 사라집니다. 되돌릴 수 없습니다.`,'삭제'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('인물을 삭제했습니다.');}catch(err){dialogError(err.message);}};
 $('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
-function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');['source_id','target_id'].forEach(n=>$('#relationForm').elements[n].innerHTML=options);$('#relationForm').querySelector('button').disabled=book.persons.length<2;$('#relationList').innerHTML=book.relations.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">관계를 등록하려면 인물을 2명 이상 추가하세요.</p>':'');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!confirm('이 관계를 삭제할까요?'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계를 삭제했습니다.');}));}
+function renderRelations(){if(!book)return;const options=book.persons.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');['source_id','target_id'].forEach(n=>$('#relationForm').elements[n].innerHTML=options);$('#relationForm').querySelector('button').disabled=book.persons.length<2;$('#relationList').innerHTML=book.relations.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">관계를 등록하려면 인물을 2명 이상 추가하세요.</p>':'');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('이 가족 관계를 지웁니다. 인물 기록 자체는 남습니다.','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계를 삭제했습니다.');}));}
 $('#relationForm').onsubmit=run(async e=>{e.preventDefault();const d=formData(e.target);if(d.source_id===d.target_id)throw Error('서로 다른 인물을 선택하세요.');d.source_id=Number(d.source_id);d.target_id=Number(d.target_id);await api('/relations','POST',d);await refresh();message('가족 관계를 추가했습니다.');});
 $('#print').onclick=()=>{view='book';$('#search').value='';render();window.print();};
 $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books','POST',{title:'가상 가족의 기록 (샘플)',clan_name:'예시 김씨',description:'실존 인물과 무관한 예제입니다.'});const people=[{korean_name:'김예시',hanja_name:'金例示',generation:1,birth_date:'1940-01-01',gender:'남'},{korean_name:'이샘플',hanja_name:'李樣本',generation:1,birth_date:'1942-02-02',gender:'여'},{korean_name:'김가상',hanja_name:'金假想',generation:2,birth_date:'1970-03-03',gender:'남'},{korean_name:'김미래',hanja_name:'金未來',generation:3,birth_date:'2000-04-04',gender:'미상'}];const ids=[];for(const p of people)ids.push((await api('/books/'+b.id+'/persons','POST',{...p,note:'실제 개인정보가 아닌 가상 인물입니다.'})).id);for(const [s,t,kind] of [[0,1,'spouse'],[0,2,'parent'],[1,2,'parent'],[2,3,'parent']])await api('/relations','POST',{source_id:ids[s],target_id:ids[t],kind});await loadBooks(b.id);message('가상 가족 예제를 추가했습니다.');}finally{button.disabled=false;}});
