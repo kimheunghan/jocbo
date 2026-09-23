@@ -693,3 +693,79 @@ button.busy {
     display: none;
   }
 }
+
+/* ── 가족 추가 ──────────────────────────────────────── */
+/* Both ways in stay on screen: register someone new, or pick someone already
+   recorded. The old single toggle hid whichever one it was not showing. */
+.relative-modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.relative-modes button {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.relative-modes button[aria-pressed="true"] {
+  border-color: var(--green-deep);
+  background: var(--green-deep);
+  color: #fff;
+}
+
+#relativeKindDialog {
+  width: min(420px, 94vw);
+}
+
+#relativeKindText {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.relative-kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.relative-kinds button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  text-align: left;
+}
+
+.relative-kinds button strong {
+  font-size: 15px;
+}
+
+.relative-kinds button small {
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+.relative-kinds button:hover {
+  border-color: var(--green);
+}
+
+/* A sibling needs a parent to share, so that choice says so before it is taken. */
+.relative-kinds button.off {
+  border-style: dashed;
+}
+
+.relative-kinds button.off strong,
+.relative-kinds button.off small {
+  color: var(--ink-faint);
+}
+
+#relativeKindNote {
+  margin: 0 0 12px;
+}

@@ -742,30 +742,33 @@ function addRelative(kind,personId){
  $('#personHeading').textContent=`${RELATIVE_LABELS[kind]} 등록`;
  $('#relativeBanner').hidden=false;
  $('#relativeText').innerHTML=kind==='sibling'
-  ? `<strong>${esc(anchor.korean_name)}</strong>의 형제자매로 등록합니다. 부모 ${esc(parentsOfPerson(anchor.id).map(p=>p.korean_name).join('·'))}에 함께 이어집니다.`
-  : `<strong>${esc(anchor.korean_name)}</strong>의 ${RELATIVE_LABELS[kind]}로 등록합니다.`;
+  ? `<strong>${esc(displayName(anchor).primary)}</strong>의 형제자매로 등록합니다. 부모 ${esc(parentsOfPerson(anchor.id).map(p=>displayName(p).primary).join('·'))}에 함께 이어집니다.`
+  : `<strong>${esc(displayName(anchor).primary)}</strong>의 ${RELATIVE_LABELS[kind]}로 등록합니다.`;
  $('#relativeMateWrap').hidden=mates.length<1;
- $('#relativeMate').innerHTML=mates.map(mate=>`<option value="${mate.id}">${esc(mate.korean_name)}</option>`).join('')
+ $('#relativeMate').innerHTML=mates.map(mate=>`<option value="${mate.id}">${esc(displayName(mate).primary)}</option>`).join('')
   +'<option value="">배우자 없이 (이 사람만)</option>';
  $('#relativeMate').onchange=event=>{pendingRelative.mateId=event.target.value?Number(event.target.value):null;};
  const form=$('#personForm');
  form.elements.generation.value=relativeGeneration(kind,anchor);
  if(kind!=='spouse')setPersonScriptField('bon_gwan',anchor.bon_gwan||book.bon_gwan||'');
  const pool=book.persons.filter(p=>p.id!==anchor.id);
- $('#relativePick').innerHTML=pool.map(p=>`<option value="${p.id}">${esc(p.korean_name)} (${p.generation}세대)</option>`).join('');
- $('#relativePickWrap').hidden=true;
- $('#relativeLink').hidden=true;
- $('#relativeToggle').hidden=!pool.length;
- $('#relativeToggle').textContent='기존 인물에서 고르기';
+ $('#relativePick').innerHTML=pool.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');
+ $('#relativePickMode').hidden=!pool.length;
+ setRelativeMode(false);
 }
-$('#relativeToggle').onclick=()=>{
- const showing=$('#relativePickWrap').hidden;
- $('#relativePickWrap').hidden=!showing;
- $('#relativeLink').hidden=!showing;
- $('#relativeToggle').textContent=showing?'새 인물로 등록하기':'기존 인물에서 고르기';
- $('#personForm').querySelector('.form-grid').hidden=showing;
- $('#savePerson').hidden=showing;
-};
+// Registering someone new and picking someone already recorded are both offered
+// at once; a single toggle kept whichever one it was not showing out of sight.
+function setRelativeMode(pick){
+ $('#relativePickWrap').hidden=!pick;
+ $('#relativeLink').hidden=!pick;
+ $('#personForm').querySelector('.form-grid').hidden=pick;
+ $('#personNoteField').hidden=pick;
+ $('#savePerson').hidden=pick;
+ $('#relativeNew').setAttribute('aria-pressed',String(!pick));
+ $('#relativePickMode').setAttribute('aria-pressed',String(pick));
+}
+$('#relativeNew').onclick=()=>setRelativeMode(false);
+$('#relativePickMode').onclick=()=>setRelativeMode(true);
 async function linkRelative(otherId){
  const {kind,anchor,mateId}=pendingRelative;
  for(const edge of relativeEdges(kind,anchor,otherId,mateId)){
@@ -789,21 +792,57 @@ function editPerson(id){
  f.reset();dialogError();
  pendingRelative=null;
  $('#relativeBanner').hidden=true;
- f.querySelector('.form-grid').hidden=false;
- $('#savePerson').hidden=false;
+ setRelativeMode(false);
  f.elements.id.value=id||'';
  const p=book.persons.find(p=>p.id===id);
  if(!p)f.elements.bon_gwan.value=book.bon_gwan||'';
  if(p)Object.entries(p).forEach(([k,v])=>{if(f.elements.namedItem(k))f.elements.namedItem(k).value=v;});
  $('#personHeading').textContent=p?'인물 수정':'인물 등록';
  $('#deletePerson').hidden=!p;
+ $('#addFamily').hidden=!p;
  $('#attachments').hidden=!p;
  $('#fileInput').value='';
  $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
  setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
- $('#personDialog').showModal();
+ // The relation window reopens this one in place, so it may already be up.
+ if(!$('#personDialog').open)$('#personDialog').showModal();
+ personSnapshot=personState();
  setTimeout(()=>f.elements.korean_name.focus(),0);
 }
+// What the form held when it opened, so an unsaved edit is not thrown away
+// silently when the relation window takes the form over.
+let personSnapshot='';
+function personState(){return JSON.stringify(formData($('#personForm')));}
+let relativeAnchorId=null;
+function openRelativeKinds(){
+ const anchor=book.persons.find(p=>p.id===Number($('#personForm').elements.id.value));
+ if(!anchor)return;
+ if(personState()!==personSnapshot
+  &&!confirm('저장하지 않은 수정 내용이 있습니다. 가족 추가로 넘어가면 사라집니다. 계속할까요?'))return;
+ relativeAnchorId=anchor.id;
+ $('#relativeKindText').innerHTML=`<strong>${esc(displayName(anchor).primary)}</strong>과(와) 맺을 관계를 고르세요.`;
+ const hasParents=parentsOfPerson(anchor.id).length>0;
+ const sibling=$('#relativeKindList').querySelector('[data-kind="sibling"]');
+ sibling.classList.toggle('off',!hasParents);
+ sibling.title=hasParents?'형제자매 추가':'부모를 먼저 등록해야 합니다';
+ $('#relativeKindNote').hidden=true;
+ $('#relativeKindDialog').showModal();
+}
+$('#addFamily').onclick=openRelativeKinds;
+$('#closeRelativeKind').onclick=()=>$('#relativeKindDialog').close();
+$('#relativeKindList').querySelectorAll('[data-kind]').forEach(button=>button.onclick=()=>{
+ const kind=button.dataset.kind;
+ // The refusal is written inside this window; a notice on the page would sit
+ // behind the dialog that is covering it.
+ if(kind==='sibling'&&!parentsOfPerson(relativeAnchorId).length){
+  const note=$('#relativeKindNote');
+  note.textContent='형제자매는 같은 부모로 이어집니다. 먼저 부모를 등록한 뒤 다시 눌러 주세요.';
+  note.hidden=false;
+  return;
+ }
+ $('#relativeKindDialog').close();
+ addRelative(kind,relativeAnchorId);
+});
 $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#personDialog').close();$('#closePersonDialog').onclick=()=>$('#personDialog').close();
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
 // The picker walks a queue of fields, one syllable at a time, writing each
