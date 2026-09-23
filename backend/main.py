@@ -31,6 +31,7 @@ sessions = Table('sessions', meta, Column('token_hash', String(64), primary_key=
 books = Table('family_books', meta, Column('id', Integer, primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('title', String(200), nullable=False), Column('clan_name', String(200), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('branch_name', String(200), nullable=False, server_default=''), Column('volume', String(50), nullable=False, server_default=''), Column('founder', String(200), nullable=False, server_default=''), Column('description', Text, nullable=False))
 persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('korean_name', String(100), nullable=False), Column('hanja_name', String(100), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('generation', Integer, nullable=False), Column('gender', String(10), nullable=False), Column('birth_date', String(10), nullable=False), Column('death_date', String(10), nullable=False), Column('note', Text, nullable=False), CheckConstraint('generation > 0'))
 relations = Table('relations', meta, Column('id', Integer, primary_key=True), Column('source_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('target_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('kind', String(20), nullable=False), UniqueConstraint('source_id', 'target_id', 'kind'), CheckConstraint('source_id <> target_id'), CheckConstraint("kind IN ('parent', 'spouse')"))
+scans = Table('scans', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
 files = Table('files', meta, Column('id', Integer, primary_key=True), Column('person_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
 
 @asynccontextmanager
@@ -96,6 +97,14 @@ class Person(Input):
         if self.birth_date and self.death_date and self.birth_date > self.death_date:
             raise ValueError('사망일은 출생일보다 빠를 수 없습니다.')
         return self
+
+class PersonLine(Person):
+    # Set when the line is a clearer reading of someone already in the book
+    # rather than a new person.
+    id: int | None = None
+
+class PersonBatch(Input):
+    people: list[PersonLine] = Field(min_length=1, max_length=200)
 
 class Relation(Input):
     source_id: int
@@ -188,6 +197,7 @@ def get_book(bid: int, uid=Depends(auth)):
         ids = [p['id'] for p in book['persons']]
         book['relations'] = list(c.execute(select(relations).where(relations.c.source_id.in_(ids))).mappings())
         book['files'] = list(c.execute(select(files.c.id, files.c.person_id, files.c.name).where(files.c.person_id.in_(ids))).mappings())
+        book['scans'] = list(c.execute(select(scans.c.id, scans.c.name).where(scans.c.book_id == bid).order_by(scans.c.id)).mappings())
         # Legacy records may still have the default generation (1).  Derive the
         # displayed generation from parent-child relationships so every view is
         # consistent even before the record is edited again.
@@ -211,6 +221,34 @@ def add_person(bid: int, data: Person, uid=Depends(auth)):
     with engine.begin() as c:
         own_book(c, bid, uid)
         return {'id': c.execute(persons.insert().values(book_id=bid, **data.model_dump())).inserted_primary_key[0]}
+
+# What counts as nothing on record yet, per column. A clearer reading of a page
+# may fill these in; it may never write over something already there.
+BLANK = {'hanja_name': '', 'bon_gwan': '', 'birth_date': '', 'death_date': '', 'note': '', 'gender': '미상'}
+
+@app.post('/api/books/{bid}/persons/bulk', status_code=201)
+def add_people(bid: int, data: PersonBatch, uid=Depends(auth)):
+    # A page is read as a whole. One bad line must not leave half a page filed,
+    # so the lot goes in together or not at all.
+    added, filled = [], []
+    with engine.begin() as c:
+        own_book(c, bid, uid)
+        for line in data.people:
+            values = line.model_dump(exclude={'id'})
+            if line.id is None:
+                added.append(c.execute(persons.insert().values(book_id=bid, **values)).inserted_primary_key[0])
+                continue
+            row = c.execute(select(persons).where(persons.c.id == line.id, persons.c.book_id == bid)).mappings().first()
+            if not row:
+                raise HTTPException(404, '고쳐 쓸 인물을 이 족보에서 찾을 수 없습니다.')
+            # 세대 and 한글명 are what the line was matched on, so a reading never
+            # moves them; everything else is filled only where nothing was known.
+            fill = {name: values[name] for name, blank in BLANK.items()
+                    if values.get(name) and row[name] == blank}
+            if fill:
+                c.execute(persons.update().where(persons.c.id == line.id).values(**fill))
+            filled.append({'id': line.id, 'fields': sorted(fill)})
+    return {'added': added, 'filled': filled}
 
 @app.put('/api/persons/{pid}')
 def edit_person(pid: int, data: Person, uid=Depends(auth)):
@@ -266,20 +304,72 @@ def remove_relation(rid: int, uid=Depends(auth)):
         c.execute(delete(relations).where(relations.c.id == rid))
     return {'ok': True}
 
+SIGNATURES = {'.pdf': b'%PDF-', '.png': b'\x89PNG\r\n\x1a\n', '.jpg': b'\xff\xd8\xff', '.jpeg': b'\xff\xd8\xff'}
+# A scan of a whole page is larger than a portrait, so it is given more room.
+async def stored_upload(file: UploadFile, limit):
+    name = Path((file.filename or 'file').replace('\\', '/')).name[:255]
+    suffix = Path(name).suffix.lower()
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise HTTPException(413, f'파일은 {limit // (1024 * 1024)}MB 이하만 가능합니다.')
+    if suffix not in SIGNATURES or not data.startswith(SIGNATURES[suffix]):
+        raise HTTPException(400, 'PNG, JPG, PDF 파일만 업로드할 수 있습니다.')
+    key = secrets.token_hex(24) + suffix
+    (UPLOADS / key).write_bytes(data)
+    return name, key
+
+# A PNG or a JPG is handed back as the picture it was checked to be, so it can be
+# shown rather than downloaded; a PDF stays an attachment, since a PDF can carry
+# more than it shows.
+def served(row, key_column='storage_key'):
+    suffix = Path(row[key_column]).suffix.lower()
+    kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}
+    if suffix in kinds:
+        return FileResponse(UPLOADS / row[key_column], media_type=kinds[suffix],
+                            headers={'X-Content-Type-Options': 'nosniff'})
+    return FileResponse(UPLOADS / row[key_column], filename=row['name'],
+                        media_type='application/octet-stream',
+                        headers={'X-Content-Type-Options': 'nosniff'})
+
+@app.post('/api/books/{bid}/scans', status_code=201)
+async def upload_scan(bid: int, file: UploadFile, uid=Depends(auth)):
+    with engine.connect() as c:
+        own_book(c, bid, uid)
+    name, key = await stored_upload(file, 20 * 1024 * 1024)
+    try:
+        with engine.begin() as c:
+            own_book(c, bid, uid)
+            sid = c.execute(scans.insert().values(book_id=bid, name=name, storage_key=key)).inserted_primary_key[0]
+    except Exception:
+        (UPLOADS / key).unlink(missing_ok=True)
+        raise
+    return {'id': sid, 'name': name}
+
+@app.get('/api/scans/{sid}')
+def read_scan(sid: int, uid=Depends(auth)):
+    with engine.connect() as c:
+        row = c.execute(select(scans).where(scans.c.id == sid)).mappings().first()
+        if not row:
+            raise HTTPException(404, '스캔이 없습니다.')
+        own_book(c, row['book_id'], uid)
+    return served(row)
+
+@app.delete('/api/scans/{sid}')
+def remove_scan(sid: int, uid=Depends(auth)):
+    with engine.begin() as c:
+        row = c.execute(select(scans).where(scans.c.id == sid)).mappings().first()
+        if not row:
+            raise HTTPException(404, '스캔이 없습니다.')
+        own_book(c, row['book_id'], uid)
+        c.execute(delete(scans).where(scans.c.id == sid))
+    (UPLOADS / row['storage_key']).unlink(missing_ok=True)
+    return {'ok': True}
+
 @app.post('/api/persons/{pid}/files', status_code=201)
 async def upload(pid: int, file: UploadFile, uid=Depends(auth)):
     with engine.connect() as c:
         own_person(c, pid, uid)
-    name = Path((file.filename or 'file').replace('\\', '/')).name[:255]
-    suffix = Path(name).suffix.lower()
-    data = await file.read(5 * 1024 * 1024 + 1)
-    signatures = {'.pdf': b'%PDF-', '.png': b'\x89PNG\r\n\x1a\n', '.jpg': b'\xff\xd8\xff', '.jpeg': b'\xff\xd8\xff'}
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(413, '파일은 5MB 이하만 가능합니다.')
-    if suffix not in signatures or not data.startswith(signatures[suffix]):
-        raise HTTPException(400, 'PNG, JPG, PDF 파일만 업로드할 수 있습니다.')
-    key = secrets.token_hex(24) + suffix
-    (UPLOADS / key).write_bytes(data)
+    name, key = await stored_upload(file, 5 * 1024 * 1024)
     try:
         with engine.begin() as c:
             own_person(c, pid, uid)
@@ -296,7 +386,7 @@ def download(fid: int, uid=Depends(auth)):
         if not row:
             raise HTTPException(404, '파일이 없습니다.')
         own_person(c, row['person_id'], uid)
-    return FileResponse(UPLOADS / row['storage_key'], filename=row['name'], media_type='application/octet-stream', headers={'X-Content-Type-Options': 'nosniff'})
+    return served(row)
 
 class FreshStatic(StaticFiles):
     """Ask the browser to revalidate every file.

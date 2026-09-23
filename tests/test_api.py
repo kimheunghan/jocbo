@@ -185,3 +185,77 @@ def test_dates_must_be_real_and_past(client):
     # A leap day in a leap year, and any ordinary past date, are fine.
     for value in ['1956-02-29', '1956-07-27']:
         assert make(value).status_code == 201, value
+
+
+def test_a_page_is_taken_whole_and_a_clearer_reading_only_fills_blanks(client):
+    account(client)
+    bid = book(client)
+
+    # A page goes in together or not at all: the bad line takes the good one with it.
+    spoiled = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [
+        {'korean_name': '멀쩡한 줄', 'generation': 27},
+        {'korean_name': '망가진 줄', 'generation': 27, 'birth_date': '1956-43-27'},
+    ]})
+    assert spoiled.status_code == 422
+    assert client.get(f'/api/books/{bid}').json()['persons'] == []
+
+    made = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [
+        {'korean_name': '갑', 'hanja_name': '甲', 'generation': 27},
+        {'korean_name': '을', 'generation': 28, 'gender': '여'},
+    ]})
+    assert made.status_code == 201
+    assert len(made.json()['added']) == 2
+
+    # Someone recorded with nothing known but a name.
+    blank = client.post(f'/api/books/{bid}/persons',
+                        json={'korean_name': '병', 'generation': 27}).json()['id']
+
+    # A clearer reading fills what was blank, and leaves 세대 where it was.
+    read = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [
+        {'id': blank, 'korean_name': '병', 'hanja_name': '丙', 'bon_gwan': '淸道',
+         'generation': 99, 'gender': '남', 'note': '父 東國'},
+    ]})
+    assert read.status_code == 201
+    assert set(read.json()['filled'][0]['fields']) == {'hanja_name', 'bon_gwan', 'gender', 'note'}
+    person = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == blank)
+    assert (person['hanja_name'], person['bon_gwan'], person['gender']) == ('丙', '淸道', '남')
+    assert person['generation'] == 27
+
+    # A second reading may not write over what is now on record.
+    again = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [
+        {'id': blank, 'korean_name': '병', 'hanja_name': '偉', 'generation': 27},
+    ]})
+    assert again.status_code == 201
+    assert again.json()['filled'][0]['fields'] == []
+    person = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == blank)
+    assert person['hanja_name'] == '丙'
+
+    # And it may not reach into someone else's book.
+    other = client.post('/api/books', json={'title': '남의 족보'}).json()['id']
+    assert client.post(f'/api/books/{other}/persons/bulk', json={'people': [
+        {'id': blank, 'korean_name': '병', 'generation': 27},
+    ]}).status_code == 404
+
+
+def test_a_scan_belongs_to_the_book_and_is_served_as_a_picture(client):
+    account(client)
+    bid = book(client)
+    png = (b'\x89PNG\r\n\x1a\n' + b'\x00' * 64, 'image/png')
+
+    made = client.post(f'/api/books/{bid}/scans',
+                       files={'file': ('618쪽.png', png[0], png[1])})
+    assert made.status_code == 201
+    sid = made.json()['id']
+    assert [s['id'] for s in client.get(f'/api/books/{bid}').json()['scans']] == [sid]
+
+    # A picture is handed back as one, so it can be shown rather than downloaded.
+    shown = client.get(f'/api/scans/{sid}')
+    assert shown.status_code == 200
+    assert shown.headers['content-type'] == 'image/png'
+
+    # Another account cannot reach it.
+    client.post('/api/logout')
+    account(client)
+    assert client.get(f'/api/scans/{sid}').status_code == 404
+
+    assert client.delete(f'/api/scans/{sid}').status_code == 404

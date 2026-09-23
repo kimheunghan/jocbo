@@ -293,10 +293,10 @@ function dialogError(text='', field){const el=$('#personError');el.classList.rem
 // novalidate so that this speaks before the browser refuses the submit with a
 // bubble of its own — which is what used to happen, leaving nothing filed and
 // nothing said. reportValidity still follows, for the required boxes.
-function dateProblem(form){
+function dateProblem(get){
  const today=todayISO();
  for(const [name,label] of [['birth_date','출생일'],['death_date','사망일']]){
-  const box=form.elements[name];
+  const box=get(name);
   if(!box)continue;
   // A date the browser could not make sense of — 31 February, 29 February in a
   // year with 28 — reads back empty while its segments still show the typing.
@@ -307,8 +307,8 @@ function dateProblem(form){
   if(box.value&&box.value>today)
    return [box,`${label}에 아직 오지 않은 날이 적혀 있습니다. 오늘(${today})보다 뒤인 날은 쓸 수 없습니다.`];
  }
- const birth=form.elements.birth_date,death=form.elements.death_date;
- if(birth.value&&death.value&&death.value<birth.value)
+ const birth=get('birth_date'),death=get('death_date');
+ if(birth&&death&&birth.value&&death.value&&death.value<birth.value)
   return [death,'사망일은 출생일보다 빠를 수 없습니다.'];
  return null;
 }
@@ -1052,7 +1052,7 @@ document.querySelectorAll('[data-hanja-field]').forEach(button=>{
 });
 $('#personForm').oninput=event=>{if(event.target.name==='bon_gwan')paintReadingFor(event.target);};
 $('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogError();
- const problem=dateProblem(f);
+ const problem=dateProblem(name=>f.elements[name]);
  if(problem){dialogError(problem[1],problem[0]);return;}
  if(!f.reportValidity())return;
  const birth=f.elements.birth_date,death=f.elements.death_date;const data=formData(f),id=data.id;delete data.id;data.generation=Number(data.generation);for(const name of PERSON_SCRIPT_FIELDS){const box=f.elements[name];if(box&&box.dataset.shown!==undefined&&box.value===box.dataset.shown)data[name]=box.dataset.stored;}const relative=pendingRelative;
@@ -1072,3 +1072,289 @@ $('#relationForm').onsubmit=run(async e=>{e.preventDefault();const d=formData(e.
 $('#print').onclick=()=>{view='book';$('#search').value='';render();window.print();};
 $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books','POST',{title:'가상 가족의 기록 (샘플)',clan_name:'예시 김씨',description:'실존 인물과 무관한 예제입니다.'});const people=[{korean_name:'김예시',hanja_name:'金例示',generation:1,birth_date:'1940-01-01',gender:'남'},{korean_name:'이샘플',hanja_name:'李樣本',generation:1,birth_date:'1942-02-02',gender:'여'},{korean_name:'김가상',hanja_name:'金假想',generation:2,birth_date:'1970-03-03',gender:'남'},{korean_name:'김미래',hanja_name:'金未來',generation:3,birth_date:'2000-04-04',gender:'미상'}];const ids=[];for(const p of people)ids.push((await api('/books/'+b.id+'/persons','POST',{...p,note:'실제 개인정보가 아닌 가상 인물입니다.'})).id);for(const [s,t,kind] of [[0,1,'spouse'],[0,2,'parent'],[1,2,'parent'],[2,3,'parent']])await api('/relations','POST',{source_id:ids[s],target_id:ids[t],kind});await loadBooks(b.id);message('가상 가족 예제를 추가했습니다.');}finally{button.disabled=false;}});
 enter().catch(()=>{});
+
+// ── 스캔 보고 옮겨 적기 ────────────────────────
+// A photographed page is read by eye and typed in beside it. Nothing is filed
+// until the whole page is confirmed, and the server takes the lines together or
+// not at all, so a page is never left half entered.
+let scanRowSeq=0,scanZoom=1;
+function scanError(text='',field){
+ const box=$('#scanError');
+ box.textContent=text;
+ box.hidden=!text;
+ if(field)field.focus();
+}
+function scanRowFields(row){
+ return name=>row.querySelector(`[name="${name}"]`);
+}
+function scanRowHTML(id,generation){
+ const genders=['미상','남','여']
+  .map(value=>`<option value="${value}">${value}</option>`).join('');
+ return `<div class="scan-row" data-row="${id}">
+  <label>세대<input name="generation" type="number" min="1" max="200" value="${generation}"></label>
+  <label>한글명<input name="korean_name" maxlength="100" autocomplete="off"></label>
+  <label>한자명<input name="hanja_name" maxlength="100" autocomplete="off"></label>
+  <button type="button" class="secondary scan-hanja" data-hanja-row="${id}">한자</button>
+  <label>성별<select name="gender">${genders}</select></label>
+  <button type="button" class="scan-drop" data-drop="${id}" aria-label="이 줄 지우기" title="이 줄 지우기">×</button>
+  <label>본관<input name="bon_gwan" maxlength="200" autocomplete="off"></label>
+  <label>출생일<input name="birth_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
+  <label>기록<input name="note" maxlength="10000" autocomplete="off" placeholder="예: 父 東國(동국)"></label>
+  <p class="scan-match" hidden></p>
+ </div>`;
+}
+function scanAddRow(){
+ const rows=[...document.querySelectorAll('.scan-row')];
+ const last=rows[rows.length-1];
+ // A page runs down one generation at a time, so a new line starts where the
+ // one above it left off rather than back at 1.
+ const generation=last?(scanRowFields(last)('generation').value||1):1;
+ $('#scanList').insertAdjacentHTML('beforeend',scanRowHTML(++scanRowSeq,generation));
+ const added=$('#scanList').lastElementChild;
+ scanRowFields(added)('bon_gwan').value=book?dialogScriptText(book.bon_gwan||''):'';
+ bindScanRow(added);
+ paintScanCount();
+ return added;
+}
+function bindScanRow(row){
+ row.querySelector('[data-drop]').onclick=()=>{
+  row.remove();
+  if(!document.querySelector('.scan-row'))scanAddRow();
+  paintScanCount();
+ };
+ const hanja=row.querySelector('[data-hanja-row]');
+ hanja.onclick=async()=>{
+  const korean=scanRowFields(row)('korean_name');
+  if(!korean.value.trim()){scanError('먼저 한글명을 적어 주세요.',korean);return;}
+  scanError();
+  // The picker writes into whatever field it was handed, so the hangul name is
+  // read through a stand-in and the choice lands in 한자명.
+  const source=Object.assign(document.createElement('input'),{name:'hanja_name',value:korean.value.trim()});
+  try{
+   const note=await openHanjaPicker([source],hanja);
+   if(note){scanError(note);return;}
+   hanjaState.target=scanRowFields(row)('hanja_name');
+  }catch(err){scanError(err.message);}
+ };
+ for(const name of ['korean_name','hanja_name','generation'])
+  row.querySelector(`[name="${name}"]`).addEventListener('input',()=>{
+   paintScanMatch(row);
+   paintScanCount();
+  });
+}
+// What a clearer reading is allowed to fill in, and what counts as nothing known.
+const SCAN_FILLABLE=[['hanja_name','','한자명'],['bon_gwan','','본관'],
+ ['gender','미상','성별'],['birth_date','','출생일'],['note','','기록']];
+// A name already in the book is far likelier to be the same person read again
+// than a second person of the same name, so the line offers to fill that record
+// in rather than quietly making a double.
+function scanMatch(row){
+ if(!book)return null;
+ const get=scanRowFields(row);
+ const korean=get('korean_name').value.trim(),hanja=get('hanja_name').value.trim();
+ if(!korean&&!hanja)return null;
+ const generation=Number(get('generation').value)||0;
+ const hits=book.persons.filter(person=>
+  (korean&&person.korean_name===korean)||(hanja&&person.hanja_name&&person.hanja_name===hanja));
+ if(!hits.length)return null;
+ return hits.find(person=>person.generation===generation)||hits[0];
+}
+function paintScanMatch(row){
+ const found=scanMatch(row),note=row.querySelector('.scan-match');
+ if(!found){
+  note.hidden=true;
+  row.dataset.matchId='';
+  row.dataset.fillId='';
+  row.classList.remove('filling');
+  return;
+ }
+ // Filling is the opening offer whenever a fresh match turns up.
+ if(row.dataset.matchId!==String(found.id)){
+  row.dataset.matchId=String(found.id);
+  row.dataset.fillId=String(found.id);
+ }
+ const filling=row.dataset.fillId===String(found.id);
+ row.classList.toggle('filling',filling);
+ const blanks=SCAN_FILLABLE.filter(([name,blank])=>found[name]===blank).map(([,,label])=>label);
+ note.hidden=false;
+ note.innerHTML=`<span>이미 있는 사람: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
+  +(blanks.length?`비어 있는 칸 ${esc(blanks.join('·'))}`:'비어 있는 칸 없음')+'</span>'
+  +`<button type="button" class="secondary" data-fill aria-pressed="${filling}">빈칸만 채우기</button>`
+  +`<button type="button" class="secondary" data-fresh aria-pressed="${!filling}">따로 등록</button>`;
+ note.querySelector('[data-fill]').onclick=()=>{row.dataset.fillId=String(found.id);paintScanMatch(row);};
+ note.querySelector('[data-fresh]').onclick=()=>{row.dataset.fillId='';paintScanMatch(row);};
+}
+function scanLines(){
+ return [...document.querySelectorAll('.scan-row')].map(row=>{
+  const get=scanRowFields(row);
+  return {row,get,korean:get('korean_name').value.trim(),hanja:get('hanja_name').value.trim()};
+ });
+}
+function paintScanCount(){
+ const written=scanLines().filter(line=>line.korean||line.hanja).length;
+ $('#scanCount').textContent=written?`적은 사람 ${written}명`:'아직 적은 사람이 없습니다';
+ $('#scanSave').disabled=!written;
+}
+// ── 스캔 보기 ──────────────────────────────
+// The width is a share of the frame, so 100% is the page fitted to it and
+// anything more scrolls — which is what reading small print off a scan needs.
+function paintScanZoom(){
+ $('#scanImage').style.width=Math.round(scanZoom*100)+'%';
+ $('#scanLevel').textContent=Math.round(scanZoom*100)+'%';
+}
+function setScanZoom(next,anchor){
+ const frame=$('#scanFrame'),was=scanZoom;
+ scanZoom=Math.min(8,Math.max(0.2,next));
+ if(anchor){
+  const rect=frame.getBoundingClientRect();
+  const x=anchor.clientX-rect.left+frame.scrollLeft,y=anchor.clientY-rect.top+frame.scrollTop;
+  paintScanZoom();
+  const grew=scanZoom/was;
+  frame.scrollLeft=x*grew-(anchor.clientX-rect.left);
+  frame.scrollTop=y*grew-(anchor.clientY-rect.top);
+  return;
+ }
+ paintScanZoom();
+}
+function showScan(id){
+ const image=$('#scanImage'),empty=$('#scanEmpty');
+ if(!id){image.hidden=true;image.removeAttribute('src');empty.hidden=false;return;}
+ empty.hidden=true;
+ image.hidden=false;
+ image.src='/api/scans/'+id;
+ scanZoom=1;
+ paintScanZoom();
+ $('#scanFrame').scrollTo(0,0);
+}
+function paintScanList(keep){
+ const pick=$('#scanPick'),scans=(book&&book.scans)||[];
+ pick.innerHTML=scans.map(scan=>`<option value="${scan.id}">${esc(scan.name)}</option>`).join('')
+  ||'<option value="">올려둔 스캔이 없습니다</option>';
+ const chosen=scans.some(scan=>scan.id===keep)?keep:(scans[0]&&scans[0].id);
+ pick.value=chosen||'';
+ pick.disabled=!scans.length;
+ $('#scanDelete').disabled=!scans.length;
+ showScan(chosen);
+}
+async function openScanDialog(){
+ if(!book){message('먼저 족보를 고르거나 만드세요.','error');return;}
+ scanError();
+ $('#scanFile').value='';
+ $('#scanList').innerHTML='';
+ scanRowSeq=0;
+ scanAddRow();
+ paintScanList();
+ if(!$('#scanDialog').open)$('#scanDialog').showModal();
+}
+$('#openScan').onclick=openScanDialog;
+$('#closeScan').onclick=()=>$('#scanDialog').close();
+$('#scanCancel').onclick=()=>$('#scanDialog').close();
+$('#scanAddRow').onclick=()=>{
+ const row=scanAddRow();
+ scanRowFields(row)('korean_name').focus();
+};
+$('#scanPick').onchange=event=>showScan(Number(event.target.value)||0);
+document.querySelectorAll('[data-scan-zoom]').forEach(button=>{
+ button.onclick=()=>{
+  const how=button.dataset.scanZoom;
+  if(how==='fit'){scanZoom=1;paintScanZoom();$('#scanFrame').scrollTo(0,0);return;}
+  setScanZoom(how==='in'?scanZoom*1.25:scanZoom/1.25);
+ };
+});
+$('#scanFrame').addEventListener('wheel',event=>{
+ if(!event.ctrlKey)return;
+ event.preventDefault();
+ setScanZoom(scanZoom*(event.deltaY<0?1.12:1/1.12),event);
+},{passive:false});
+// The scan is a picture, so dragging it can only mean moving it about.
+let scanPan=null;
+$('#scanFrame').addEventListener('pointerdown',event=>{
+ if(event.button!==0||$('#scanImage').hidden)return;
+ scanPan={x:event.clientX,y:event.clientY,left:$('#scanFrame').scrollLeft,top:$('#scanFrame').scrollTop};
+ $('#scanFrame').setPointerCapture(event.pointerId);
+ $('#scanFrame').classList.add('dragging');
+ event.preventDefault();
+});
+$('#scanFrame').addEventListener('pointermove',event=>{
+ if(!scanPan)return;
+ $('#scanFrame').scrollLeft=scanPan.left-(event.clientX-scanPan.x);
+ $('#scanFrame').scrollTop=scanPan.top-(event.clientY-scanPan.y);
+});
+for(const kind of ['pointerup','pointercancel'])$('#scanFrame').addEventListener(kind,()=>{
+ scanPan=null;
+ $('#scanFrame').classList.remove('dragging');
+});
+$('#scanUpload').onclick=async()=>{
+ scanError();
+ const file=$('#scanFile').files[0];
+ if(!file){scanError('올릴 스캔을 먼저 고르세요.',$('#scanFile'));return;}
+ if(file.size>20*1024*1024){scanError('스캔은 20MB 이하만 올릴 수 있습니다.',$('#scanFile'));return;}
+ const data=new FormData();
+ data.append('file',file);
+ try{
+  const made=await busy($('#scanUpload'),'올리는 중…',()=>api('/books/'+book.id+'/scans','POST',data));
+  $('#scanFile').value='';
+  await refresh();
+  paintScanList(made.id);
+ }catch(err){scanError(err.message);}
+};
+$('#scanDelete').onclick=async()=>{
+ scanError();
+ const id=Number($('#scanPick').value);
+ if(!id)return;
+ const name=$('#scanPick').selectedOptions[0].textContent;
+ if(!await ask(`${name}을(를) 지웁니다. 이미 등록한 인물은 그대로 남습니다.`,'지우기'))return;
+ try{
+  await busy($('#scanDelete'),'지우는 중…',()=>api('/scans/'+id,'DELETE'));
+  await refresh();
+  paintScanList();
+ }catch(err){scanError(err.message);}
+};
+$('#scanSave').onclick=async()=>{
+ scanError();
+ const written=scanLines().filter(line=>line.korean||line.hanja);
+ if(!written.length){scanError('적은 사람이 없습니다.');return;}
+ const people=[];
+ for(const [index,line] of written.entries()){
+  const {get}=line;
+  if(!line.korean){
+   scanError(`${index+1}번째 줄에 한글명이 비어 있습니다. 한자만 적힌 줄은 등록할 수 없습니다.`,get('korean_name'));
+   return;
+  }
+  const generation=Number(get('generation').value);
+  if(!(generation>=1&&generation<=200)){
+   scanError(`${index+1}번째 줄 세대는 1부터 200 사이로 적어 주세요.`,get('generation'));
+   return;
+  }
+  const problem=dateProblem(get);
+  if(problem){scanError(`${index+1}번째 줄 — ${problem[1]}`,problem[0]);return;}
+  const fillId=Number(line.row.dataset.fillId)||0;
+  people.push({
+   korean_name:line.korean,hanja_name:line.hanja,
+   bon_gwan:get('bon_gwan').value.trim(),generation,
+   gender:get('gender').value,birth_date:get('birth_date').value,
+   death_date:'',note:get('note').value.trim(),
+   ...(fillId?{id:fillId}:{})
+  });
+ }
+ const fresh=people.filter(person=>!person.id),refined=people.filter(person=>person.id);
+ const lines=[];
+ if(fresh.length)lines.push(`새로 등록 ${fresh.length}명 — ${fresh.map(person=>person.korean_name).join(', ')}`);
+ if(refined.length)lines.push(`빈칸만 채움 ${refined.length}명 — ${refined.map(person=>person.korean_name).join(', ')}`);
+ const question=`「${book.title}」에 ${people.length}줄을 반영합니다.\n\n${lines.join('\n')}`
+  +(refined.length?'\n\n채우기는 비어 있거나 미상인 칸만 건드립니다. 이미 적혀 있는 것과 세대는 그대로 둡니다.':'')
+  +'\n\n가족 관계는 반영한 뒤 각 인물의 가족 추가로 이어 주세요.';
+ if(!await ask(question,'반영'))return;
+ try{
+  const done=await busy($('#scanSave'),'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people}));
+  $('#scanDialog').close();
+  $('#search').value='';
+  await refresh();
+  const touched=(done.filled||[]).filter(one=>one.fields.length).length;
+  const untouched=(done.filled||[]).length-touched;
+  message([`${(done.added||[]).length}명을 새로 등록했습니다.`,
+   touched?`${touched}명의 빈칸을 채웠습니다.`:'',
+   untouched?`${untouched}명은 채울 빈칸이 없어 그대로 두었습니다.`:'',
+   '가족 관계는 각 인물의 가족 추가로 이어 주세요.'].filter(Boolean).join(' '));
+ }catch(err){scanError(err.message);}
+};
