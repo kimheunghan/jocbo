@@ -818,10 +818,17 @@ function renderTree(people){
  })).join('');
  const parentLines=[...units.values()].flatMap(unit=>unit.families.filter(f=>f.children.length).map(family=>{
   const host=pos.get(unit.host.id);
-  const mateIndex=family.mate?unit.members.indexOf(family.mate):-1;
+  // Children come from between the couple. Often only one parent is on record —
+  // a mother not yet identified — and the line must still start in the middle of
+  // the marriage, which is where a 가계도 puts it. Where there is more than one
+  // marriage there is no telling which it belongs to, so it drops from under the
+  // parent who is on record instead.
+  const spouses=unit.members.filter(m=>m!==unit.host);
+  const partner=family.mate||(spouses.length===1?spouses[0]:null);
+  const mateIndex=partner?unit.members.indexOf(partner):-1;
   const hostIndex=unit.members.indexOf(unit.host);
   const adjacent=mateIndex>=0&&Math.abs(mateIndex-hostIndex)===1;
-  const mate=family.mate?pos.get(family.mate.id):null;
+  const mate=partner?pos.get(partner.id):null;
   // A couple drops its line from the gap between the pair; anything else drops it
   // from under the card that owns the children.
   const sx=adjacent?(Math.min(host.x,mate.x)+nodeW+Math.max(host.x,mate.x))/2
