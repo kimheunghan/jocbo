@@ -1,45 +1,45 @@
 @echo off
-rem 우리의 족보 — 이 파일 하나만 내려받아 두 번 누르면 됩니다.
-rem 프로그램을 내려받고, 파이썬과 꾸러미를 설치하고, 화면까지 띄웁니다.
+rem �츮�� ���� - �� ���� �ϳ��� �����޾� �� �� ������ �˴ϴ�.
+rem ���α׷��� �����ް�, ���̽�� �ٷ��̸� ��ġ�ϰ�, ȭ����� ���ϴ�.
 setlocal enabledelayedexpansion
-chcp 65001 >nul
-title 우리의 족보 — 설치
+chcp 949 >nul
+title �츮�� ���� - ��ġ
 
 set "REPO=https://github.com/kimheunghan/jocbo"
-rem 받을 곳. 첫 인자로 다른 폴더를 줄 수 있습니다 — install.bat D:\어디\jocbo
+rem ���� ��. ù ���ڷ� �ٸ� ������ �� �� �ֽ��ϴ� - install.bat D:\���\jocbo
 set "TARGET=%USERPROFILE%\Documents\jocbo"
 if not "%~1"=="" set "TARGET=%~1"
 
 echo.
-echo   우리의 족보 — 설치
+echo   �츮�� ���� - ��ġ
 echo   ----------------------------------------
-echo   받을 곳: %TARGET%
+echo   ���� ��: %TARGET%
 echo.
 
-rem ── 이미 받아 둔 폴더가 있으면 최신으로만 ────
+rem -- �̹� �޾� �� ������ ������ �ֽ����θ� ----
 if exist "%TARGET%\start.bat" (
-  echo   이미 설치됨 — 최신으로 맞춥니다.
+  echo   �̹� ��ġ�� - �ֽ����� ����ϴ�.
   where git >nul 2>&1
   if not errorlevel 1 (
     pushd "%TARGET%"
     git pull --ff-only
     popd
   ) else (
-    echo   git 없음 — 내려받기는 건너뜁니다.
+    echo   git ���� - �����ޱ�� �ǳʶݴϴ�.
   )
   goto run
 )
 
-rem ── git 이 있으면 clone, 없으면 ZIP ──────────
+rem -- git �� ������ clone, ������ ZIP ----------
 where git >nul 2>&1
 if not errorlevel 1 (
-  echo   내려받는 중... ^(git^)
+  echo   �����޴� ��... ^(git^)
   git clone --depth 1 "%REPO%.git" "%TARGET%"
   if errorlevel 1 goto failed
   goto run
 )
 
-echo   git 없음 — 압축파일로 내려받습니다.
+echo   git ���� - �������Ϸ� �����޽��ϴ�.
 set "ZIP=%TEMP%\jocbo-main.zip"
 powershell -NoProfile -Command ^
   "$ErrorActionPreference='Stop';" ^
@@ -53,21 +53,21 @@ if errorlevel 1 goto failed
 :run
 if not exist "%TARGET%\start.bat" goto failed
 echo.
-echo   내려받기 완료 — 설치와 실행으로 넘어갑니다.
+echo   �����ޱ� �Ϸ� - ��ġ�� �������� �Ѿ�ϴ�.
 echo.
 
-rem 바탕화면에 바로가기를 둡니다. 다음부터는 이것만 누르면 됩니다.
+rem ����ȭ�鿡 �ٷΰ��⸦ �Ӵϴ�. �������ʹ� �̰͸� ������ �˴ϴ�.
 powershell -NoProfile -WindowStyle Hidden -Command ^
-  "$s=(New-Object -ComObject WScript.Shell).CreateShortcut(\"$env:USERPROFILE\Desktop\우리의 족보.lnk\");" ^
+  "$s=(New-Object -ComObject WScript.Shell).CreateShortcut(\"$env:USERPROFILE\Desktop\�츮�� ����.lnk\");" ^
   "$s.TargetPath='%TARGET%\start.bat'; $s.WorkingDirectory='%TARGET%'; $s.Save()" >nul 2>&1
 
 cd /d "%TARGET%"
-call start.bat
+call "%TARGET%\start.bat"
 exit /b 0
 
 :failed
 echo.
-echo   내려받기 실패 — 인터넷 연결을 확인하거나 아래에서 직접 받으십시오.
+echo   �����ޱ� ���� - ���ͳ� ������ Ȯ���ϰų� �Ʒ����� ���� �����ʽÿ�.
 echo   %REPO%
 echo.
 pause

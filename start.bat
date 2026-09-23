@@ -1,17 +1,17 @@
 @echo off
-rem 우리의 족보 — 내려받은 폴더에서 이 파일을 두 번 누르면 설치와 실행이 함께 됩니다.
-rem 처음 한 번만 오래 걸리고, 두 번째부터는 바로 열립니다.
+rem �츮�� ���� - �������� �������� �� ������ �� �� ������ ��ġ�� ������ �Բ� �˴ϴ�.
+rem ó�� �� ���� ���� �ɸ���, �� ��°���ʹ� �ٷ� �����ϴ�.
 setlocal enabledelayedexpansion
-chcp 65001 >nul
+chcp 949 >nul
 cd /d "%~dp0"
-title 우리의 족보
+title �츮�� ����
 
 echo.
-echo   우리의 족보
+echo   �츮�� ����
 echo   ----------------------------------------
 echo.
 
-rem ── 파이썬 찾기 ──────────────────────────────
+rem -- ���̽� ã�� ------------------------------
 set "PY="
 for %%V in (3.13 3.12 3.11) do (
   if not defined PY (
@@ -26,21 +26,21 @@ if not defined PY (
 )
 
 if not defined PY (
-  echo   파이썬 없음 — 먼저 설치 필요
+  echo   ���̽� ���� - ���� ��ġ �ʿ�
   echo.
   where winget >nul 2>&1
   if errorlevel 1 (
-    echo   https://www.python.org/downloads/ 에서 설치
-    echo   설치 화면의 "Add python.exe to PATH" 반드시 선택
+    echo   https://www.python.org/downloads/ ���� ��ġ
+    echo   ��ġ ȭ���� "Add python.exe to PATH" �ݵ�� ����
   ) else (
-    echo   지금 설치할까요? ^(winget 사용^)
-    choice /c YN /n /m "   [Y] 설치  [N] 직접 설치 "
+    echo   ���� ��ġ�ұ��? ^(winget ���^)
+    choice /c YN /n /m "   [Y] ��ġ  [N] ���� ��ġ "
     if !errorlevel! equ 1 (
       winget install -e --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements
       echo.
-      echo   설치 완료 — 이 창을 닫고 start.bat 다시 실행
+      echo   ��ġ �Ϸ� - �� â�� �ݰ� start.bat �ٽ� ����
     ) else (
-      echo   https://www.python.org/downloads/ 에서 설치
+      echo   https://www.python.org/downloads/ ���� ��ġ
     )
   )
   echo.
@@ -49,50 +49,50 @@ if not defined PY (
 )
 
 for /f "tokens=2" %%V in ('%PY% -V 2^>^&1') do set "PYVER=%%V"
-echo   파이썬 %PYVER%
+echo   ���̽� %PYVER%
 
-rem ── 가상환경 ─────────────────────────────────
+rem -- ����ȯ�� ---------------------------------
 if not exist ".venv\Scripts\python.exe" (
-  echo   가상환경 생성 중...
+  echo   ����ȯ�� ���� ��...
   %PY% -m venv .venv
   if errorlevel 1 goto failed
 )
 set "VENV=.venv\Scripts\python.exe"
 
-rem ── 꾸러미 ───────────────────────────────────
+rem -- �ٷ��� -----------------------------------
 "%VENV%" -c "import fastapi, uvicorn, sqlalchemy, multipart" >nul 2>&1
 if errorlevel 1 (
-  echo   꾸러미 설치 중... ^(처음 한 번만^)
+  echo   �ٷ��� ��ġ ��... ^(ó�� �� ����^)
   "%VENV%" -m pip install --quiet --upgrade pip
   "%VENV%" -m pip install --quiet -r requirements.txt
   if errorlevel 1 goto failed
 )
-echo   꾸러미 준비됨
+echo   �ٷ��� �غ��
 
-rem ── 판독기 (선택) ────────────────────────────
+rem -- �ǵ��� (����) ----------------------------
 "%VENV%" -c "import rapidocr_onnxruntime" >nul 2>&1
 if errorlevel 1 (
   echo.
-  echo   족보 이미지 판독기 — 미설치
-  echo   사진에서 인물을 읽어 옮겨 적는 기능입니다. 약 200MB를 내려받습니다.
-  echo   설치하지 않아도 나머지 기능은 모두 동작합니다.
-  choice /c YN /n /t 20 /d N /m "   [Y] 설치  [N] 나중에  (20초 후 자동으로 나중에) "
+  echo   ���� �̹��� �ǵ��� - �̼�ġ
+  echo   �������� �ι��� �о� �Ű� ���� ����Դϴ�. �� 200MB�� �����޽��ϴ�.
+  echo   ��ġ���� �ʾƵ� ������ ����� ��� �����մϴ�.
+  choice /c YN /n /t 20 /d N /m "   [Y] ��ġ  [N] ���߿�  (20�� �� �ڵ����� ���߿�) "
   if !errorlevel! equ 1 (
-    echo   판독기 설치 중... ^(몇 분 걸립니다^)
+    echo   �ǵ��� ��ġ ��... ^(�� �� �ɸ��ϴ�^)
     "%VENV%" -m pip install --quiet -r requirements-ocr.txt
     if errorlevel 1 (
-      echo   판독기 설치 실패 — 나머지 기능은 그대로 사용 가능
+      echo   �ǵ��� ��ġ ���� - ������ ����� �״�� ��� ����
     ) else (
-      echo   판독기 준비됨
+      echo   �ǵ��� �غ��
     )
   )
 ) else (
-  echo   판독기 준비됨
+  echo   �ǵ��� �غ��
 )
 
-rem ── 브라우저 ─────────────────────────────────
-rem 크롬이 있으면 크롬으로, 없으면 기본 브라우저로 엽니다.
-rem %ProgramFiles(x86)% 의 괄호가 for ( ) 블록을 깨뜨리므로 한 줄씩 확인합니다.
+rem -- ������ ---------------------------------
+rem ũ���� ������ ũ������, ������ �⺻ �������� ���ϴ�.
+rem %ProgramFiles(x86)% �� ��ȣ�� for ( ) ������ ���߸��Ƿ� �� �پ� Ȯ���մϴ�.
 set "CHROME="
 set "PF86=%ProgramFiles(x86)%"
 if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
@@ -100,16 +100,16 @@ if not defined CHROME if exist "%PF86%\Google\Chrome\Application\chrome.exe" set
 if not defined CHROME if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
 if not defined CHROME for /f "tokens=2,*" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe" /ve 2^>nul ^| find "REG_SZ"') do set "CHROME=%%B"
 
-rem ── 실행 ─────────────────────────────────────
+rem -- ���� -------------------------------------
 echo.
 echo   ----------------------------------------
 echo   http://127.0.0.1:8000
-if defined CHROME (echo   크롬으로 엽니다.) else (echo   크롬 없음 — 기본 브라우저로 엽니다.)
-echo   창을 닫거나 Ctrl+C 를 누르면 종료됩니다.
+if defined CHROME (echo   ũ������ ���ϴ�.) else (echo   ũ�� ���� - �⺻ �������� ���ϴ�.)
+echo   â�� �ݰų� Ctrl+C �� ������ ����˴ϴ�.
 echo   ----------------------------------------
 echo.
 
-rem 서버가 자리를 잡을 때까지 잠시 기다렸다가 엽니다.
+rem ������ �ڸ��� ���� ������ ��� ��ٷȴٰ� ���ϴ�.
 if defined CHROME (
   start "" /b powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process -FilePath '%CHROME%' -ArgumentList 'http://127.0.0.1:8000'"
 ) else (
@@ -121,12 +121,12 @@ goto done
 
 :failed
 echo.
-echo   설치 실패 — 위의 메시지를 확인하십시오.
+echo   ��ġ ���� - ���� �޽����� Ȯ���Ͻʽÿ�.
 echo.
 pause
 exit /b 1
 
 :done
 echo.
-echo   종료됨
+echo   �����
 pause
