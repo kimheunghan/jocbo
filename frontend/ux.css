@@ -1046,3 +1046,16 @@ button.busy {
   border-color: #dfaaa4;
   background: #fff5f3;
 }
+
+/* The person a search found, ringed where they stand in the whole drawing. */
+.tree-card.found,
+.genealogy-person.found {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+#relationHint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
