@@ -259,6 +259,16 @@ MISCONVERTED = {'樸': '朴', '硃': '朱'}
 # A Korean book prints some names in the short form (点 for 點), and the table
 # lengthens them. In a name the book's own form is kept.
 SHORT_FORMS = {'點': '点'}
+# Characters the reader returns for a name character it mistook, that are
+# themselves all but never given in a Korean name: 踢 for 錫 shares its 易.
+NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫'}
+# 본관 characters the reader mistakes for one of like shape: 摩州 is 慶州, both
+# under 广. A 본관 is a place, so these stand only where a place name does.
+BON_GWAN_MISREAD = {'摩': '慶', '麐': '慶', '晨': '晉', '青': '淸', '清': '淸', '倘': '尙'}
+
+
+def _bon_gwan(text):
+    return ''.join(BON_GWAN_MISREAD.get(char, char) for char in text)
 # A 족보 gives two characters for a given name almost without exception, and the
 # small 字 note that follows is read as more characters, so the name stops there.
 GIVEN_NAME = 2
@@ -283,6 +293,7 @@ def _name(text):
         if not NAME_CHAR.match(char):
             break
         char = MISCONVERTED.get(char, char)
+        char = NAME_MISREAD.get(char, char)
         out.append(SHORT_FORMS.get(char, char))
     return ''.join(out)
 
@@ -377,7 +388,7 @@ def _entries(stream, surname):
             # family name to go on.
             given = _name(re.sub(r'^\s*[（(][^）)]*[）)]?', '', given))
             family = MISCONVERTED.get(family, family)
-            bon_gwan = ''.join(MISCONVERTED.get(char, char) for char in bon_gwan)
+            bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan))
             hanja = family + given
         else:
             given = _name(chunk[1:])

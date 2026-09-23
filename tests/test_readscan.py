@@ -107,3 +107,11 @@ def test_columns_are_read_right_to_left_and_down():
             {'x': 433, 'y': 2726, 'w': 193, 'h': 561, 'text': '（종만）', 'score': 1.0},
             {'x': 374, 'y': 3300, 'w': 197, 'h': 568, 'text': '女一九四', 'score': 1.0}]
     assert ''.join(box['text'] for box in r.columns(page)) == '（종만）女一九四七年丁亥七月十六日生'
+
+
+def test_misreads_no_name_or_본관_would_carry():
+    # 踢 is all but never given in a name; it is 錫 with the wrong radical.
+    assert r._entries('子相踢一九二一年辛酉十二月二十六日生', '金')[0]['hanja_name'] == '金相錫'
+    # 摩州 is no 본관; 慶州 is one character away, and nothing else is.
+    assert r._entries('配摩州崔氏三順', '金')[0]['bon_gwan'] == '慶州'
+    assert r._entries('配天安全氏京愛', '金')[0]['bon_gwan'] == '天安'

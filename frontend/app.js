@@ -1330,8 +1330,8 @@ function scanRowHTML(id,generation){
   <label>성별<select name="gender">${genders}</select></label>
   <button type="button" class="scan-drop" data-drop="${id}" aria-label="이 줄 지우기" title="이 줄 지우기">×</button>
   <label>본관<input name="bon_gwan" maxlength="200" autocomplete="off"></label>
-  <label>출생일<input name="birth_date" maxlength="20" autocomplete="off" placeholder="1956-02-07 · 1956"></label>
-  <label>사망일<input name="death_date" maxlength="20" autocomplete="off" placeholder="1990 · 9월 19일"></label>
+  <label>출생일<input name="birth_date" maxlength="20" autocomplete="off"></label>
+  <label>사망일<input name="death_date" maxlength="20" autocomplete="off"></label>
   <label>기록<input name="note" maxlength="10000" autocomplete="off" placeholder="예: 父 東國(동국)"></label>
   <p class="scan-match" hidden></p>
  </div>`;
