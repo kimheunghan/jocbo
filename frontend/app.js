@@ -712,6 +712,20 @@ function renderTree(people){
   family.children.push(childUnit);
   attached.add(childUnit.host.id);
  }
+ // Someone who married in may have their own forebears in the book. Their unit
+ // hangs from the marriage, not from those forebears, so the descent to them is
+ // kept as a link of its own and drawn to the single card rather than by
+ // attaching the whole unit — which would make their spouse a child too.
+ const marriedIn=[];
+ for(const unit of units.values()){
+  for(const member of unit.members){
+   if(member.id===unit.host.id)continue;
+   const ids=[...(parentsOf.get(member.id)||[])];
+   const parentUnit=ids.map(id=>unitOf.get(id)).find(Boolean);
+   if(!parentUnit||parentUnit===unit)continue;
+   marriedIn.push({parentUnit,member,ids});
+  }
+ }
  for(const unit of units.values()){
   unit.families.sort((a,b)=>unit.members.indexOf(a.mate||unit.host)-unit.members.indexOf(b.mate||unit.host));
   unit.families.forEach(family=>family.children.sort(byBookOrder));
@@ -780,6 +794,18 @@ function renderTree(people){
   return `<path class="parent-line" d="M ${sx} ${sy} V ${railY} M ${Math.min(sx,...centers)} ${railY} H ${Math.max(sx,...centers)}"/>`
    +centers.map((cx,index)=>`<path class="parent-line" d="M ${cx} ${railY} V ${tops[index].y}"/>`).join('');
  })).join('');
+ // Drawn like any other descent, but ending at the one card instead of a rail
+ // of siblings.
+ const marriedInLines=marriedIn.map(({parentUnit,member,ids})=>{
+  const target=pos.get(member.id);
+  const from=ids.map(id=>pos.get(id)).filter(Boolean);
+  if(!target||!from.length)return '';
+  const sx=from.reduce((sum,at)=>sum+at.x+nodeW/2,0)/from.length;
+  const sy=Math.max(...from.map(at=>at.y))+nodeH;
+  if(sy>=target.y)return '';
+  const cx=target.x+nodeW/2,railY=sy+(target.y-sy)/2;
+  return `<path class="parent-line married-in" d="M ${sx} ${sy} V ${railY} H ${cx} V ${target.y}"/>`;
+ }).join('');
  const labels=levels.map((generation,index)=>`<text class="level-label" x="16" y="${padY+index*(nodeH+rowGap)+34}">${generation}세대</text>`).join('');
  const photoOf=id=>treeOptions.photo?book.files.find(file=>file.person_id===id&&/\.(png|jpe?g)$/i.test(file.name)):null;
  // A sibling is reached through a shared parent, so the handle says up front when
@@ -803,7 +829,7 @@ function renderTree(people){
    +'</div>';
  }).join('');
  $('#view').innerHTML=options+wrapZoom(`<div class="tree-canvas" style="width:${width}px;height:${height}px">`
-  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${mateLines}${labels}</svg>${cards}</div>`);
+  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${marriedInLines}${mateLines}${labels}</svg>${cards}</div>`);
  bindTreeOptions();
  bindZoom('tree');
  document.querySelectorAll('[data-tree-person]').forEach(node=>{

@@ -1066,3 +1066,10 @@ button.busy {
   border-bottom: 1px solid var(--line-soft);
   font-size: 12px;
 }
+
+/* The descent to someone who married in, drawn dashed so it is not mistaken for
+   the line of the family the tree is about. */
+.parent-line.married-in {
+  stroke-dasharray: 5 4;
+  opacity: 0.75;
+}
