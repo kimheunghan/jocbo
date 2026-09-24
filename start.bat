@@ -11,6 +11,25 @@ echo   우리의 족보
 echo   ----------------------------------------
 echo.
 
+rem -- 새 판 확인 -------------------------------
+rem 바탕화면 바로가기는 이 파일을 엽니다. GitHub 에 새 판이 있으면 install.bat 에
+rem 넘겨 백업과 갱신을 맡기고(call 없이 넘어가 돌아오지 않습니다), 끝나면 그쪽이
+rem 새 start.bat 을 다시 엽니다. 인터넷이나 git 이 없으면 지금 판으로 엽니다.
+rem 이 폴더에만 있는 커밋이 있으면(고치는 컴퓨터) 건드리지 않습니다.
+if not exist ".git" goto checked
+where git >nul 2>&1 || goto checked
+echo   새 판 확인 중...
+git fetch -q origin main >nul 2>&1 || goto checked
+set "HERE="
+set "LATEST="
+for /f %%H in ('git rev-parse HEAD 2^>nul') do set "HERE=%%H"
+for /f %%H in ('git rev-parse origin/main 2^>nul') do set "LATEST=%%H"
+if "%HERE%"=="%LATEST%" goto checked
+git merge-base --is-ancestor HEAD origin/main >nul 2>&1 || goto checked
+echo   새 판이 있습니다 - 갱신합니다.
+"%~dp0install.bat" "%~dp0."
+:checked
+
 rem -- 파이썬 찾기 ------------------------------
 set "PY="
 for %%V in (3.13 3.12 3.11) do (

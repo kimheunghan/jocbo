@@ -71,6 +71,16 @@ rem 덮어씁니다. 여기서 입력한 기록도 백업 폴더의 jocbo.db 에 남습니다.
 set "DIRTY="
 for /f "delims=" %%S in ('git status --porcelain 2^>nul') do set "DIRTY=1"
 if defined DIRTY call :backup
+rem 이 폴더에만 있는 커밋은 backup-날짜-시각 가지에 남겨 두고 넘어갑니다.
+git rev-parse -q --verify HEAD >nul 2>&1
+if not errorlevel 1 (
+  git merge-base --is-ancestor HEAD origin/main
+  if errorlevel 1 (
+    call :stamp
+    git branch -f backup-!STAMP! HEAD >nul
+    echo   이 폴더에만 있던 커밋을 남겨 둡니다: backup-!STAMP!
+  )
+)
 git reset -q --hard origin/main
 if errorlevel 1 (
   popd
@@ -118,10 +128,15 @@ exit /b 0
 
 rem -- 설치 폴더를 옆에 통째로 복사해 둡니다(가상환경과 git 기록은 뺍니다) ----
 :backup
-for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "STAMP=%%D"
+call :stamp
 set "BACKUP=%TARGET%-backup-%STAMP%"
 robocopy "%TARGET%" "%BACKUP%" /E /XD .venv .git __pycache__ .pytest_cache /NFL /NDL /NJH /NJS /NP >nul
 echo   바뀐 파일이 있어 백업해 둡니다: %BACKUP%
+exit /b 0
+
+rem -- 백업 이름에 붙일 날짜-시각 ----
+:stamp
+for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "STAMP=%%D"
 exit /b 0
 
 rem -- GitHub 최신을 압축파일로 받아 %TEMP%\jocbo-main 에 풉니다 ----
