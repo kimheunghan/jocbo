@@ -268,6 +268,65 @@ button.busy {
   user-select: none;
 }
 
+/* The hairline under the view; the grab area is wider than what is drawn, as
+   with the side panel's rule. */
+.frame-resizer {
+  position: relative;
+  height: 6px;
+  margin-top: 2px;
+  border-radius: 3px;
+  background: var(--line);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.frame-resizer::before {
+  content: "";
+  position: absolute;
+  inset: -5px 0;
+}
+
+.frame-resizer:hover,
+.frame-resizer:focus-visible,
+body.resizing-rows .frame-resizer {
+  outline: 0;
+  background: var(--green);
+}
+
+body.resizing-rows {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/* 전체 화면: the zoom bar and the view take the whole browser window. */
+body.view-full {
+  overflow: hidden;
+}
+
+body.view-full .zoom-bar {
+  position: fixed;
+  z-index: 41;
+  top: 10px;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+}
+
+body.view-full .zoom-scroll {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  height: auto !important;
+  max-height: none !important;
+  padding-top: 58px;
+  border: 0;
+  border-radius: 0;
+}
+
+body.view-full .frame-resizer {
+  display: none;
+}
+
 .zoom-sizer {
   position: relative;
 }
@@ -492,12 +551,16 @@ button.busy {
 
 @media print {
   .tree-options,
-  .zoom-bar {
+  .zoom-bar,
+  .frame-resizer {
     display: none;
   }
 
   /* Paper prints at full size whatever the screen is zoomed to. */
-  .zoom-scroll {
+  .zoom-scroll,
+  body.view-full .zoom-scroll {
+    position: static;
+    padding-top: 0;
     max-height: none;
     overflow: visible;
     border: 0;

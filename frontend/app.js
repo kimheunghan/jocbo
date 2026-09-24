@@ -704,8 +704,59 @@ function wrapZoom(inner,trailing=''){
   +'<button type="button" class="secondary" data-zoom="in" aria-label="확대">+</button>'
   +'<button type="button" class="secondary" data-zoom="reset">100%</button>'
   +'<button type="button" class="secondary" data-zoom="fit">맞추기</button>'
+  +'<button type="button" class="secondary" data-zoom="full" aria-pressed="false">전체 화면</button>'
   +'<small>끌어서 이동 · Ctrl + 휠로 확대·축소</small>'+trailing+'</div>'
-  +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`;
+  +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`
+  +'<div class="frame-resizer" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="보기 높이 조절" title="끌어서 높이 조절 · 두 번 누르면 기본 높이"></div>';
+}
+// The window onto a wide tree can be dragged taller from the rule under it, and
+// the height is kept; or the view can take the whole browser window. That is a
+// class on <body> rather than the browser's fullscreen, so it survives the redraw
+// after a person is saved, and the dialogs still open above it.
+const FRAME_MIN=240;
+let frameHeight=0;
+try{frameHeight=Number(localStorage.getItem('jocbo.frameHeight'))||0;}catch{}
+function applyFrameHeight(px){
+ frameHeight=px?Math.max(FRAME_MIN,Math.round(px)):0;
+ const scroll=$('.zoom-scroll');
+ if(scroll){scroll.style.height=frameHeight?frameHeight+'px':'';scroll.style.maxHeight=frameHeight?'none':'';}
+ try{frameHeight?localStorage.setItem('jocbo.frameHeight',String(frameHeight)):localStorage.removeItem('jocbo.frameHeight');}catch{}
+}
+function setViewFull(on){
+ document.body.classList.toggle('view-full',on);
+ const button=$('[data-zoom="full"]');
+ if(button){button.textContent=on?'전체 화면 닫기':'전체 화면';button.setAttribute('aria-pressed',String(on));}
+}
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&document.body.classList.contains('view-full')&&!document.querySelector('dialog[open]'))setViewFull(false);
+});
+function bindFrame(){
+ const handle=$('.frame-resizer'),scroll=$('.zoom-scroll');
+ if(!handle||!scroll)return;
+ applyFrameHeight(frameHeight);
+ setViewFull(document.body.classList.contains('view-full'));
+ $('[data-zoom="full"]').onclick=()=>setViewFull(!document.body.classList.contains('view-full'));
+ handle.onpointerdown=event=>{
+  event.preventDefault();
+  try{handle.setPointerCapture(event.pointerId);}catch{}
+  document.body.classList.add('resizing-rows');
+  const move=moved=>applyFrameHeight(moved.clientY-scroll.getBoundingClientRect().top);
+  const stop=()=>{
+   window.removeEventListener('pointermove',move);
+   window.removeEventListener('pointerup',stop);
+   window.removeEventListener('pointercancel',stop);
+   document.body.classList.remove('resizing-rows');
+  };
+  window.addEventListener('pointermove',move);
+  window.addEventListener('pointerup',stop);
+  window.addEventListener('pointercancel',stop);
+ };
+ handle.ondblclick=()=>applyFrameHeight(0);
+ handle.onkeydown=event=>{
+  const step=event.shiftKey?120:40,now=scroll.getBoundingClientRect().height;
+  if(event.key==='ArrowDown'){applyFrameHeight(now+step);event.preventDefault();}
+  if(event.key==='ArrowUp'){applyFrameHeight(now-step);event.preventDefault();}
+ };
 }
 // Switching script or a display option redraws the whole view, so where the
 // reader had scrolled to is kept and put back rather than snapping to the corner.
@@ -713,6 +764,7 @@ const zoomScrollAt=new Map();
 function bindZoom(key){
  const scroll=$('.zoom-scroll'),sizer=$('.zoom-sizer'),body=$('.zoom-body'),level=$('.zoom-level');
  if(!scroll)return;
+ bindFrame();
  const wasAt=zoomScrollAt.get(key);
  body.style.transform='none';
  const base={w:body.scrollWidth,h:body.scrollHeight};
