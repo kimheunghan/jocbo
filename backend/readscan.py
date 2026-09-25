@@ -134,8 +134,9 @@ DAY = r'([%s]{1,3})\s*(?:日\s*(生|卒)?|(生|卒))' % NUMBER
 DATE = re.compile(r'([%s]{4})\s*年\s*([%s]{2})?\s*(%s)\s*月\s*%s' % (NUMBER, CYCLE, MONTH, DAY))
 # A date without a year: the day a spouse is remembered on (忌 九月十九日), or a
 # birth given by month and day alone.
-# 忌는 comes back as 忌二, 忌一, 忌雲 or 忌亡, since the reader has no hangul.
-YEARLESS = re.compile(r'(忌|生)?\s*(?:[는二一雲亡])?\s*(%s)\s*月\s*%s' % (MONTH, DAY))
+# 忌는 comes back as 忌二, 忌一, 忌雲, 忌亡, 忌乞, 忌六 or 忌匕, since the reader has
+# no hangul.
+YEARLESS = re.compile(r'(忌|生)?\s*(?:[는二一雲亡乞六匕])?\s*(%s)\s*月\s*%s' % (MONTH, DAY))
 
 
 def _dates(text):
@@ -1093,6 +1094,34 @@ def _reread_by_generation_name(page, ordered):
             box['text'] = '子' + best + box['text'][1 + len(name):]
 
 
+def _cut_at_rules(box, spread):
+    """A box the reader ran across a rule, cut in two where the rule crosses it.
+
+    Two entries can stand in one line down the page, the foot of one band's and
+    the head of the next's; the reader may take them as one column (忌는 五月五日
+    墓 | 配 昌寧成氏). The cut falls where the rule does, on the 配, 子 or 女 that
+    opens the lower entry where there is one near.
+    """
+    text = box['text']
+    middle = box['x'] + box['w'] / 2
+    char = max(box['w'], 1)
+    for one in spread:
+        if not one['x0'] <= middle < one['x1']:
+            continue
+        for line in one['lines']:
+            rule = _y(line, middle)
+            if not box['y'] + 1.5 * char < rule < box['y'] + box['h'] - 1.5 * char or len(text) < 4:
+                continue
+            share = (rule - box['y']) / box['h']
+            guess = min(len(text) - 1, max(1, round(len(text) * share)))
+            near = [at for at in range(max(1, guess - 2), min(len(text), guess + 3)) if text[at] in '配子女']
+            at = min(near, key=lambda at: abs(at - guess)) if near else guess
+            upper = dict(box, text=text[:at], h=rule - box['y'])
+            lower = dict(box, text=text[at:], y=rule, h=box['y'] + box['h'] - rule)
+            return _cut_at_rules(upper, spread) + _cut_at_rules(lower, spread)
+    return [box]
+
+
 def _read_ruled(boxes, spread, surname, page=None):
     """Read the page or spread band by band, each band across both pages.
 
@@ -1113,7 +1142,7 @@ def _read_ruled(boxes, spread, surname, page=None):
 
     labels, grouped = [], {}
     edge = max((one['x1'] for one in spread), default=0)
-    for box in boxes:
+    for box in [piece for box in boxes for piece in _cut_at_rules(box, spread)]:
         text = re.sub(r'\s', '', box['text'])
         # A column the photo cuts off at its edge is only part read: 女金震埴
         # comes back as 女金司.
