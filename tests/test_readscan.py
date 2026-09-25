@@ -130,7 +130,13 @@ def test_what_only_the_head_of_a_column_can_open():
     read = r._entries(stream, '金', starts)
     assert [one['hanja_name'] for one in read] == ['全京愛', '金氏']
     assert read[0]['birth_date'] == '1956-07-27'
-    assert read[0]['note'] == '父 東國(확인 필요)'
+    # 東國 runs into the noise the hangul before him became, so he is left out
+    # rather than read wrong; one set clear between brackets is kept.
+    assert read[0]['note'] == ''
+    clear = r._entries('配天安全氏京愛（천안전씨경애）東國（동국）女一九五六年丙申七月二十七日生', '金')[0]
+    assert clear['note'] == '父 東國'
+    assert r._entries('配金寫金氏美蘭（可相（女一九六〇年庚子一月十一日生', '金')[0]['note'] == ''
+    assert r._entries('配金寫金氏美蘭', '金')[0]['bon_gwan'] == '金寧'
     # An older book names a daughter by her husband and his 본관.
     assert read[1]['note'] == '사위 金震埴(瑞興人) · 딸 이름 미기재'
 

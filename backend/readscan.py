@@ -446,7 +446,7 @@ NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫',
                 '鬥': '斗'}
 # 본관 characters the reader mistakes for one of like shape: 摩州 is 慶州, both
 # under 广. A 본관 is a place, so these stand only where a place name does.
-BON_GWAN_MISREAD = {'摩': '慶', '麐': '慶', '晨': '晉', '青': '淸', '清': '淸', '倘': '尙', '尚': '尙', '寕': '寧'}
+BON_GWAN_MISREAD = {'摩': '慶', '麐': '慶', '晨': '晉', '青': '淸', '清': '淸', '倘': '尙', '尚': '尙', '寕': '寧', '寫': '寧'}
 
 
 def _fixed(name):
@@ -566,7 +566,12 @@ OTHER_NAMES = re.compile(r'(字|初名|號|諱)\s*([㐀-鿿]{2})')
 # Where a person lies: 墓 up to the way the grave faces. 墓는 comes back as 墓二,
 # since the reader has no hangul.
 HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2,4}?)(?=[（(子]|$)')
-FATHER = re.compile(r'([㐀-鿿]{2})\s*(?:[（(][^（(）)]*[）)]?)?\s*女')
+# 父: 東國(동국)女. The spouse's own name comes just before with its hangul in a
+# bracket, which the reader turns into characters of its own, and those run
+# straight into the father's: (김녕김씨미란)相範 comes back as （可相. So a father
+# is taken only where that bracket closed before him and his own closes after
+# him — a name read out of the noise is worse than none.
+FATHER = re.compile(r'[）)]\s*([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
 GRAVE = re.compile(r'墓\s*[는二]?\s*([^墓配忌生卒]{2,24}?[坐向])')
 
 
@@ -582,10 +587,7 @@ def _notes(chunk, dated):
     notes += ['墓 ' + re.sub(r'[\s，,。.]', '', match.group(1)) for match in GRAVE.finditer(plain)]
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
-        # The father stands beside the hangul reading of the spouse's name,
-        # which the reader turns into characters of its own, so a name read
-        # there is as often the noise beside it: it is marked to be checked.
-        notes += ['父 %s(확인 필요)' % _fixed(name) for name in FATHER.findall(chunk)]
+        notes += ['父 ' + _fixed(name) for name in FATHER.findall(chunk)]
     # 女 … 夫 諸葛芝奉 子 柄律: a daughter's husband, and her son of his line.
     if chunk.startswith('女'):
         notes += ['夫 ' + _fixed(name) for name in HUSBAND.findall(chunk)]
