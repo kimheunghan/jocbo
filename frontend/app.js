@@ -1780,7 +1780,17 @@ function scanMatch(row){
  const hits=book.persons.filter(person=>
   (korean&&person.korean_name===korean)||(hanja&&person.hanja_name&&person.hanja_name===hanja));
  if(!hits.length)return null;
- return hits.find(person=>person.generation===generation)||hits[0];
+ // The same characters are the same person before a shared hangul name is:
+ // 金哲純 is not 金澈純, though both are 김철순.
+ const exact=hits.filter(person=>hanja&&person.hanja_name===hanja);
+ const pool=exact.length?exact:hits;
+ return pool.find(person=>person.generation===generation)||pool[0];
+}
+// Another person with the same hangul name: the characters on the line and on
+// record are both there and differ.
+function isNamesake(row,found){
+ const hanja=scanRowFields(row)('hanja_name').value.trim();
+ return Boolean(hanja&&found.hanja_name&&found.hanja_name!==hanja);
 }
 // The same rule the server keeps when it updates a note: an item is said
 // already when, readings in brackets and spacing aside, the old note holds it.
@@ -1809,6 +1819,22 @@ function paintScanMatch(row){
   note.hidden=!named;
   note.innerHTML=named?'<span>족보에 없는 인물</span><button type="button" class="scan-new" data-save-row title="이 줄만 지금 족보에 등록">신규 등록</button>':'';
   if(named)note.querySelector('[data-save-row]').onclick=()=>saveScanRow(row);
+  return;
+ }
+ // A 동명이인 — the same hangul name, other characters — may be someone else
+ // altogether, so the line offers both: update the one on record, or enter a
+ // new person. Filing the page takes it as the new person the characters say
+ // it is, unless 업데이트 was chosen.
+ if(isNamesake(row,found)){
+  row.dataset.matchId=String(found.id);
+  if(row.dataset.namesake!==String(found.id)){row.dataset.namesake=String(found.id);row.dataset.fillId='';}
+  row.classList.remove('filling');
+  note.hidden=false;
+  note.innerHTML=`<span>동명이인: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대</span>`
+   +'<button type="button" class="scan-new scan-update" data-namesake="update" title="기존 인물의 빈칸·미상만 채움">업데이트</button>'
+   +'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 새로 등록">별도 등록</button>';
+  note.querySelector('[data-namesake="update"]').onclick=()=>{row.dataset.fillId=String(found.id);saveScanRow(row);};
+  note.querySelector('[data-namesake="apart"]').onclick=()=>{row.dataset.fillId='';saveScanRow(row);};
   return;
  }
  // A name already in the book is that person read again, so the line always
@@ -2033,7 +2059,7 @@ async function saveScanRow(row){
  if(!record)return;
  const updating=Boolean(record.id);
  delete record.family;delete record.key;delete record.spouse;
- const button=row.querySelector('[data-save-row]');
+ const button=row.querySelector('[data-save-row]')||row.querySelector(updating?'[data-namesake="update"]':'[data-namesake="apart"]');
  try{
   const done=await busy(button,'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people:[record]}));
   await refresh();
