@@ -930,6 +930,12 @@ footer {
   margin: 0;
 }
 
+/* The tree is wider than it is tall, so it takes the sheet lying down. */
+@page tree-sheet {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
 @media print {
   .book-facts {
     display: none;

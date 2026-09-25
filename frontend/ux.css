@@ -1590,3 +1590,54 @@ body.view-full .zoom-bar .zoom-script {
   padding: 4px 10px;
   font-size: 12px;
 }
+
+/* ── 가계도 인쇄 ─────────────────────────────────── */
+.tree-print-head {
+  display: none;
+}
+
+@media print {
+  body.print-tree .tree-print-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 0 0 4mm;
+    color: #222;
+    font: 10pt/1.2 var(--sans);
+  }
+
+  body.print-tree .tree-print-head strong {
+    font: 700 13pt/1.2 var(--serif);
+  }
+
+  body.print-tree #view {
+    page: tree-sheet;
+  }
+
+  body.print-tree .tree-add,
+  body.print-tree .tree-legend {
+    display: none !important;
+  }
+
+  /* The whole tree on the one sheet. zoom, not a transform: it shrinks the
+     room the tree takes as well as the drawing, so nothing is left wider than
+     the paper for the browser to shrink the sheet again to fit. */
+  body.print-tree .zoom-sizer {
+    width: auto !important;
+    height: auto !important;
+  }
+
+  body.print-tree .zoom-body {
+    transform: none !important;
+  }
+
+  body.print-tree .tree-canvas {
+    zoom: var(--tree-print-scale);
+  }
+
+  body.print-tree .tree-card,
+  body.print-tree .family-tree {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
