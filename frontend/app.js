@@ -69,16 +69,22 @@ async function loadHanjaDict(){
 function readingOf(text){
  if(!hanjaReadings||!text)return '';
  const chars=Array.from(String(text));
- let changed=false;
+ let changed=false,given=-1;
  const out=chars.map((ch,index)=>{
   if(!/[一-鿿]/.test(ch))return ch;
   // A surname reads as a surname where a name begins: before 氏, or at the start of
   // a word, which is what 金之岱 is inside 英憲公(金之岱).
   const opensWord=index===0||!/[一-鿿]/.test(chars[index-1]);
-  if(HANJA_SURNAME[ch]&&(chars[index+1]==='氏'||opensWord)){changed=true;return HANJA_SURNAME[ch];}
+  if(HANJA_SURNAME[ch]&&(chars[index+1]==='氏'||opensWord)){
+   changed=true;
+   // The given name after it is a word of its own and takes the same initial
+   // sound as one: 金魯錫 is 김노석, not 김로석.
+   if(chars[index+1]!=='氏')given=index+1;
+   return HANJA_SURNAME[ch];
+  }
   let reading=(hanjaReadings[ch]||'').split(/[,/\s]+/)[0];
   if(!reading)return ch;
-  if(index===0&&INITIAL_SOUND[reading])reading=INITIAL_SOUND[reading];
+  if((index===0||index===given)&&INITIAL_SOUND[reading])reading=INITIAL_SOUND[reading];
   changed=true;
   return reading;
  }).join('');
