@@ -607,10 +607,25 @@ body.view-full .zoom-bar .zoom-script {
   margin-top: 26px;
 }
 
-/* A sheet's head and foot are for paper; on screen the sheet is the page alone. */
+/* On screen too each sheet shows the printed book's page above it and its place
+   among the sheets below; the time of printing is filled in only for paper. */
 .sheet-head,
 .sheet-foot {
-  display: none;
+  display: flex;
+  justify-content: space-between;
+  width: 680px;
+  color: var(--ink-soft);
+  font: 12px/1.6 var(--sans);
+}
+
+.sheet-head .sheet-page {
+  font: 15px/1.6 var(--serif);
+  letter-spacing: 1px;
+}
+
+.sheet-foot {
+  justify-content: center;
+  margin-top: 4px;
 }
 
 .genealogy-side,

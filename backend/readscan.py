@@ -833,6 +833,7 @@ def read(path, surname=''):
         # Back to the page as it stands: across the turned image is down the page.
         boxes.append({'x': width - max(ys), 'y': min(xs), 'w': max(ys) - min(ys), 'h': max(xs) - min(xs),
                       'text': _traditional(text), 'score': float(score)})
+    _reread_names(page, boxes)
     spread = pages(page)
     if spread:
         people, count = _read_ruled(boxes, spread, surname)
@@ -868,6 +869,41 @@ def _paired(people):
         person['key'] = index
         person['spouse'] = keys.get(id(partner)) if partner is not None else None
     return people
+
+
+def _reread_names(page, boxes):
+    """Read again, twice the size, a name the whole page gave only half of.
+
+    In a photo of the whole page the large characters of a name are read at the
+    same small scale as the rest, and one of the two is sometimes lost: 子魯錫
+    comes back as 子魯. The column alone, enlarged, is read whole.
+    """
+    from PIL import Image
+    for box in boxes:
+        text = box['text']
+        if not text or text[0] not in '子女':
+            continue
+        given = _name(text[1:])
+        if len(given) >= GIVEN_NAME:
+            continue
+        # The reading of a small crop turns on its margin, so a few are tried;
+        # only one that keeps the character already read (魯 of 子魯) and adds
+        # the one lost is taken, which a misreading of both (子曾錫) is not.
+        for pad in (int(box['w'] * 0.17), int(box['w'] * 0.11), int(box['w'] * 0.23)):
+            crop = page.crop((max(0, int(box['x'] - pad)), max(0, int(box['y'] - pad)),
+                              min(page.width, int(box['x'] + box['w'] + pad)), min(page.height, int(box['y'] + box['h'] + pad))))
+            crop = crop.resize((crop.width * 2, crop.height * 2), Image.LANCZOS)
+            try:
+                result, _ = _reader()(crop.rotate(90, expand=True))
+            except Exception:
+                break
+            # Turned a quarter, down the column is along the picture.
+            pieces = sorted(result or [], key=lambda one: min(point[0] for point in one[0]))
+            again = ''.join(_traditional(found) for _, found, _ in pieces)
+            name = _name(again[1:])
+            if again[:1] == text[0] and len(name) == GIVEN_NAME and name.startswith(given):
+                box['text'] = text[0] + name + text[1 + len(given):]
+                break
 
 
 def _read_ruled(boxes, spread, surname):
