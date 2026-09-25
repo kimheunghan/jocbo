@@ -136,14 +136,14 @@ How the page is laid out
 - A band may begin with the tail of an entry that started on the previous page (text with no 子/女/配 before it). That is not a person; skip it.
 
 What to give back: one item per person, in reading order.
-- hanja_name: the full name in hanja with the family name (the book's family name for 子/女; the printed family name for 配). For a daughter named only by her husband, the family name followed by 氏 (e.g. 金氏).
-- korean_name: the name in hangul, from the printed reading where there is one (전경애, 김상조). For 金氏 write 김씨.
+- hanja_name: the full name in hanja with the family name (the book's family name for 子/女; the printed family name for 配). For a daughter named only by her husband, the family name followed by 氏 (e.g. 金氏). For a 配 whose own given name is not printed (配昌寧成氏 元永(원영)女, where 元永 is her father), the 본관, family name and 氏 together: 昌寧成氏, never her father's name.
+- korean_name: the name in hangul, from the printed reading where there is one (전경애, 김상조). For 金氏 write 김씨; for 昌寧成氏 write 창녕성씨.
 - gender: 남 for 子 and for a husband, 여 for 女 and 配, 미상 if unknown.
 - generation: from the margin label of the band; 0 if it cannot be told.
 - bon_gwan: for 配 and for a husband, their 본관 in hanja (天安, 瑞興); otherwise "".
-- birth_date / death_date: as the page gives them, in digits: YYYY-MM-DD, or YYYY-MM or YYYY when only that much is given, or --MM-DD for a month and day with no year. Do not convert from the lunar calendar. "" when not given.
+- birth_date / death_date: as the page gives them, in digits: YYYY-MM-DD, or YYYY-MM or YYYY when only that much is given, or --MM-DD for a month and day with no year. 忌 七月二十八日 is her death day without a year: death_date --07-28, and not in the note. Do not convert from the lunar calendar. "" when not given.
 - married_in: true for 配 and for a husband; false for 子 and 女.
-- note: the rest of the person's own entry, in the page's own words, each item followed by its hangul reading in brackets where the page prints one, items joined with " · ". For example: 字 玉汝 · 忌 六月四日 · 墓 陽洞後山(양동후산) 設壇碑(설단비). Keep hangul lines (연세대학교 대학원 졸업 교육공학 석사 · 2014.8.31 대통령표창) as written. For 配 begin with 父 and her father's name (父 東國(동국)). Leave out what has a field of its own (name, 본관, dates) and what the spouse link already says.
+- note: the rest of the person's own entry, in the page's own words, each item followed by its hangul reading in brackets where the page prints one, items joined with " · ". For example: 字 玉汝 · 墓 陽洞後山(양동후산) 設壇碑(설단비). A grave shared with the spouse is a note too: 墓 合墳(합분). Keep hangul lines (연세대학교 대학원 졸업 교육공학 석사 · 2014.8.31 대통령표창) as written. For 配 begin with 父 and her father's name (父 東國(동국)). Leave out what has a field of its own (name, 본관, dates) and what the spouse link already says.
 - A daughter's note is hers alone: it stops where 夫 begins. Her husband's name, 본관, father and their children go on his own line, not hers. For a daughter named only by her husband, her note is 딸 이름 미기재.
 - family: 0 for the family carried on from the right-hand page. If the left-hand page starts another family — a person there of an older generation (smaller number) than anyone on the right-hand page begins it — that family and everyone printed to the left of its right-most column is 1. Otherwise 0.
 - spouse: for 配, the index (0-based, in this list) of the son she married; for a husband, the index of the daughter he married; -1 for everyone else.

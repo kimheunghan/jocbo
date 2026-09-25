@@ -134,8 +134,8 @@ DAY = r'([%s]{1,3})\s*(?:日\s*(生|卒)?|(生|卒))' % NUMBER
 DATE = re.compile(r'([%s]{4})\s*年\s*([%s]{2})?\s*(%s)\s*月\s*%s' % (NUMBER, CYCLE, MONTH, DAY))
 # A date without a year: the day a spouse is remembered on (忌 九月十九日), or a
 # birth given by month and day alone.
-# 忌는 comes back as 忌二 or 忌一, since the reader has no hangul.
-YEARLESS = re.compile(r'(忌|生)?\s*(?:[는二一])?\s*(%s)\s*月\s*%s' % (MONTH, DAY))
+# 忌는 comes back as 忌二, 忌一, 忌雲 or 忌亡, since the reader has no hangul.
+YEARLESS = re.compile(r'(忌|生)?\s*(?:[는二一雲亡])?\s*(%s)\s*月\s*%s' % (MONTH, DAY))
 
 
 def _dates(text):
@@ -723,10 +723,12 @@ def _entries(stream, surname, starts=None):
             # still stands, with the 본관 left for a hand to fill.
             bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan)) if len(bon_gwan) == 2 else ''
             # 配 昌寧成氏 元永(원영)女 gives no name of her own: the name after
-            # 氏 is her father's, and she is 成氏.
+            # 氏 is her father's. She is then named as the page names her,
+            # 본관 and clan together: 昌寧成氏.
             if not given or given in FATHER.findall(chunk):
-                given = '氏'
-            hanja = family + given
+                hanja = bon_gwan + family + '氏'
+            else:
+                hanja = family + given
         elif marker == LINEAGE:
             heading, _, rest = chunk[1:].partition(LINEAGE_END)
             given = _name(rest)
@@ -852,7 +854,27 @@ def _entries(stream, surname, starts=None):
                     'note': ' · '.join(note),
                     'raw': chunk[match.start():match.start() + 80], 'at': start,
                 })
+    for person in people:
+        _days_into_dates(person)
     return people
+
+
+DAY = re.compile(r'(기일|생일) (\d{1,2})월 (\d{1,2})일')
+
+
+def _days_into_dates(person):
+    """忌七月二十八日 is the day she died, though the year is not given: it
+    goes in the 사망일 as --07-28, and a 생일 likewise in the 출생일, where a
+    dated one has not already taken the place."""
+    kept = []
+    for item in filter(None, person['note'].split(' · ')):
+        day = DAY.fullmatch(item)
+        field = {'기일': 'death_date', '생일': 'birth_date'}.get(day.group(1)) if day else None
+        if field and not person[field]:
+            person[field] = '--%02d-%02d' % (int(day.group(2)), int(day.group(3)))
+            continue
+        kept.append(item)
+    person['note'] = ' · '.join(kept)
 
 
 def read(path, surname=''):

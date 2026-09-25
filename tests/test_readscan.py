@@ -89,19 +89,21 @@ def test_what_a_spouse_and_a_daughter_bring():
     # A spouse named with a numeral, and remembered on a day without a year.
     wife = r._entries('配慶州崔氏三順忌二九月十九日', '金')[0]
     assert (wife['hanja_name'], wife['bon_gwan']) == ('崔三順', '慶州')
-    assert wife['note'] == '기일 9월 19일'
+    assert (wife['death_date'], wife['note']) == ('--09-19', '')
 
     # When the name after the 본관 is lost, the person is still proposed.
-    assert r._entries('配全州崔氏（對）', '金')[0]['hanja_name'] == '崔氏'
+    assert r._entries('配全州崔氏（對）', '金')[0]['hanja_name'] == '全州崔氏'
 
-    # 配 昌寧成氏 元永(원영)女: the name after 氏 is her father's, not hers, and
+    # 配 昌寧成氏 元永(원영)女: the name after 氏 is her father's, not hers, so
+    # she is named 昌寧成氏 as the page names her; and
     # a grave shared with her husband is 合墳, facing no way at all.
     wife = r._entries('配昌寧成氏（諮從）元永（）女墓雲合墳（計號）', '金', starts={0})[0]
-    assert (wife['hanja_name'], wife['bon_gwan']) == ('成氏', '昌寧')
+    assert (wife['hanja_name'], wife['bon_gwan']) == ('昌寧成氏', '昌寧')
     assert wife['note'] == '墓 合墳 · 父 元永'
     # A bracket the reader left open does not swallow the 忌 and 墓 after it.
     wife = r._entries('配延安車氏（補從忌六七月二十八日墓亡陽洞後山（喜享處）子坐(R對)', '金', starts={0})[0]
-    assert (wife['hanja_name'], wife['note']) == ('車氏', '墓 陽洞後山子坐 · 기일 7월 28일')
+    # 忌 七月二十八日 is the day she died, the year not given.
+    assert (wife['hanja_name'], wife['death_date'], wife['note']) == ('延安車氏', '--07-28', '墓 陽洞後山子坐')
 
     # A daughter's son belongs to her husband's line, not this book's.
     band = r._entries('女點先夫諸葛芝奉（제갈지봉）子柄律子相錫一九二一年辛酉十二月二十六日生', '金')
