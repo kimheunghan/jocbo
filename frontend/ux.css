@@ -1016,10 +1016,18 @@ body.view-full .frame-resizer {
 }
 
 .scan-row input,
-.scan-row select {
+.scan-row select,
+.scan-row textarea {
   margin-top: 3px;
   padding: 6px 8px;
   font-size: 13px;
+}
+
+/* A note on record and what a reading adds to it stand on lines of their own. */
+.scan-row textarea {
+  min-height: 34px;
+  line-height: 1.45;
+  resize: vertical;
 }
 
 .scan-row .scan-hanja {

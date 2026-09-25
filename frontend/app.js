@@ -1533,7 +1533,7 @@ function scanRowHTML(id,generation){
   <label>본관<input name="bon_gwan" maxlength="200" autocomplete="off"></label>
   <label>출생일<input name="birth_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
   <label>사망일<input name="death_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
-  <label>기록<input name="note" maxlength="10000" autocomplete="off"></label>
+  <label>기록<textarea name="note" rows="2" maxlength="10000" autocomplete="off"></textarea></label>
   <p class="scan-match" hidden></p>
  </div>`;
 }
@@ -1598,6 +1598,15 @@ function scanMatch(row){
  if(!hits.length)return null;
  return hits.find(person=>person.generation===generation)||hits[0];
 }
+// The same rule the server keeps when it updates a note: an item is said
+// already when, readings in brackets and spacing aside, the old note holds it.
+function mergedNote(old,fresh){
+ const bare=text=>text.replace(/[\s·]|[(（][^)）]*[)）]/g,'');
+ const held=bare(old);
+ const extra=fresh.split(/\s*·\s*|\n/).map(item=>item.trim())
+  .filter(item=>item&&bare(item)&&!held.includes(bare(item)));
+ return extra.length?old+extra.map(item=>'\n'+item).join(''):old;
+}
 function paintScanMatch(row){
  const found=scanMatch(row),note=row.querySelector('.scan-match');
  if(!found){
@@ -1618,11 +1627,12 @@ function paintScanMatch(row){
  row.dataset.matchId=String(found.id);
  row.dataset.fillId=String(found.id);
  row.classList.add('filling');
- // A reading that found no note leaves the line looking as if the person had
- // none; what the book already holds is shown instead, and an update adds
- // nothing it already says.
+ // The line shows the note as an update would leave it: what the book already
+ // holds first, then whatever the reading found that it does not say yet — so
+ // the two can be compared in one place, and nothing is said twice.
  const noteBox=scanRowFields(row)('note');
- if(!noteBox.value.trim()&&found.note)noteBox.value=found.note;
+ if(found.note)noteBox.value=mergedNote(found.note,noteBox.value);
+ noteBox.rows=Math.min(6,Math.max(2,noteBox.value.split('\n').length));
  const blanks=SCAN_FILLABLE.filter(([name,blank])=>found[name]===blank).map(([,,label])=>label);
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
@@ -1961,6 +1971,7 @@ function scanFillRow(row,person,generation){
  paintDateBoxes(row);
  // 字·初名·墓, a daughter's husband, a day remembered without a year.
  get('note').value=withReadings(person.note||'');
+ get('note').rows=Math.min(6,Math.max(2,get('note').value.split('\n').length));
  // A year and its 간지 that disagree mean one of the two was misread.
  row.classList.toggle('doubted',person.ganji_agrees===false);
  // Who this line married, as the page says (配 after a son, 夫 in a daughter's
