@@ -712,26 +712,39 @@ function bookHTML(people){
   // it is entered, as the book has it.
   if(top>first&&!columns.some(p=>p.generation>top&&p.generation<top+BOOK_ROWS)&&!jumps.has(top))break;
   // Each person's column stands where the book would set it: the first child
-  // begins under the parent, brothers and sisters follow to the left, and a
-  // parent whose children had to start further left moves over them.
+  // begins under the parent and brothers and sisters follow to the left, each
+  // with all of their line below them. The next brother starts only past the
+  // whole of the one before, so every column sits under its own parent and no
+  // cousin wanders in under an uncle.
   const inGroup=p=>p.generation>=top&&p.generation<top+BOOK_ROWS;
-  const cursor=new Map(),at=new Map();
-  // A column is never cut between two sheets: one that would cross the edge of
-  // a sheet starts on the next.
-  const fits=(r,w)=>w>=room||Math.floor(r/room)===Math.floor((r+w-1)/room);
-  const place=(person,least)=>{
-   const g=person.generation,w=widths.get(person.id)||40;
-   let r=Math.max(cursor.get(g)||0,least);
-   if(!fits(r,w))r=Math.ceil(r/room)*room;
-   at.set(person.id,r);
-   cursor.set(g,r+w);
-   const kids=(childrenOf.get(person.id)||[]).filter(inGroup).sort(bySiblings);
-   kids.forEach(kid=>place(kid,r));
-   const under=kids.length?at.get(kids[0].id):r;
-   if(under>r&&fits(under,w)){at.set(person.id,under);cursor.set(g,Math.max(cursor.get(g),under+w));}
+  const at=new Map(),blocks=new Map();
+  const kidsOf=person=>(childrenOf.get(person.id)||[]).filter(inGroup).sort(bySiblings);
+  const block=person=>{
+   if(!blocks.has(person.id)){
+    blocks.set(person.id,widths.get(person.id)||40);
+    blocks.set(person.id,Math.max(widths.get(person.id)||40,kidsOf(person).reduce((sum,kid)=>sum+block(kid),0)));
+   }
+   return blocks.get(person.id);
   };
+  // A column is never cut between two sheets: one that would cross the edge of
+  // a sheet starts on the next, and so does a whole family that would fit on one.
+  const fits=(r,w)=>w>=room||Math.floor(r/room)===Math.floor((r+w-1)/room);
+  const next=r=>Math.ceil(r/room)*room;
+  const place=(person,r)=>{
+   const w=widths.get(person.id)||40,whole=block(person);
+   if(whole<=room?!fits(r,whole):!fits(r,w))r=next(r);
+   at.set(person.id,r);
+   const kids=kidsOf(person);
+   let end=r;
+   kids.forEach(kid=>{end=place(kid,end);});
+   // Children that had to start on the next sheet take their parent with them.
+   const under=kids.length?at.get(kids[0].id):r;
+   if(under>r&&fits(under,w))at.set(person.id,under);
+   return Math.max(at.get(person.id)+w,end);
+  };
+  let end=0;
   columns.filter(p=>inGroup(p)&&!(parentOf.has(p.id)&&inGroup(byId.get(parentOf.get(p.id)))))
-   .forEach(root=>place(root,0));
+   .forEach(root=>{end=place(root,end);});
   const reach=Math.max(0,...[...at].map(([id,r])=>r+(widths.get(id)||40)));
   // What will not go on one sheet runs on over the next, the rows repeated.
   for(let sheet=0;sheet<Math.max(1,Math.ceil(reach/room));sheet++){

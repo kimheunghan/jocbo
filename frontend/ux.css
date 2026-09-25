@@ -243,7 +243,6 @@ button.busy {
   border-radius: var(--radius);
   background: var(--paper-raised);
   cursor: grab;
-  overscroll-behavior: contain;
   touch-action: pan-x pan-y;
 }
 
