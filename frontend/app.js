@@ -917,9 +917,23 @@ function renderTree(people){
    marriedIn.push({parentUnit,member,ids});
   }
  }
+ // With one marriage there is one family: a child with only the father on
+ // record and a brother with both belong to the same couple, and splitting them
+ // put the brother apart from the rest.
+ for(const unit of units.values()){
+  if(unit.members.length===2&&unit.families.length>1){
+   const mate=unit.members.find(m=>m!==unit.host);
+   unit.families=[{mate,children:unit.families.flatMap(family=>family.children)}];
+  }
+ }
+ // Brothers and sisters stand left to right as a 가계도 sets them: the sons,
+ // eldest first, then the daughters, eldest first; an unknown birth goes last.
+ const rank=person=>person.gender==='남'?0:person.gender==='여'?2:1;
+ const born=person=>/^\d{4}/.test(person.birth_date||'')?person.birth_date:'9999';
+ const bySiblingOrder=(a,b)=>rank(a.host)-rank(b.host)||(born(a.host)<born(b.host)?-1:born(a.host)>born(b.host)?1:0)||a.host.id-b.host.id;
  for(const unit of units.values()){
   unit.families.sort((a,b)=>unit.members.indexOf(a.mate||unit.host)-unit.members.indexOf(b.mate||unit.host));
-  unit.families.forEach(family=>family.children.sort(byBookOrder));
+  unit.families.forEach(family=>family.children.sort(bySiblingOrder));
   unit.children=unit.families.flatMap(family=>family.children);
  }
  const roots=[...units.values()].filter(u=>!attached.has(u.host.id))
