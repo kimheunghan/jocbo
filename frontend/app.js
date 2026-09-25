@@ -649,6 +649,7 @@ function bookHTML(people){
  const volume=book.volume?bookWord(`卷之${hanjaNumber(book.volume)}`,`${book.volume}권`):'';
  const origin=book.founder?bookWord('始祖 '+book.founder,'시조 '+scriptText(book.founder)):'';
  const pages=[],sheetTops=[];
+ const jumps=pageBreaks(book.page_breaks);
  const entryHTML=new Map(columns.map(p=>[p.id,personEntry(p,married.get(p.id)||[],surname)]));
  const {widths,room}=measureBookEntries(entryHTML);
  // Whose column each one hangs under: the father, or else the parent on record
@@ -678,7 +679,10 @@ function bookHTML(people){
  for(let top=first;top<=last;top+=BOOK_ROWS-1){
   // The first row repeats the previous sheet's last generation, so a sheet with
   // nothing below that row would only reprint what the reader already has.
-  if(top>first&&!columns.some(p=>p.generation>top&&p.generation<top+BOOK_ROWS))break;
+  // — unless the printed book picks the line up again on a page of its own at
+  // that generation (31세 660쪽): that page is made even before anyone below
+  // it is entered, as the book has it.
+  if(top>first&&!columns.some(p=>p.generation>top&&p.generation<top+BOOK_ROWS)&&!jumps.has(top))break;
   // Each person's column stands where the book would set it: the first child
   // begins under the parent, brothers and sisters follow to the left, and a
   // parent whose children had to start further left moves over them.
@@ -723,7 +727,6 @@ function bookHTML(people){
  // Numbered from the book's first page one sheet at a time, except where the
  // printed book jumps as a generation begins (31세 660쪽): the sheet that
  // opens with that generation takes that page, and the count goes on from it.
- const jumps=pageBreaks(book.page_breaks);
  let number=parseInt(book.page,10);
  const numbers=pages.map((page,index)=>{
   if(index)number+=1;
