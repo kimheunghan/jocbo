@@ -1618,6 +1618,11 @@ function paintScanMatch(row){
  row.dataset.matchId=String(found.id);
  row.dataset.fillId=String(found.id);
  row.classList.add('filling');
+ // A reading that found no note leaves the line looking as if the person had
+ // none; what the book already holds is shown instead, and an update adds
+ // nothing it already says.
+ const noteBox=scanRowFields(row)('note');
+ if(!noteBox.value.trim()&&found.note)noteBox.value=found.note;
  const blanks=SCAN_FILLABLE.filter(([name,blank])=>found[name]===blank).map(([,,label])=>label);
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
