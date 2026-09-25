@@ -1592,52 +1592,85 @@ body.view-full .zoom-bar .zoom-script {
 }
 
 /* ── 가계도 인쇄 ─────────────────────────────────── */
-.tree-print-head {
+/* Made only for the paper, and taken away again once it is printed. */
+.tree-print-pages {
   display: none;
 }
 
 @media print {
-  body.print-tree .tree-print-head {
+  body.print-tree #view > :not(.tree-print-pages),
+  body.print-tree .view-bar {
+    display: none !important;
+  }
+
+  body.print-tree .tree-print-pages {
+    display: block;
+  }
+
+  .tree-page {
+    page: tree-sheet;
+    break-after: page;
+  }
+
+  .tree-page:last-child {
+    break-after: auto;
+  }
+
+  .tree-page.tall {
+    page: tree-sheet-tall;
+  }
+
+  .tree-print-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin: 0 0 4mm;
+    margin: 0 0 3mm;
     color: #222;
     font: 10pt/1.2 var(--sans);
   }
 
-  body.print-tree .tree-print-head strong {
+  .tree-print-head strong {
     font: 700 13pt/1.2 var(--serif);
   }
 
-  body.print-tree #view {
-    page: tree-sheet;
+  /* One sheet's share of the tree, drawn at the sheet's scale. */
+  .tree-tile {
+    position: relative;
+    overflow: hidden;
   }
 
-  body.print-tree .tree-add,
-  body.print-tree .tree-legend {
+  .tree-tile-shift {
+    position: absolute;
+  }
+
+  .tree-tile .tree-add {
     display: none !important;
   }
 
-  /* The whole tree on the one sheet. zoom, not a transform: it shrinks the
-     room the tree takes as well as the drawing, so nothing is left wider than
-     the paper for the browser to shrink the sheet again to fit. */
-  body.print-tree .zoom-sizer {
-    width: auto !important;
-    height: auto !important;
-  }
-
-  body.print-tree .zoom-body {
-    transform: none !important;
-  }
-
-  body.print-tree .tree-canvas {
-    zoom: var(--tree-print-scale);
-  }
-
-  body.print-tree .tree-card,
-  body.print-tree .family-tree {
+  .tree-tile .tree-card,
+  .tree-tile .family-tree,
+  .tree-tile-level {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* A sheet of the tree says its rows' 世 in its own strip at the left. */
+  .tree-tile-level {
+    position: absolute;
+    left: 0;
+    width: 60px;
+    padding: 1px 0;
+    background: #fffdf4;
+    color: #555;
+    font: 700 13px/1.2 var(--sans);
+    text-align: center;
+  }
+
+  .tree-tile-part .level-label {
+    display: none;
+  }
+
+  .tree-tile-part {
+    background: #fffdf4;
   }
 }

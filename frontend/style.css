@@ -936,6 +936,12 @@ footer {
   margin: 10mm;
 }
 
+/* A tree too tall to read lying down stands up, top generation to bottom. */
+@page tree-sheet-tall {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
 @media print {
   .book-facts {
     display: none;

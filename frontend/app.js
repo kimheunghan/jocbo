@@ -1664,14 +1664,106 @@ $('#print').onclick=()=>{view='book';$('#search').value='';render();stampSheets(
 // The tree goes on one landscape sheet, shrunk to fit whatever its size, with
 // the book's name and the moment of printing above it. The + handles and the
 // screen's controls stay off the paper.
-const TREE_SHEET={width:1047,height:670};
+// The tree printed as the reader can read it. The first sheet shows the whole
+// tree small. The sheets after it are the tree branch by branch at a readable
+// size: a sheet holds whole families, each from its forebears at the top down
+// to its youngest generation, and the forebears are drawn again on every sheet
+// that needs them, so no line is cut off from the ones above it. A branch too
+// wide for one sheet is shared out a generation further down, the same way.
+// A4, 10mm margin: lying down, or standing where the tree is too tall to read
+// lying down.
+const TREE_SHEET={width:1047,height:660};
+const TREE_SHEET_TALL={width:718,height:990};
+const TREE_READABLE=0.75;
+// The strip at a sheet's left that holds the 世 of its rows, clear of the cards.
+const TREE_GUTTER=64;
+function treeBranches(limit){
+ const {hostOf}=spouseHosts();
+ const byId=new Map(book.persons.map(p=>[p.id,p]));
+ const parentsOf=new Map(),childrenOf=new Map();
+ for(const r of book.relations){
+  if(r.kind!=='parent'||!byId.has(r.source_id)||!byId.has(r.target_id))continue;
+  if(!childrenOf.has(r.source_id))childrenOf.set(r.source_id,new Set());
+  childrenOf.get(r.source_id).add(r.target_id);
+  if(!parentsOf.has(r.target_id))parentsOf.set(r.target_id,new Set());
+  parentsOf.get(r.target_id).add(r.source_id);
+ }
+ const mates=id=>book.relations.filter(r=>r.kind==='spouse'&&(r.source_id===id||r.target_id===id))
+  .map(r=>r.source_id===id?r.target_id:r.source_id).filter(other=>byId.has(other));
+ const rank=p=>p.gender==='남'?0:p.gender==='여'?2:1;
+ const born=p=>/^\d{4}/.test(p.birth_date||'')?p.birth_date:'9999';
+ const order=(a,b)=>rank(a)-rank(b)||(born(a)<born(b)?-1:born(a)>born(b)?1:0)||a.id-b.id;
+ // A family's children are those of either partner.
+ const kidsOf=id=>[...new Set([id,...mates(id)].flatMap(one=>[...(childrenOf.get(one)||[])]))]
+  .map(kid=>byId.get(kid)).filter(kid=>kid&&!hostOf.has(kid.id)).sort(order).map(kid=>kid.id);
+ const line=(id,into=new Set())=>{
+  if(into.has(id))return into;
+  into.add(id);mates(id).forEach(mate=>into.add(mate));
+  kidsOf(id).forEach(kid=>line(kid,into));
+  return into;
+ };
+ const width=ids=>{renderTree(book.persons.filter(p=>ids.has(p.id)));const canvas=$('.tree-canvas');return canvas?canvas.offsetWidth:0;};
+ const sheets=[];
+ // The families under one head, shared out over as few sheets as they fill,
+ // each sheet with the head and the forebears above it.
+ const share=(heads,branches)=>{
+  let group=new Set();
+  const flush=()=>{if(group.size){sheets.push(new Set([...heads,...group]));group=new Set();}};
+  for(const branch of branches){
+   const whole=line(branch);
+   if(width(new Set([...heads,...whole]))>limit){
+    flush();
+    const above=new Set([...heads,branch,...mates(branch)]);
+    const kids=kidsOf(branch);
+    if(kids.length)share(above,kids);else sheets.push(new Set([...heads,...whole]));
+    continue;
+   }
+   if(group.size&&width(new Set([...heads,...group,...whole]))>limit)flush();
+   whole.forEach(id=>group.add(id));
+  }
+  flush();
+ };
+ const roots=book.persons.filter(p=>!hostOf.has(p.id)&&!(parentsOf.get(p.id)||new Set()).size)
+  .sort((a,b)=>a.generation-b.generation||a.id-b.id).map(p=>p.id);
+ share(new Set(),roots);
+ return sheets;
+}
+function treePrintHTML(){
+ view='tree';render();
+ const full=$('.tree-canvas');
+ if(!full)return '';
+ const W=full.offsetWidth,H=full.offsetHeight;
+ const tall=TREE_SHEET.height/H<TREE_READABLE;
+ const sheet=tall?TREE_SHEET_TALL:TREE_SHEET;
+ const scale=Math.min(1,sheet.height/H);
+ const whole=Math.min(sheet.width/W,sheet.height/H,1);
+ const overviewDrawing=full.outerHTML;
+ const branches=treeBranches(sheet.width/scale-TREE_GUTTER);
+ const parts=branches.map(ids=>{
+  renderTree(book.persons.filter(p=>ids.has(p.id)));
+  const canvas=$('.tree-canvas');
+  const levels=[...canvas.querySelectorAll('.level-label')].map(label=>({y:Number(label.getAttribute('y')),text:label.textContent}));
+  return {html:canvas.outerHTML,w:canvas.offsetWidth,h:canvas.offsetHeight,levels};
+ });
+ render();
+ const title=esc(scriptText(book.title))+' 가계도';
+ const total=parts.length+1;
+ const page=`tree-page${tall?' tall':''}`;
+ const head=number=>`<div class="tree-print-head"><strong>${title}</strong><span>${number} / ${total} · <span class="sheet-date"></span></span></div>`;
+ const overview=`<section class="${page}">${head(1)}<div class="tree-tile" style="zoom:${whole};width:${W}px;height:${H}px">${overviewDrawing}</div></section>`;
+ const pages=parts.map((part,index)=>{
+  const labels=part.levels.map(level=>`<span class="tree-tile-level" style="top:${level.y-14}px">${esc(level.text)}</span>`).join('');
+  return `<section class="${page}">${head(index+2)}<div class="tree-tile tree-tile-part" style="zoom:${scale};width:${part.w+TREE_GUTTER}px;height:${part.h}px">`
+   +`<div class="tree-tile-shift" style="left:${TREE_GUTTER}px;top:0">${part.html}</div>${labels}</div></section>`;
+ }).join('');
+ return `<div class="tree-print-pages">${overview}${pages}</div>`;
+}
 $('#printTree').onclick=()=>{
- view='tree';$('#search').value='';render();
- const canvas=$('.tree-canvas');
- if(!canvas)return;
- const scale=Math.min(1,TREE_SHEET.width/canvas.offsetWidth,TREE_SHEET.height/canvas.offsetHeight);
- document.documentElement.style.setProperty('--tree-print-scale',String(scale));
- $('#view').insertAdjacentHTML('afterbegin',`<div class="tree-print-head"><strong>${esc(scriptText(book.title))} 가계도</strong><span class="sheet-date"></span></div>`);
+ view='tree';$('#search').value='';
+ document.querySelector('.tree-print-pages')?.remove();
+ const pages=treePrintHTML();
+ if(!pages)return;
+ $('#view').insertAdjacentHTML('beforeend',pages);
  stampSheets();
  document.body.classList.add('print-tree');
  window.print();
@@ -1679,7 +1771,7 @@ $('#printTree').onclick=()=>{
 window.addEventListener('afterprint',()=>{
  if(!document.body.classList.contains('print-tree'))return;
  document.body.classList.remove('print-tree');
- document.querySelector('.tree-print-head')?.remove();
+ document.querySelector('.tree-print-pages')?.remove();
 });
 $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books','POST',{title:'가상 가족의 기록 (샘플)',clan_name:'예시 김씨',description:'실존 인물과 무관한 예제입니다.'});const people=[{korean_name:'김예시',hanja_name:'金例示',generation:1,birth_date:'1940-01-01',gender:'남'},{korean_name:'이샘플',hanja_name:'李樣本',generation:1,birth_date:'1942-02-02',gender:'여'},{korean_name:'김가상',hanja_name:'金假想',generation:2,birth_date:'1970-03-03',gender:'남'},{korean_name:'김미래',hanja_name:'金未來',generation:3,birth_date:'2000-04-04',gender:'미상'}];const ids=[];for(const p of people)ids.push((await api('/books/'+b.id+'/persons','POST',{...p,note:'실제 개인정보가 아닌 가상 인물입니다.'})).id);for(const [s,t,kind] of [[0,1,'spouse'],[0,2,'parent'],[1,2,'parent'],[2,3,'parent']])await api('/relations','POST',{source_id:ids[s],target_id:ids[t],kind});await loadBooks(b.id);message('예제 족보 추가 완료');}finally{button.disabled=false;}});
 enter().catch(()=>{});
