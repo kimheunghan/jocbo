@@ -17,18 +17,43 @@ _convert = None
 
 def available():
     """Whether a reading engine is installed at all."""
-    try:
-        import rapidocr_onnxruntime  # noqa: F401
-        return True
-    except Exception:
-        return False
+    for package in ('rapidocr', 'rapidocr_onnxruntime'):
+        try:
+            __import__(package)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def _reader():
+    """The reading engine, called on a picture and giving (boxes, _) back, each box
+    (corners, text, score).
+
+    PP-OCRv6 is taught traditional characters as well as simplified ones, so it
+    reads a 족보 as printed — 魯佶, 魯錫, 勝世 — where the older model, taught
+    simplified only, read their look-alikes (結上, 魯, 滕世). The older one is kept
+    for an install that has not taken the new package yet.
+    """
     global _engine
     if _engine is None:
-        from rapidocr_onnxruntime import RapidOCR
-        _engine = RapidOCR()
+        try:
+            from rapidocr import RapidOCR, OCRVersion, ModelType
+            engine = RapidOCR(params={
+                'Global.log_level': 'error', 'Global.max_side_len': 3000,
+                'Det.ocr_version': OCRVersion.PPOCRV5, 'Det.model_type': ModelType.MOBILE,
+                'Rec.ocr_version': OCRVersion.PPOCRV6})
+
+            def read(picture):
+                out = engine(picture)
+                found = [(box.tolist(), text, float(score))
+                         for box, text, score in zip(out.boxes if out.boxes is not None else [],
+                                                     out.txts or [], out.scores or [])]
+                return found, None
+            _engine = read
+        except ImportError:
+            from rapidocr_onnxruntime import RapidOCR
+            _engine = RapidOCR()
     return _engine
 
 
@@ -398,11 +423,12 @@ def columns(boxes):
             left = max(box['x'], min(one['x'] for one in column))
             right = min(box['x'] + box['w'], max(one['x'] + one['w'] for one in column))
             # Two pieces of one column sit one above the other; two columns side
-            # by side run down the same stretch of the band.
+            # by side run down the same stretch of the band. A tilted photo lets
+            # the pieces of one column overlap a little (敬鎭 over 女智).
             beside = max(min(box['y'] + box['h'], one['y'] + one['h']) - max(box['y'], one['y'])
                          for one in column)
             if (right - left > min(box['w'], max(one['w'] for one in column)) * 0.5
-                    and beside < min(box['h'], min(one['h'] for one in column)) * 0.2):
+                    and beside < min(box['h'], min(one['h'] for one in column)) * 0.3):
                 column.append(box)
                 continue
         ordered.append([box])
@@ -480,8 +506,6 @@ NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫',
                 '鎖': '鎭', '磨': '磬', '填': '埴',
                 # The table lengthens 斗 into 鬥, which no one is named.
                 '鬥': '斗',
-                # 佶 comes back as 仕, all but never given in a Korean name.
-                '仕': '佶',
                 # 鎮 is 鎭 as China prints it; the book writes 鎭.
                 '鎮': '鎭'}
 # 본관 characters the reader mistakes for one of like shape: 摩州 is 慶州, both
@@ -653,8 +677,14 @@ def _children(text):
         end = marks[order + 1] if order + 1 < len(marks) else len(plain)
         run = re.match(r'[㐀-鿿]+', plain[index + 1:end])
         names = [run.group(0)[at:at + 2] for at in range(0, len(run.group(0)) - 1, 2)] if run else []
-        names = [_fixed(name) for name in names
-                 if not any(char in DIGITS or char in '年月日生卒' for char in name)]
+        # The names end where a numeral or a date's word turns up: what
+        # follows is another column's text run on (一大大四手甲寅).
+        kept = []
+        for name in names:
+            if any(char in DIGITS or char in '年月日生卒' for char in name):
+                break
+            kept.append(_fixed(name))
+        names = kept
         if names:
             out.append('%s %s' % (plain[index], ' · '.join(names)))
     return out
@@ -911,6 +941,21 @@ def _reread_names(page, boxes):
                 break
 
 
+def _low(box, spread, shifts):
+    """Whether a box begins well below the rule at the head of its band."""
+    middle = box['x'] + box['w'] / 2
+    for page in spread:
+        if not page['x0'] <= middle < page['x1']:
+            continue
+        lines = page['lines']
+        above = _above(lines, middle, box['y'] + box['h'] / 2)
+        if not 0 < above < len(lines):
+            return False
+        top, bottom = _y(lines[above - 1], middle), _y(lines[above], middle)
+        return box['y'] - top > (bottom - top) * 0.25
+    return False
+
+
 def _reread_by_generation_name(page, ordered):
     """Read again the son whose name does not carry his brothers' shared character.
 
@@ -1000,7 +1045,11 @@ def _read_ruled(boxes, spread, surname, page=None):
             _reread_by_generation_name(page, ordered)
         stream, starts, heads = '', set(), []
         for box in ordered:
-            starts.add(len(stream))
+            # A person's entry opens at the head of the band, in large type. A
+            # column that begins well down it (女智, the daughters a husband's
+            # entry lists) goes on with the entry before and opens none.
+            if not _low(box, spread, shifts):
+                starts.add(len(stream))
             heads.append((len(stream), box))
             # A bracket left open in the column before holds the hangul of a
             # spouse's name, which the reader turns into a run of stray hanja
@@ -1024,6 +1073,9 @@ def _read_ruled(boxes, spread, surname, page=None):
                 person['generation'] = band + offset
             people.append(person)
         count += 1
+    # A line with no name, no date and nothing said of it is no one to enter.
+    people = [person for person in people if person['hanja_name'] or person['birth_date']
+              or person['death_date'] or person['note'] not in ('', '이름 판독 안 됨')]
     _families(people, len(spread) - 1)
     for person in people:
         del person['_box'], person['_side']

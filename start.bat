@@ -91,7 +91,16 @@ if errorlevel 1 (
 echo   꾸러미 준비됨
 
 rem -- 판독기 (선택) ----------------------------
-"%VENV%" -c "import rapidocr_onnxruntime" >nul 2>&1
+rem 옛 판독기(간체 모델)를 이미 쓰는 설치는 묻지 않고 새 판독기(번체까지 읽는 모델)로 바꿉니다.
+"%VENV%" -c "import rapidocr" >nul 2>&1
+if errorlevel 1 (
+  "%VENV%" -c "import rapidocr_onnxruntime" >nul 2>&1
+  if not errorlevel 1 (
+    echo   판독기 새 판으로 바꾸는 중... ^(몇 분 걸립니다^)
+    "%VENV%" -m pip install --quiet -r requirements-ocr.txt
+  )
+)
+"%VENV%" -c "import rapidocr" >nul 2>&1
 if errorlevel 1 (
   echo.
   echo   족보 이미지 판독기 - 미설치
