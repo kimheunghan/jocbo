@@ -354,7 +354,7 @@ function validDate(value){
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
@@ -620,6 +620,12 @@ function outsideTheLine(hostOf){
 }
 // How wide each person's column comes out, and how much of a row a sheet has
 // room for, taken from a sheet laid out off screen in the same type.
+// '31세 660쪽, 36세 702쪽' → 31 → 660, 36 → 702.
+function pageBreaks(text){
+ const jumps=new Map();
+ for(const match of String(text||'').matchAll(/(\d{1,3})\s*(?:세|世)?\D*?(\d{2,5})/g))jumps.set(Number(match[1]),Number(match[2]));
+ return jumps;
+}
 function measureBookEntries(entryHTML){
  const probe=document.createElement('div');
  probe.style.cssText='position:absolute;left:-20000px;top:0;visibility:hidden';
@@ -642,7 +648,7 @@ function bookHTML(people){
  const first=Math.min(...generations),last=Math.max(...generations);
  const volume=book.volume?bookWord(`卷之${hanjaNumber(book.volume)}`,`${book.volume}권`):'';
  const origin=book.founder?bookWord('始祖 '+book.founder,'시조 '+scriptText(book.founder)):'';
- const pages=[];
+ const pages=[],sheetTops=[];
  const entryHTML=new Map(columns.map(p=>[p.id,personEntry(p,married.get(p.id)||[],surname)]));
  const {widths,room}=measureBookEntries(entryHTML);
  // Whose column each one hangs under: the father, or else the parent on record
@@ -706,6 +712,7 @@ function bookHTML(people){
     rows.push(`<section class="genealogy-generation"><h3>${bookWord(hanjaNumber(generation)+'世',generation+'세')}</h3><div class="genealogy-entries">${entries}</div></section>`);
    }
    if(!any&&sheet>0)continue;
+   sheetTops.push({top,first:sheet===0});
    pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
   }
  }
@@ -713,9 +720,18 @@ function bookHTML(people){
  // printed book it stands for (617, 618, …) and when it was printed, and footed
  // with its place among the sheets. The browser's own lines — the app's title,
  // its address — are left off the paper.
- const firstPage=parseInt(book.page,10);
+ // Numbered from the book's first page one sheet at a time, except where the
+ // printed book jumps as a generation begins (31세 660쪽): the sheet that
+ // opens with that generation takes that page, and the count goes on from it.
+ const jumps=pageBreaks(book.page_breaks);
+ let number=parseInt(book.page,10);
+ const numbers=pages.map((page,index)=>{
+  if(index)number+=1;
+  if(sheetTops[index].first&&jumps.has(sheetTops[index].top))number=jumps.get(sheetTops[index].top);
+  return Number.isFinite(number)?number:'';
+ });
  return pages.map((page,index)=>`<section class="book-sheet"><div class="sheet-head">`
-  +`<span class="sheet-page">${Number.isFinite(firstPage)?firstPage+index:''}</span><span class="sheet-date"></span></div>${page}`
+  +`<span class="sheet-page">${numbers[index]}</span><span class="sheet-date"></span></div>${page}`
   +`<div class="sheet-foot">${index+1} / ${pages.length}</div></section>`).join('');
 }
 // The moment of printing, as the sheet heads it: 2026. 9. 25. 오후 10:50.

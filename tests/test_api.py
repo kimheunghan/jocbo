@@ -81,10 +81,10 @@ def test_book_metadata_can_be_created_and_edited(client):
     assert client.put(f'/api/books/{bid}', json=updated).status_code == 200
     assert client.get(f'/api/books/{bid}').json()['volume'] == '10'
     # The page of the printed book and whose line it traces, beside the founder.
-    updated.update(page='617', lineage='芝淑')
+    updated.update(page='617', lineage='芝淑', page_breaks='31세 660쪽')
     assert client.put(f'/api/books/{bid}', json=updated).status_code == 200
     again = client.get(f'/api/books/{bid}').json()
-    assert (again['page'], again['lineage']) == ('617', '芝淑')
+    assert (again['page'], again['lineage'], again['page_breaks']) == ('617', '芝淑', '31세 660쪽')
     automatic = client.post('/api/books', json={'title': '새 족보'}).json()['id']
     assert client.get(f'/api/books/{automatic}').json()['volume'] == '1'
 
