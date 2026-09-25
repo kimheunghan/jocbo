@@ -98,7 +98,8 @@ def test_what_a_spouse_and_a_daughter_bring():
     # a grave shared with her husband is 合墳, facing no way at all.
     wife = r._entries('配昌寧成氏（諮從）元永（）女墓雲合墳（計號）', '金', starts={0})[0]
     assert (wife['hanja_name'], wife['bon_gwan']) == ('成元永', '昌寧')
-    assert wife['note'] == '墓는 合墳()\n父 元永'
+    # 元永 is her own name, so it is not her father's too.
+    assert wife['note'] == '墓는 合墳()'
     # A bracket the reader left open does not swallow the 忌 and 墓 after it.
     wife = r._entries('配延安車氏（補從忌六七月二十八日墓亡陽洞後山（喜享處）子坐(R對)', '金', starts={0})[0]
     # A grave given by its address runs on to its 雙墳 and 石物, each word set

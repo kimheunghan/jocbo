@@ -899,7 +899,18 @@ def _entries(stream, surname, starts=None):
                 })
     for person in people:
         _days_into_dates(person)
+        _not_her_own_father(person)
     return people
+
+
+def _not_her_own_father(person):
+    """配 昌寧曺氏 仲熙(중희)女: 仲熙 is her name, and 女 only says she is a
+    woman. Her name is never her father's as well."""
+    name = person['hanja_name']
+    if not person['married_in'] or len(name) < 3 or name.endswith('氏'):
+        return
+    own = '父 ' + name[-2:]
+    person['note'] = '\n'.join(item for item in person['note'].split('\n') if item != own)
 
 
 DAY = re.compile(r'(기일|생일) (\d{1,2})월 (\d{1,2})일')
