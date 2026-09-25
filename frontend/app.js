@@ -122,7 +122,7 @@ const GENDER_HANJA={미상:'未詳',남:'子',여:'女'};
 function genderText(gender,mode=scriptMode){
  return mode==='hangul'?gender:(GENDER_HANJA[gender]||gender);
 }
-const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder','lineage'];
+const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder'];
 // The edit fields read in whichever script is switched on. Each remembers what is
 // on record and what it was shown as, so reading a book in hangul and saving it
 // never overwrites the hanja — only a field the user actually typed into changes.
@@ -200,7 +200,7 @@ function paintBookFacts(){
  const box=$('#bookFacts');
  if(!book){box.hidden=true;return;}
  const items=[['성씨 / 가문',book.clan_name],['본관',book.bon_gwan],['파명',book.branch_name],
-  ['권',book.volume?book.volume+'권':''],['페이지',book.page],['시조',book.founder],['계통도',book.lineage]]
+  ['권',book.volume?book.volume+'권':''],['페이지',book.page],['시조',book.founder]]
   .filter(([,value])=>value);
  box.hidden=!items.length;
  box.innerHTML=items.map(([label,value])=>{
@@ -624,16 +624,6 @@ function outsideTheLine(hostOf){
  }
  return outside;
 }
-// The 계통도 names whose line this book is (芝淑, 28세). The tree and the book
-// begin at that person's 世: the generations above stay in the list of people
-// but are not drawn, and every branch from that 世 down is (漢淑, also 28세).
-function fromLineHead(people){
- const name=String(book.lineage||'').trim();
- if(!name)return people;
- const head=book.persons.find(p=>[p.hanja_name,p.korean_name].some(full=>full&&(full===name||full.slice(-name.length)===name&&full.length-name.length<=2)));
- if(!head)return people;
- return people.filter(p=>p.generation>=head.generation);
-}
 // How wide each person's column comes out, and how much of a row a sheet has
 // room for, taken from a sheet laid out off screen in the same type.
 // '31세 660쪽, 36세 702쪽' → 31 → 660, 36 → 702.
@@ -655,7 +645,6 @@ function measureBookEntries(entryHTML){
  return {widths,room};
 }
 function bookHTML(people){
- people=fromLineHead(people);
  const {byId,surname,married,hostOf}=spouseHosts();
  const printed=outsideTheLine(hostOf);
  const keys=new Map(book.persons.map(p=>[p.id,columnKey(p,byId,fatherIndex(byId))]));
@@ -982,7 +971,6 @@ function renderTree(people){
  const options=treeOptionsHTML();
  if(!people.length){$('#view').innerHTML=options+'<p class="empty">표시할 인물이 없습니다.</p>';bindTreeOptions();return;}
  const {byId,married,hostOf}=spouseHosts();
- people=fromLineHead(people);
  const beyond=outsideTheLine(hostOf);
  // A 配 keeps the 세 they married into; it is their own forebears who have none.
  const outside=new Set([...beyond].filter(id=>!hostOf.has(id)));
@@ -1477,7 +1465,7 @@ $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#pers
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
 // The picker walks a queue of fields, one syllable at a time, writing each
 // finished field back where it came from. A person's name is a queue of one.
-const HANJA_FIELD_LABELS={title:'족보명',clan_name:'성씨 / 가문',bon_gwan:'본관',branch_name:'파명',founder:'시조',lineage:'계통도',hanja_name:'한자명'};
+const HANJA_FIELD_LABELS={title:'족보명',clan_name:'성씨 / 가문',bon_gwan:'본관',branch_name:'파명',founder:'시조',hanja_name:'한자명'};
 // 金 is filed in the dictionary under 금; 김 is how it is read as a surname. The
 // surname sits at the head of a person's name but in the middle of a book's —
 // 청도김씨대동보 — so the reading is tried wherever the syllable stands, with the
@@ -2072,11 +2060,11 @@ $('#scanSave').onclick=async()=>{
   if(apart.length&&target!=='skip'){
    let other=Number(target.slice(5))||0;
    if(target==='new'){
-    // The new book keeps this one's clan, 본관, 파, 권, 쪽 and 시조; only its
-    // 계통 — the eldest of the family it holds — is its own.
+    // The new book keeps this one's clan, 본관, 파, 권, 쪽 and 시조, and is
+    // named for the eldest of the family it holds.
     const keep=['clan_name','bon_gwan','branch_name','volume','page','founder'];
     const values=Object.fromEntries(keep.map(name=>[name,book[name]||'']));
-    other=(await api('/books','POST',{...values,title:`${book.title} (${lineage} 계통)`,lineage,
+    other=(await api('/books','POST',{...values,title:`${book.title} (${lineage} 계통)`,
      description:`「${book.title}」${book.page?` ${book.page}쪽`:''} 판독에서 나뉜 가족 — ${lineage} 계통`})).id;
    }
    const across=await busy($('#scanSave'),'반영 중…',()=>api('/books/'+other+'/persons/bulk','POST',{people:apart}));
