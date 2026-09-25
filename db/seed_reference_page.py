@@ -1,4 +1,4 @@
-"""Import 淸道金氏大同譜 卷之九 外鰲山, pages 116 and 618, and what has been
+"""Import 淸道金氏大同譜 卷之九 玄風琴山, pages 116 and 618, and what has been
 added to the book since.
 
 Page 116 carries 二十一世 to 二十六世, page 618 carries 二十六世 to 三十一世.  The
@@ -20,10 +20,12 @@ BOOK = dict(
     title='淸道金氏大同譜',
     clan_name='金氏',
     bon_gwan='淸道',
-    branch_name='外鰲山',
+    branch_name='玄風琴山',
     volume='9',
     founder='英憲公(金之岱)',
-    description='청도김씨대동보 권9 외오산 116쪽(21~26세)과 618쪽(26~31세)의 판독 가능한 기록입니다. 원본 날짜는 음력이며 ISO 형식으로 옮겼습니다. 116쪽 소주(小註)와 618쪽 26~29세 칸은 사진으로 판독되지 않아 비워 두었습니다.',
+    page='617',
+    lineage='芝淑',
+    description='청도김씨대동보 권9 현풍금산 116쪽(21~26세)과 618쪽(26~31세)의 판독 가능한 기록입니다. 원본 날짜는 음력이며 ISO 형식으로 옮겼습니다. 116쪽 소주(小註)와 618쪽 26~29세 칸은 사진으로 판독되지 않아 비워 두었습니다.',
 )
 
 

@@ -116,7 +116,7 @@ const GENDER_HANJA={미상:'未詳',남:'子',여:'女'};
 function genderText(gender,mode=scriptMode){
  return mode==='hangul'?gender:(GENDER_HANJA[gender]||gender);
 }
-const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder'];
+const BOOK_SCRIPT_FIELDS=['title','clan_name','bon_gwan','branch_name','founder','lineage'];
 // The edit fields read in whichever script is switched on. Each remembers what is
 // on record and what it was shown as, so reading a book in hangul and saving it
 // never overwrites the hanja — only a field the user actually typed into changes.
@@ -194,7 +194,7 @@ function paintBookFacts(){
  const box=$('#bookFacts');
  if(!book){box.hidden=true;return;}
  const items=[['성씨 / 가문',book.clan_name],['본관',book.bon_gwan],['파명',book.branch_name],
-  ['권',book.volume?book.volume+'권':''],['시조',book.founder]]
+  ['권',book.volume?book.volume+'권':''],['페이지',book.page],['시조',book.founder],['계통도',book.lineage]]
   .filter(([,value])=>value);
  box.hidden=!items.length;
  box.innerHTML=items.map(([label,value])=>{
@@ -354,7 +354,7 @@ function validDate(value){
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
@@ -1328,7 +1328,7 @@ $('#newPerson').onclick=()=>editPerson();$('#cancelPerson').onclick=()=>$('#pers
 async function loadHanjaIndex(){if(hanjaIndex)return hanjaIndex;const data=await fetch('/hanjaeum.json').then(r=>{if(!r.ok)throw Error('한자 사전을 불러오지 못했습니다.');return r.json();});hanjaIndex={};for(const [hanja,readings] of Object.entries(data))for(const reading of readings.split(/[,/\s]+/)){if(!hanjaIndex[reading])hanjaIndex[reading]=[];hanjaIndex[reading].push(hanja);}return hanjaIndex;}
 // The picker walks a queue of fields, one syllable at a time, writing each
 // finished field back where it came from. A person's name is a queue of one.
-const HANJA_FIELD_LABELS={title:'족보명',clan_name:'성씨 / 가문',bon_gwan:'본관',branch_name:'파명',founder:'시조',hanja_name:'한자명'};
+const HANJA_FIELD_LABELS={title:'족보명',clan_name:'성씨 / 가문',bon_gwan:'본관',branch_name:'파명',founder:'시조',lineage:'계통도',hanja_name:'한자명'};
 // 金 is filed in the dictionary under 금; 김 is how it is read as a surname. The
 // surname sits at the head of a person's name but in the middle of a book's —
 // 청도김씨대동보 — so the reading is tried wherever the syllable stands, with the
