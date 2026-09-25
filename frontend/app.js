@@ -2165,9 +2165,10 @@ async function readScan(engine,button,waiting){
   return;
  }
  // Where the margin names each band's generation (二十六世), the page says it;
- // otherwise the bands count on from the first generation typed above.
+ // otherwise the bands count on from the first one found below, or from 1,
+ // and each line's own 세대 box is there to set it right.
+ let first=1;
  const labelled=people.some(person=>person.generation);
- if(labelled)$('#scanFirstGeneration').value=Math.min(...people.filter(person=>person.generation).map(person=>person.generation));
  // Where the margin's 世 could not be read, a son headed by his forebears
  // (芝淑 相錫 正煥 over 澈純) still tells it: his father 正煥 is in the book at
  // 30世, so the son's band is 31世 and the bands above and below follow.
@@ -2177,10 +2178,9 @@ async function readScan(engine,button,waiting){
    const father=(person.forebears||[]).slice(-1)[0];
    if(!father)continue;
    const known=book.persons.find(one=>one.hanja_name===surname+father||one.hanja_name===father);
-   if(known){$('#scanFirstGeneration').value=known.generation+1-(person.band||0);break;}
+   if(known){first=known.generation+1-(person.band||0);break;}
   }
  }
- const first=Number($('#scanFirstGeneration').value)||1;
  $('#scanList').innerHTML='';
  scanRowSeq=0;
  // Each generation the page holds is headed in the list, with how many it has,
