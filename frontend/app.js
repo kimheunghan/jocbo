@@ -645,30 +645,6 @@ function fromLineHead(people){
  }
  return people.filter(p=>kept.has(p.id));
 }
-// The other clan in full: a married-in spouse's forebears, and whoever the book
-// has only through them — their other children and those children's families.
-// None of it is this 족보's, so neither the tree nor the book shows it.
-function otherClan(hostOf){
- const others=new Set([...outsideTheLine(hostOf)].filter(id=>!hostOf.has(id)));
- const parentsOf=new Map();
- for(const link of book.relations){
-  if(link.kind!=='parent')continue;
-  if(!parentsOf.has(link.target_id))parentsOf.set(link.target_id,[]);
-  parentsOf.get(link.target_id).push(link.source_id);
- }
- for(let grew=true;grew;){
-  grew=false;
-  for(const person of book.persons){
-   if(others.has(person.id))continue;
-   const host=hostOf.get(person.id);
-   const parents=parentsOf.get(person.id)||[];
-   if(host!==undefined?others.has(host):parents.length&&parents.every(id=>others.has(id))){
-    others.add(person.id);grew=true;
-   }
-  }
- }
- return others;
-}
 // How wide each person's column comes out, and how much of a row a sheet has
 // room for, taken from a sheet laid out off screen in the same type.
 // '31세 660쪽, 36세 702쪽' → 31 → 660, 36 → 702.
@@ -692,7 +668,7 @@ function measureBookEntries(entryHTML){
 function bookHTML(people){
  people=fromLineHead(people);
  const {byId,surname,married,hostOf}=spouseHosts();
- const printed=new Set([...outsideTheLine(hostOf),...otherClan(hostOf)]);
+ const printed=outsideTheLine(hostOf);
  const keys=new Map(book.persons.map(p=>[p.id,columnKey(p,byId,fatherIndex(byId))]));
  const columns=people.filter(p=>!printed.has(p.id)).sort((a,b)=>compareKeys(keys.get(a.id),keys.get(b.id)));
  if(!columns.length)return '<p class="empty">인쇄할 기록이 없습니다.</p>';
@@ -816,10 +792,10 @@ function ageText(person){
 function treeDetailRows(){
  return [treeOptions.generation||treeOptions.hanja,treeOptions.bon_gwan,treeOptions.birth||treeOptions.death,treeOptions.age].filter(Boolean).length;
 }
-function treeDetails(person){
+function treeDetails(person,outside){
  const rows=[];
  if(treeOptions.generation||treeOptions.hanja)
-  rows.push([treeOptions.generation?person.generation+'세대':'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
+  rows.push([treeOptions.generation?(outside?'外家':person.generation+'세대'):'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
  if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+scriptText(person.bon_gwan):'');
  if(treeOptions.birth||treeOptions.death)
   rows.push([treeOptions.birth&&person.birth_date?shownDate(person.birth_date):'',treeOptions.death&&person.death_date?'— '+shownDate(person.death_date):''].filter(Boolean).join(' '));
@@ -830,6 +806,11 @@ function treeOptionsHTML(){
  return `<form id="treeOptions" class="tree-options"><strong>표시 항목</strong>${TREE_FIELDS.map(([name,label])=>
   `<label><input type="checkbox" name="${name}"${treeOptions[name]?' checked':''}>${label}</label>`).join('')}</form>`
   ;
+}
+function treeLegendHTML(){
+ const clan=book?[book.bon_gwan,book.clan_name].filter(Boolean).map(scriptText).join(' '):'';
+ return `<p class="tree-legend"><span><i class="line-solid"></i>${esc(clan||'이 족보')} 계대</span>`
+  +'<span><i class="line-dashed"></i>혼인으로 들어온 분의 친가</span></p>';
 }
 const RELATIVE_LABELS={parent:'부모',child:'자녀',spouse:'배우자',sibling:'형제자매'};
 // Spouses alternate to the right and left of the lineage member so that every
@@ -999,8 +980,10 @@ function renderTree(people){
  const options=treeOptionsHTML();
  if(!people.length){$('#view').innerHTML=options+'<p class="empty">표시할 인물이 없습니다.</p>';bindTreeOptions();return;}
  const {byId,married,hostOf}=spouseHosts();
- const others=otherClan(hostOf);
- people=fromLineHead(people).filter(p=>!others.has(p.id));
+ people=fromLineHead(people);
+ const beyond=outsideTheLine(hostOf);
+ // A 配 keeps the 세 they married into; it is their own forebears who have none.
+ const outside=new Set([...beyond].filter(id=>!hostOf.has(id)));
  const visible=new Set(people.map(p=>p.id));
  const units=new Map(),unitOf=new Map();
  for(const p of people){
@@ -1032,6 +1015,20 @@ function renderTree(people){
   if(!family){family={mate,children:[]};parentUnit.families.push(family);}
   family.children.push(childUnit);
   attached.add(childUnit.host.id);
+ }
+ // Someone who married in may have their own forebears in the book. Their unit
+ // hangs from the marriage, not from those forebears, so the descent to them is
+ // kept as a link of its own and drawn to the single card rather than by
+ // attaching the whole unit — which would make their spouse a child too.
+ const marriedIn=[];
+ for(const unit of units.values()){
+  for(const member of unit.members){
+   if(member.id===unit.host.id)continue;
+   const ids=[...(parentsOf.get(member.id)||[])];
+   const parentUnit=ids.map(id=>unitOf.get(id)).find(Boolean);
+   if(!parentUnit||parentUnit===unit)continue;
+   marriedIn.push({parentUnit,member,ids});
+  }
  }
  // With one marriage there is one family: a child with only the father on
  // record and a brother with both belong to the same couple, and splitting them
@@ -1122,6 +1119,18 @@ function renderTree(people){
   return `<path class="parent-line" d="M ${sx} ${sy} V ${railY} M ${Math.min(sx,...centers)} ${railY} H ${Math.max(sx,...centers)}"/>`
    +centers.map((cx,index)=>`<path class="parent-line" d="M ${cx} ${railY} V ${tops[index].y}"/>`).join('');
  })).join('');
+ // Drawn like any other descent, but ending at the one card instead of a rail
+ // of siblings.
+ const marriedInLines=marriedIn.map(({parentUnit,member,ids})=>{
+  const target=pos.get(member.id);
+  const from=ids.map(id=>pos.get(id)).filter(Boolean);
+  if(!target||!from.length)return '';
+  const sx=from.reduce((sum,at)=>sum+at.x+nodeW/2,0)/from.length;
+  const sy=Math.max(...from.map(at=>at.y))+nodeH;
+  if(sy>=target.y)return '';
+  const cx=target.x+nodeW/2,railY=sy+(target.y-sy)/2;
+  return `<path class="parent-line married-in" d="M ${sx} ${sy} V ${railY} H ${cx} V ${target.y}"/>`;
+ }).join('');
  const labels=levels.map((generation,index)=>`<text class="level-label" x="16" y="${padY+index*(nodeH+rowGap)+34}">${generation}세대</text>`).join('');
  const photoOf=id=>treeOptions.photo?book.files.find(file=>file.person_id===id&&/\.(png|jpe?g)$/i.test(file.name)):null;
  // A sibling is reached through a shared parent, so the handle says up front when
@@ -1132,20 +1141,25 @@ function renderTree(people){
  };
  const cards=people.filter(p=>pos.has(p.id)).map(p=>{
   const at=pos.get(p.id),photo=photoOf(p.id);
-  const tone=treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'';
+  const tone=(treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'')
+   +(outside.has(p.id)?' outside':'');
   return `<div class="tree-node" style="left:${at.x}px;top:${at.y}px;width:${nodeW}px;height:${nodeH}px">`
    +`<div class="tree-card${tone}" data-tree-person="${p.id}" role="button" tabindex="0">`
    +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}" alt="">`:''}</span>`:'')
    +`<strong>${esc(displayName(p).primary)}</strong>`
-   +treeDetails(p).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
+   +treeDetails(p,outside.has(p.id)).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
    +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
    +'</div>'
    +addButton(p.id,'parent','+')+addButton(p.id,'child','+')
    +addButton(p.id,'spouse','+')+addButton(p.id,'sibling','+',!parentsOf.has(p.id))
    +'</div>';
  }).join('');
+ // Solid for this book's own line, dashed for a forebear of someone who married
+ // in — a different clan, and no part of the 계대 this book records. Easy to read
+ // once said, impossible to guess until then, so it is said beside the drawing.
  $('#view').innerHTML=options+wrapZoom(`<div class="tree-canvas" style="width:${width}px;height:${height}px">`
-  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${mateLines}${labels}</svg>${cards}</div>`);
+  +`<svg class="family-tree" width="${width}" height="${height}" aria-hidden="true">${parentLines}${marriedInLines}${mateLines}${labels}</svg>${cards}</div>`,
+  marriedIn.length?treeLegendHTML():'');
  bindTreeOptions();
  bindZoom('tree');
  document.querySelectorAll('[data-tree-person]').forEach(node=>{

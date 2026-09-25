@@ -1344,6 +1344,47 @@ body.view-full .zoom-bar .zoom-script {
   font-size: 12px;
 }
 
+/* The descent to someone who married in, drawn dashed so it is not mistaken for
+   the line of the family the tree is about. */
+.parent-line.married-in {
+  stroke-dasharray: 5 4;
+  opacity: 0.75;
+}
+
+/* Which line means what, said where the lines are. */
+.tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  /* Pushed to the far end of the zoom row, into the space it was leaving. */
+  margin: 0 0 0 auto;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.tree-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tree-legend i {
+  width: 26px;
+  height: 0;
+  border-top: 2px solid var(--green);
+}
+
+.tree-legend .line-dashed {
+  border-top-style: dashed;
+  opacity: 0.75;
+}
+
+/* Outside this book's line: dashed, like the line that reaches it. */
+.tree-card.outside {
+  border-style: dashed;
+  background: var(--paper);
+}
+
 #marriageDialog {
   width: min(480px, 94vw);
 }
