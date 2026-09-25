@@ -618,6 +618,20 @@ function outsideTheLine(hostOf){
  }
  return outside;
 }
+// How wide each person's column comes out, and how much of a row a sheet has
+// room for, taken from a sheet laid out off screen in the same type.
+function measureBookEntries(entryHTML){
+ const probe=document.createElement('div');
+ probe.style.cssText='position:absolute;left:-20000px;top:0;visibility:hidden';
+ const rows=Array.from({length:BOOK_ROWS},(_,index)=>`<section class="genealogy-generation"><h3>世</h3><div class="genealogy-entries">${index?'':[...entryHTML.values()].join('')}</div></section>`).join('');
+ probe.innerHTML=`<article class="book-page traditional-book"><aside class="genealogy-side"></aside><aside class="genealogy-branch"></aside><div class="genealogy-body">${rows}</div></article>`;
+ document.body.append(probe);
+ const widths=new Map();
+ probe.querySelectorAll('[data-book-person]').forEach(one=>widths.set(Number(one.dataset.bookPerson),Math.ceil(one.getBoundingClientRect().width)));
+ const room=Math.max(120,Math.floor(probe.querySelector('.genealogy-entries').clientWidth));
+ probe.remove();
+ return {widths,room};
+}
 function bookHTML(people){
  const {byId,surname,married,hostOf}=spouseHosts();
  const printed=outsideTheLine(hostOf);
@@ -629,20 +643,71 @@ function bookHTML(people){
  const volume=book.volume?bookWord(`卷之${hanjaNumber(book.volume)}`,`${book.volume}권`):'';
  const origin=book.founder?bookWord('始祖 '+book.founder,'시조 '+scriptText(book.founder)):'';
  const pages=[];
+ const entryHTML=new Map(columns.map(p=>[p.id,personEntry(p,married.get(p.id)||[],surname)]));
+ const {widths,room}=measureBookEntries(entryHTML);
+ // Whose column each one hangs under: the father, or else the parent on record
+ // — through the one they married where that parent married into the line.
+ const inBook=new Set(columns.map(p=>p.id)),fatherOf=fatherIndex(byId),parentOf=new Map();
+ for(const person of columns){
+  let parent=fatherOf.get(person.id);
+  if(!inBook.has(parent)){
+   const link=book.relations.find(r=>r.kind==='parent'&&r.target_id===person.id
+    &&(inBook.has(r.source_id)||inBook.has(hostOf.get(r.source_id))));
+   parent=link?(inBook.has(link.source_id)?link.source_id:hostOf.get(link.source_id)):undefined;
+  }
+  if(inBook.has(parent)&&parent!==person.id)parentOf.set(person.id,parent);
+ }
+ // Brothers and sisters as the book sets them: sons eldest first, then daughters.
+ const rank=person=>person.gender==='남'?0:person.gender==='여'?2:1;
+ const born=person=>/^\d{4}/.test(person.birth_date||'')?person.birth_date:'9999';
+ const bySiblings=(a,b)=>rank(a)-rank(b)||(born(a)<born(b)?-1:born(a)>born(b)?1:0)||a.id-b.id;
+ const childrenOf=new Map();
+ for(const person of columns){
+  if(!parentOf.has(person.id))continue;
+  if(!childrenOf.has(parentOf.get(person.id)))childrenOf.set(parentOf.get(person.id),[]);
+  childrenOf.get(parentOf.get(person.id)).push(person);
+ }
  // Traditional pages hold six 世 rows and repeat the last one as the next page's
  // first row, so the linking generation appears on both sheets.
  for(let top=first;top<=last;top+=BOOK_ROWS-1){
   // The first row repeats the previous sheet's last generation, so a sheet with
   // nothing below that row would only reprint what the reader already has.
   if(top>first&&!columns.some(p=>p.generation>top&&p.generation<top+BOOK_ROWS))break;
-  const rows=[];
-  for(let offset=0;offset<BOOK_ROWS;offset++){
-   const generation=top+offset;
-   const entries=columns.filter(p=>p.generation===generation)
-    .map(p=>personEntry(p,married.get(p.id)||[],surname)).join('');
-   rows.push(`<section class="genealogy-generation"><h3>${bookWord(hanjaNumber(generation)+'世',generation+'세')}</h3><div class="genealogy-entries">${entries}</div></section>`);
+  // Each person's column stands where the book would set it: the first child
+  // begins under the parent, brothers and sisters follow to the left, and a
+  // parent whose children had to start further left moves over them.
+  const inGroup=p=>p.generation>=top&&p.generation<top+BOOK_ROWS;
+  const cursor=new Map(),at=new Map();
+  // A column is never cut between two sheets: one that would cross the edge of
+  // a sheet starts on the next.
+  const fits=(r,w)=>w>=room||Math.floor(r/room)===Math.floor((r+w-1)/room);
+  const place=(person,least)=>{
+   const g=person.generation,w=widths.get(person.id)||40;
+   let r=Math.max(cursor.get(g)||0,least);
+   if(!fits(r,w))r=Math.ceil(r/room)*room;
+   at.set(person.id,r);
+   cursor.set(g,r+w);
+   const kids=(childrenOf.get(person.id)||[]).filter(inGroup).sort(bySiblings);
+   kids.forEach(kid=>place(kid,r));
+   const under=kids.length?at.get(kids[0].id):r;
+   if(under>r&&fits(under,w)){at.set(person.id,under);cursor.set(g,Math.max(cursor.get(g),under+w));}
+  };
+  columns.filter(p=>inGroup(p)&&!(parentOf.has(p.id)&&inGroup(byId.get(parentOf.get(p.id)))))
+   .forEach(root=>place(root,0));
+  const reach=Math.max(0,...[...at].map(([id,r])=>r+(widths.get(id)||40)));
+  // What will not go on one sheet runs on over the next, the rows repeated.
+  for(let sheet=0;sheet<Math.max(1,Math.ceil(reach/room));sheet++){
+   const rows=[];
+   let any=false;
+   for(let offset=0;offset<BOOK_ROWS;offset++){
+    const generation=top+offset;
+    const entries=columns.filter(p=>p.generation===generation&&at.has(p.id)&&Math.floor(at.get(p.id)/room)===sheet)
+     .map(p=>{any=true;return entryHTML.get(p.id).replace('<section class="genealogy-person"',`<section class="genealogy-person placed" style="right:${at.get(p.id)-sheet*room}px"`);}).join('');
+    rows.push(`<section class="genealogy-generation"><h3>${bookWord(hanjaNumber(generation)+'世',generation+'세')}</h3><div class="genealogy-entries">${entries}</div></section>`);
+   }
+   if(!any&&sheet>0)continue;
+   pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
   }
-  pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
  }
  // Each sheet is printed on paper of its own, headed with the page of the
  // printed book it stands for (617, 618, …) and when it was printed, and footed

@@ -752,6 +752,17 @@ body.view-full .zoom-bar .zoom-script {
   display: block;
 }
 
+/* A column set in its place under its parent: the row is the ground it stands
+   on, measured from the right, as the page is read. */
+.genealogy-entries {
+  position: relative;
+}
+
+.genealogy-person.placed {
+  position: absolute;
+  top: 0;
+}
+
 /* Trim the empty space around 一 (top, then bottom in vertical text) to about
    the gap between other characters; trimmed any further, 一 would touch them. */
 .genealogy-person b.thin-one {
