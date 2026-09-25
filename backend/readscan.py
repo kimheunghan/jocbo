@@ -643,9 +643,29 @@ HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2,4}?)(?=[（(子]|$)')
 # turns into characters of its own that run into the father's; the bracket that
 # closes right after him is what marks where his name ends.
 FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
-# 墓는 comes back as 墓二, 墓雲, 墓亡 or 墓乞.
+# 墓는 comes back as 墓二, 墓雲, 墓亡, 墓乞, 墓六 or 墓匕.
 # 墓는 合墳(합분): a grave shared with the spouse names no place at all.
-GRAVE = re.compile(r'墓\s*[는二雲亡乞]?\s*([^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,24}?[坐向])')
+# 墓는 大邱市 達城郡 瑜伽面 陽里 山一六五-一 雙墳 石物(석물) 있음: a place given
+# by its address runs on to the 雙墳 and whatever stones stand at it.
+GRAVE = re.compile(r'墓\s*[는二雲亡乞六匕]?\s*([^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,24}?[坐向]'
+                   r'|[^墓配忌生卒]{2,40}?墳)((?:石物|床石|碑石|墓碑)*)')
+# 里 comes back as 裏 where an address names its village.
+GRAVE_MISREAD = {'裏': '里'}
+
+
+# The way a grave faces: 子坐, 乾坐, 艮向.
+BEARING = '子午卯酉壬丙庚甲乙辛癸丁乾坤艮巽亥巳寅申辰戌丑未'
+
+
+def _grave_words(text):
+    """A grave's place in the words the page sets apart, each to take its own
+    reading: 大邱市 達城郡 瑜伽面 陽里 一六五一 雙墳 石物, 陽洞後山 子坐."""
+    text = ''.join(GRAVE_MISREAD.get(char, char) for char in re.sub(r'[\s，,。.]', '', text))
+    text = re.sub(r'([市郡面邑里])(?=.)', r'\1 ', text)
+    numerals = ''.join(DIGITS)
+    text = re.sub(r'(?<=[^\s%s])(?=[%s]{2,})' % (numerals, numerals), ' ', text)
+    text = re.sub(r'(?<=[^\s])(?=雙墳|合墳|石物|床石|碑石|墓碑|[%s][坐向]$)' % BEARING, ' ', text)
+    return text
 
 
 def _notes(chunk, dated):
@@ -655,17 +675,19 @@ def _notes(chunk, dated):
     reader turns into nonsense characters, so brackets are left out.
     """
     # A bracket the reader left open takes only the few characters of hangul
-    # it held, never a 忌 or 墓 after them: (補從忌六七月… keeps the 忌.
+    # it held, never a 忌 or 墓 after them (補從忌六七月… keeps the 忌) nor the
+    # numerals of an address (（一六五一雙墳 keeps 一六五一). Latin letters are
+    # the reader's noise.
     plain = re.sub(r'[（(][^（(）)]*[）)]', '', chunk)
-    plain = re.sub(r'[（(][^（(）)忌墓生卒配]{0,4}|[）)]', '', plain)
+    plain = re.sub(r'[（(][^（(）)忌墓配%s]{0,6}|[）)]|[A-Za-z]' % ''.join(DIGITS), '', plain)
     notes = ['%s %s' % (match.group(1), _fixed(match.group(2))) for match in OTHER_NAMES.finditer(plain)
              if not DATE_START.match(plain, match.start(2) + 1)]
-    notes += ['墓 ' + re.sub(r'[\s，,。.]', '', match.group(1)) for match in GRAVE.finditer(plain)]
+    notes += ['墓 ' + _grave_words(match.group(1) + match.group(2)) for match in GRAVE.finditer(plain)]
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
         notes += ['父 ' + _fixed(name) for name in FATHER.findall(chunk)]
     notes += _yearless(chunk, dated)
-    return ' · '.join(notes)
+    return '\n'.join(notes)
 
 
 def _children(text):
@@ -756,7 +778,7 @@ def _entries(stream, surname, starts=None):
                 '_partner': daughter,
                 'hanja_name': husband, 'gender': '남', 'bon_gwan': _bon_gwan(home),
                 'birth_date': '', 'death_date': '', 'married_in': True, 'ganji_agrees': None,
-                'note': ' · '.join(_children(chunk[SON_IN_LAW.match(chunk, 1).end():])),
+                'note': '\n'.join(_children(chunk[SON_IN_LAW.match(chunk, 1).end():])),
                 'raw': chunk[:80], 'at': start,
             })
             # A date after the husband's 본관 is no part of her entry: it is what
@@ -772,7 +794,7 @@ def _entries(stream, surname, starts=None):
                     'hanja_name': '', 'gender': '미상', 'bon_gwan': '',
                     'birth_date': birth['date'] if birth else '', 'death_date': death['date'] if death else '',
                     'married_in': False, 'ganji_agrees': all(one['agrees'] for one in left),
-                    'note': '이름 판독 안 됨' + (' · ' + notes if notes else ''),
+                    'note': '이름 판독 안 됨' + ('\n' + notes if notes else ''),
                     'raw': rest[:80], 'at': start + SON_IN_LAW.match(chunk, 1).end(),
                 })
             continue
@@ -826,7 +848,7 @@ def _entries(stream, surname, starts=None):
             # daughter's note is her own: her husband and their children go
             # with him.
             # A heading of forebears opens the entry and is not kept in it.
-            'note': ' · '.join(filter(None, [
+            'note': '\n'.join(filter(None, [
                 '이름 판독 안 됨' if marker == LINEAGE and not hanja else '',
                 _notes(chunk[:chunk.index('夫')] if marker == '女' and '夫' in chunk else chunk, every)])),
             'raw': chunk[:80],
@@ -851,7 +873,7 @@ def _entries(stream, surname, starts=None):
                     'hanja_name': husband, 'gender': '남',
                     'bon_gwan': _bon_gwan(home.group(1)) if home else '',
                     'birth_date': '', 'death_date': '', 'married_in': True, 'ganji_agrees': None,
-                    'note': ' · '.join(note),
+                    'note': '\n'.join(note),
                     'raw': chunk[match.start():match.start() + 80], 'at': start,
                 })
     for person in people:
@@ -867,14 +889,14 @@ def _days_into_dates(person):
     goes in the 사망일 as --07-28, and a 생일 likewise in the 출생일, where a
     dated one has not already taken the place."""
     kept = []
-    for item in filter(None, person['note'].split(' · ')):
+    for item in filter(None, person['note'].split('\n')):
         day = DAY.fullmatch(item)
         field = {'기일': 'death_date', '생일': 'birth_date'}.get(day.group(1)) if day else None
         if field and not person[field]:
             person[field] = '--%02d-%02d' % (int(day.group(2)), int(day.group(3)))
             continue
         kept.append(item)
-    person['note'] = ' · '.join(kept)
+    person['note'] = '\n'.join(kept)
 
 
 def read(path, surname=''):

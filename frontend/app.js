@@ -2108,6 +2108,8 @@ const NOTE_LABELS=new Set(['初名','一名','系子','生父']);
 function withReadings(text){
  return text.replace(/[㐀-鿿豈-﫿]{2,}(?![(（][가-힣])/g,run=>{
   if(NOTE_LABELS.has(run))return run;
+  // A lot number (一六五一) is read as figures, not as a word.
+  if(/^[〇一二三四五六七八九十百千]+$/.test(run))return run;
   const reading=readingOf(run);
   return reading&&/^[가-힣]+$/.test(reading)?`${run}(${reading})`:run;
  });
