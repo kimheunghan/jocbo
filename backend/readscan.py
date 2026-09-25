@@ -643,7 +643,9 @@ HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2,4}?)(?=[（(子]|$)')
 # turns into characters of its own that run into the father's; the bracket that
 # closes right after him is what marks where his name ends.
 FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
-GRAVE = re.compile(r'墓\s*[는二]?\s*([^墓配忌生卒]{2,24}?[坐向])')
+# 墓는 comes back as 墓二, 墓雲, 墓亡 or 墓乞.
+# 墓는 合墳(합분): a grave shared with the spouse names no place at all.
+GRAVE = re.compile(r'墓\s*[는二雲亡乞]?\s*([^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,24}?[坐向])')
 
 
 def _notes(chunk, dated):
@@ -652,7 +654,10 @@ def _notes(chunk, dated):
     A bracket holds the hangul reading of what stands before it, which the
     reader turns into nonsense characters, so brackets are left out.
     """
-    plain = re.sub(r'[（(][^）)]*[）)]?', '', chunk)
+    # A bracket the reader left open takes only the few characters of hangul
+    # it held, never a 忌 or 墓 after them: (補從忌六七月… keeps the 忌.
+    plain = re.sub(r'[（(][^（(）)]*[）)]', '', chunk)
+    plain = re.sub(r'[（(][^（(）)忌墓生卒配]{0,4}|[）)]', '', plain)
     notes = ['%s %s' % (match.group(1), _fixed(match.group(2))) for match in OTHER_NAMES.finditer(plain)
              if not DATE_START.match(plain, match.start(2) + 1)]
     notes += ['墓 ' + re.sub(r'[\s，,。.]', '', match.group(1)) for match in GRAVE.finditer(plain)]
@@ -717,6 +722,10 @@ def _entries(stream, surname, starts=None):
             # 金寧金氏 read as 金金氏 has lost a character of the 본관; the person
             # still stands, with the 본관 left for a hand to fill.
             bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan)) if len(bon_gwan) == 2 else ''
+            # 配 昌寧成氏 元永(원영)女 gives no name of her own: the name after
+            # 氏 is her father's, and she is 成氏.
+            if not given or given in FATHER.findall(chunk):
+                given = '氏'
             hanja = family + given
         elif marker == LINEAGE:
             heading, _, rest = chunk[1:].partition(LINEAGE_END)
