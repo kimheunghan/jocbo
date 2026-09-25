@@ -136,8 +136,8 @@ How the page is laid out
 - A band may begin with the tail of an entry that started on the previous page (text with no 子/女/配 before it). That is not a person; skip it.
 
 What to give back: one item per person, in reading order.
-- hanja_name: the full name in hanja with the family name (the book's family name for 子/女; the printed family name for 配). For a daughter named only by her husband, the family name followed by 氏 (e.g. 金氏). For a 配 whose own given name is not printed (配昌寧成氏 元永(원영)女, where 元永 is her father), the 본관, family name and 氏 together: 昌寧成氏, never her father's name.
-- korean_name: the name in hangul, from the printed reading where there is one (전경애, 김상조). For 金氏 write 김씨; for 昌寧成氏 write 창녕성씨.
+- hanja_name: the full name in hanja with the family name (the book's family name for 子/女; the printed family name for 配). For a daughter named only by her husband, the family name followed by 氏 (e.g. 金氏). For a 配 with no given name printed at all (配延安車氏 忌…), the 본관, family name and 氏 together: 延安車氏. A name printed after 氏 is hers (配昌寧成氏 元永(원영)女 is 成元永).
+- korean_name: the name in hangul, from the printed reading where there is one (전경애, 김상조). For 金氏 write 김씨; for 延安車氏 write 연안차씨.
 - gender: 남 for 子 and for a husband, 여 for 女 and 配, 미상 if unknown.
 - generation: from the margin label of the band; 0 if it cannot be told.
 - bon_gwan: for 配 and for a husband, their 본관 in hanja (天安, 瑞興); otherwise "".

@@ -722,10 +722,10 @@ def _entries(stream, surname, starts=None):
             # 金寧金氏 read as 金金氏 has lost a character of the 본관; the person
             # still stands, with the 본관 left for a hand to fill.
             bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan)) if len(bon_gwan) == 2 else ''
-            # 配 昌寧成氏 元永(원영)女 gives no name of her own: the name after
-            # 氏 is her father's. She is then named as the page names her,
-            # 본관 and clan together: 昌寧成氏.
-            if not given or given in FATHER.findall(chunk):
+            # 配 延安車氏 with no name after it is named as the page names
+            # her, 본관 and clan together: 延安車氏. A name that is there is
+            # hers (配 昌寧成氏 元永 is 成元永).
+            if not given:
                 hanja = bon_gwan + family + '氏'
             else:
                 hanja = family + given
