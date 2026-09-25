@@ -1612,21 +1612,16 @@ function paintScanMatch(row){
   note.innerHTML=named?'<span>족보에 없는 인물</span><b class="scan-new">신규 등록</b>':'';
   return;
  }
- // Filling is the opening offer whenever a fresh match turns up.
- if(row.dataset.matchId!==String(found.id)){
-  row.dataset.matchId=String(found.id);
-  row.dataset.fillId=String(found.id);
- }
- const filling=row.dataset.fillId===String(found.id);
- row.classList.toggle('filling',filling);
+ // A name already in the book is that person read again, so the line always
+ // updates the record; there is no second copy to make.
+ row.dataset.matchId=String(found.id);
+ row.dataset.fillId=String(found.id);
+ row.classList.add('filling');
  const blanks=SCAN_FILLABLE.filter(([name,blank])=>found[name]===blank).map(([,,label])=>label);
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
   +(blanks.length?`빈칸 ${esc(blanks.join('·'))}`:'빈칸 없음')+'</span>'
-  +`<button type="button" class="secondary" data-fill aria-pressed="${filling}" title="기존 인물의 빈칸·미상만 채웁니다">업데이트</button>`
-  +`<button type="button" class="secondary" data-fresh aria-pressed="${!filling}" title="동명이인이면 새 인물로 따로 둡니다">별도 등록</button>`;
- note.querySelector('[data-fill]').onclick=()=>{row.dataset.fillId=String(found.id);paintScanMatch(row);};
- note.querySelector('[data-fresh]').onclick=()=>{row.dataset.fillId='';paintScanMatch(row);};
+  +'<b class="scan-new scan-update" title="기존 인물의 빈칸·미상만 채웁니다">업데이트</b>';
 }
 function scanLines(){
  return [...document.querySelectorAll('.scan-row')].map(row=>{
@@ -1834,7 +1829,7 @@ $('#scanSave').onclick=async()=>{
  const picked=target.startsWith('book:')?$('#bookSelect').querySelector(`option[value="${target.slice(5)}"]`):null;
  const elsewhere=target==='new'?`새 족보 「${book.title} (${lineage} 계통)」`:picked?`「${picked.textContent}」`:'';
  const lines=[];
- if(fresh.length)lines.push(`신규·별도 등록 ${fresh.length}명 — ${fresh.map(person=>person.korean_name).join(', ')}`);
+ if(fresh.length)lines.push(`신규 등록 ${fresh.length}명 — ${fresh.map(person=>person.korean_name).join(', ')}`);
  if(refined.length)lines.push(`업데이트 ${refined.length}명 — ${refined.map(person=>person.korean_name).join(', ')}`);
  const question=`「${book.title}」에 ${here.length}줄 반영\n\n${lines.join('\n')}`
   +(apart.length&&target!=='skip'?`\n\n다른 가족 ${apart.length}명 — ${elsewhere}에 등록\n${apart.map(person=>person.korean_name).join(', ')}`:'')
@@ -1888,7 +1883,7 @@ $('#scanSave').onclick=async()=>{
   await loadBooks(book.id);
   const touched=(done.filled||[]).filter(one=>one.fields.length).length;
   const untouched=(done.filled||[]).length-touched;
-  message([`신규·별도 등록 ${(done.added||[]).length}명`,
+  message([`신규 등록 ${(done.added||[]).length}명`,
    touched?`업데이트 ${touched}명`:'',
    untouched?`변경 없음 ${untouched}명`:'',
    apartDone?`다른 가족 ${apartDone}명 — ${elsewhere}`:'',

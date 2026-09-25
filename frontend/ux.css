@@ -1134,6 +1134,13 @@ body.view-full .frame-resizer {
   color: var(--ink-soft);
 }
 
+/* 업데이트 reads as a mark like 신규 등록, in the blue of a matched line. */
+.scan-match .scan-update {
+  border-color: #a9bcd4;
+  background: #e8eff8;
+  color: #23456f;
+}
+
 /* Lines that will not be filed are dimmed, not removed. */
 .scan-family.skipped ~ .scan-row {
   opacity: .45;
