@@ -251,6 +251,10 @@ def add_person(bid: int, data: Person, uid=Depends(auth)):
 # may fill these in; it may never write over something already there.
 BLANK = {'hanja_name': '', 'bon_gwan': '', 'birth_date': '', 'death_date': '', 'note': '', 'gender': '미상'}
 
+# The words a note item begins with, of which a person has one: a second 父 is a
+# misreading of the first, not news.
+NOTE_LABELS = {'父', '夫', '字', '初名', '一名', '號', '諱'}
+
 def merged_note(old, new):
     """The note on record with the items of a new reading it lacks added on.
 
@@ -261,8 +265,13 @@ def merged_note(old, new):
     import re
     bare = lambda text: re.sub(r'[\s·]|[(（][^)）]*[)）]', '', text)
     held = bare(old)
+    # A reading's 父 or 字 where the note already names one is another reading
+    # of the same thing, and more likely the misread one: it is not added.
+    head = lambda item: item.split()[0] if item.split() else ''
+    said = {head(item.strip()) for item in re.split(r'\s*·\s*|\n', old)}
     extra = [item.strip() for item in re.split(r'\s*·\s*|\n', new)
-             if item.strip() and bare(item) and bare(item) not in held]
+             if item.strip() and bare(item) and bare(item) not in held
+             and not (head(item.strip()) in NOTE_LABELS and head(item.strip()) in said)]
     return old + ''.join('\n' + item for item in extra) if extra else old
 
 @app.post('/api/books/{bid}/persons/bulk', status_code=201)

@@ -302,3 +302,14 @@ def test_a_reading_adds_to_a_note_what_it_does_not_say_yet(client):
         'id': pid, 'korean_name': '김진영', 'hanja_name': '金珍英', 'generation': 31,
         'note': '夫 金興漢 安東人 父 敬鎭'}]}).json()
     assert again['filled'][0]['fields'] == []
+
+
+def test_a_reading_does_not_give_a_person_a_second_father(client):
+    account(client)
+    bid = book(client)
+    pid = client.post(f'/api/books/{bid}/persons', json={
+        'korean_name': '박순남', 'hanja_name': '朴順南', 'generation': 30, 'note': '父 泰鎬(태호)'}).json()['id']
+    client.post(f'/api/books/{bid}/persons/bulk', json={'people': [{
+        'id': pid, 'korean_name': '박순남', 'hanja_name': '朴順南', 'generation': 30, 'note': '父 甘泰 · 字 玉汝'}]})
+    note = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == pid)['note']
+    assert note.splitlines() == ['父 泰鎬(태호)', '字 玉汝']

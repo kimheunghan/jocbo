@@ -135,9 +135,9 @@ def test_what_only_the_head_of_a_column_can_open():
     read = r._entries(stream, '金', starts)
     assert [one['hanja_name'] for one in read] == ['全京愛', '金氏', '金震埴']
     assert read[0]['birth_date'] == '1956-07-27'
-    # 東國 runs into the noise the hangul before him became, so he is left out
-    # rather than read wrong; one set clear between brackets is kept.
-    assert read[0]['note'] == ''
+    # The bracket closing after him marks where 東國 ends, whatever stray
+    # characters the spouse's own hangul became before him.
+    assert read[0]['note'] == '父 東國'
     clear = r._entries('配天安全氏京愛（천안전씨경애）東國（동국）女一九五六年丙申七月二十七日生', '金')[0]
     assert clear['note'] == '父 東國'
     assert r._entries('配金寫金氏美蘭（可相（女一九六〇年庚子一月十一日生', '金')[0]['note'] == ''
@@ -227,7 +227,13 @@ def test_a_son_headed_by_his_forebears_is_read_without_子():
     read = r._entries(stream, '金', {0, stream.index(r.LINEAGE), stream.rindex(r.LINEAGE)})
     assert [(one['hanja_name'], one['birth_date'], one['note']) for one in read] == [
         ('金京玟', '', ''),
-        ('金澈純', '1973-05-08', '계통 芝淑·相錫·正煥'),
+        # The heading opens his entry and is not kept in it.
+        ('金澈純', '1973-05-08', ''),
         # The reader lost his name; his note is not made into one.
-        ('', '1957-10-05', '계통 舜穆·賄精·文守 · 이름 판독 안 됨 · 初名 充一'),
+        ('', '1957-10-05', '이름 판독 안 됨 · 初名 充一'),
     ]
+
+
+def test_a_spouses_father_ends_where_his_bracket_closes():
+    read = r._entries('配清州韓氏明來（祠昭叫世東(川吾)女一九七八年戊午十二月十二日生', '金')[0]
+    assert (read['hanja_name'], read['note'], read['birth_date']) == ('韓明來', '父 世東', '1978-12-12')

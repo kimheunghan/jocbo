@@ -612,12 +612,11 @@ OTHER_NAMES = re.compile(r'(字|初名|號|諱)\s*([㐀-鿿]{2})')
 # Where a person lies: 墓 up to the way the grave faces. 墓는 comes back as 墓二,
 # since the reader has no hangul.
 HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2,4}?)(?=[（(子]|$)')
-# 父: 東國(동국)女. The spouse's own name comes just before with its hangul in a
-# bracket, which the reader turns into characters of its own, and those run
-# straight into the father's: (김녕김씨미란)相範 comes back as （可相. So a father
-# is taken only where that bracket closed before him and his own closes after
-# him — a name read out of the noise is worse than none.
-FATHER = re.compile(r'[）)]\s*([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
+# 父: 世東(세동)女 — the father's name with its hangul in a bracket, then 女.
+# The spouse's own name comes just before with its hangul too, which the reader
+# turns into characters of its own that run into the father's; the bracket that
+# closes right after him is what marks where his name ends.
+FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
 GRAVE = re.compile(r'墓\s*[는二]?\s*([^墓配忌生卒]{2,24}?[坐向])')
 
 
@@ -780,8 +779,8 @@ def _entries(stream, surname, starts=None):
             # it is not read a second time as a month and day alone. A
             # daughter's note is her own: her husband and their children go
             # with him.
+            # A heading of forebears opens the entry and is not kept in it.
             'note': ' · '.join(filter(None, [
-                ('계통 ' + '·'.join(_lineage(heading))) if marker == LINEAGE else '',
                 '이름 판독 안 됨' if marker == LINEAGE and not hanja else '',
                 _notes(chunk[:chunk.index('夫')] if marker == '女' and '夫' in chunk else chunk, every)])),
             'raw': chunk[:80],

@@ -1627,11 +1627,16 @@ function scanMatch(row){
 }
 // The same rule the server keeps when it updates a note: an item is said
 // already when, readings in brackets and spacing aside, the old note holds it.
+// A second 父 or 字 is a misreading of the one on record, not news.
+const NOTE_ONE_OF=new Set(['父','夫','字','初名','一名','號','諱']);
 function mergedNote(old,fresh){
  const bare=text=>text.replace(/[\s·]|[(（][^)）]*[)）]/g,'');
  const held=bare(old);
+ const head=item=>item.split(/\s+/)[0];
+ const said=new Set(old.split(/\s*·\s*|\n/).map(item=>head(item.trim())).filter(Boolean));
  const extra=fresh.split(/\s*·\s*|\n/).map(item=>item.trim())
-  .filter(item=>item&&bare(item)&&!held.includes(bare(item)));
+  .filter(item=>item&&bare(item)&&!held.includes(bare(item))
+   &&!(NOTE_ONE_OF.has(head(item))&&said.has(head(item))));
  return extra.length?old+extra.map(item=>'\n'+item).join(''):old;
 }
 function paintScanMatch(row){
