@@ -823,6 +823,8 @@ function wrapZoom(inner,trailing=''){
   +'<button type="button" class="secondary" data-zoom="reset">100%</button>'
   +'<button type="button" class="secondary" data-zoom="fit">맞추기</button>'
   +'<button type="button" class="secondary" data-zoom="full" aria-pressed="false">전체 화면</button>'
+  // Printing is looked for where the drawing is, not only at the top of the page.
+  +'<button type="button" class="secondary" data-zoom-print>인쇄 / PDF</button>'
   // The view tabs' own 한글/한자 switch is covered in 전체 화면, so it rides
   // along on this bar there.
   +'<button type="button" class="secondary zoom-script" data-script-toggle="page">한글로 보기</button>'
@@ -966,6 +968,7 @@ function bindZoom(key){
  $('[data-zoom="out"]').onclick=()=>apply(zoom/1.2);
  $('[data-zoom="reset"]').onclick=()=>apply(1);
  $('[data-zoom="fit"]').onclick=()=>apply((scroll.clientWidth-26)/base.w);
+ $('[data-zoom-print]').onclick=()=>{setViewFull(false);(key==='tree'?$('#printTree'):$('#print')).click();};
 }
 function renderTree(people){
  const options=treeOptionsHTML();
