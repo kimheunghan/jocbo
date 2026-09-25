@@ -208,9 +208,27 @@ def _curves(ink, x0, x1, span, scale):
     runs = []
     for label in range(1, count):
         x, y, w, h = stats[label][:4]
-        if w < length * 1.2 or h > scale * 0.04:
+        if w < length * 1.2 or h > w:
             continue
         ys, xs = numpy.nonzero(labels[y:y + h, x:x + w] == label)
+        # A rule that the last characters of many columns stand on runs into
+        # them, and the whole is too tall to be a rule. The rule is the one
+        # stroke found at every x, so the middle height at each x follows it
+        # and the characters, found at some x only, fall away.
+        if h > scale * 0.04:
+            order = numpy.argsort(xs, kind='stable')
+            xs, ys = xs[order], ys[order]
+            cuts = numpy.flatnonzero(numpy.diff(xs)) + 1
+            columns = numpy.split(ys, cuts)
+            xs = numpy.array([xs[0]] + [xs[cut] for cut in cuts])
+            ys = numpy.array([numpy.median(column) for column in columns])
+            # Where characters hold most of a column the middle is theirs, not
+            # the rule's: keep the stretch that lies along one line.
+            base = numpy.median(ys)
+            keep = numpy.abs(ys - base) < scale * 0.01
+            if keep.sum() < length:
+                continue
+            xs, ys = xs[keep], ys[keep]
         xs, ys = xs + x + x0, ys + y
         left, right = xs < xs.min() + 20, xs > xs.max() - 20
         runs.append({'x0': int(xs.min()), 'x1': int(xs.max()), 'xs': xs, 'ys': ys,
@@ -428,6 +446,24 @@ def bands(boxes, gap=0.18, lines=()):
 
 
 MARKERS = {'子': '남', '女': '여', '配': '여'}
+# Where a line picks up again after pages of other families, the book heads the
+# son with his forebears in small type — 芝淑 相錫 正煥 over 澈純 — and prints
+# no 子 before him. Such a heading is set in the stream between these two marks,
+# and opens an entry as 子 does.
+LINEAGE, LINEAGE_END = '\ue000', '\ue001'
+MARKERS[LINEAGE] = '남'
+# What a heading of forebears' names never holds: marks, dates, and the words of
+# places and notes (陽洞後山, 議公誠后, 寒暄堂) that also come in runs of hanja.
+NOT_LINEAGE = set('年月日生卒配子女夫人氏字名墓忌坐向山洞里面郡市道原公后後堂號諱初系') | set(DIGITS)
+
+
+def _lineage(text):
+    """芝淑相錫正煥 → ['芝淑', '相錫', '正煥'] where a box is a heading of
+    forebears: two, three or four given names and nothing else."""
+    text = re.sub(r'\s', '', text)
+    if not re.fullmatch(r'[㐀-鿿]{4,8}', text) or len(text) % 2 or NOT_LINEAGE & set(text):
+        return []
+    return [_fixed(text[at:at + 2]) for at in range(0, len(text), 2)]
 NAME_CHAR = re.compile(r'[㐀-鿿]')
 # 朴 is its own character in a Korean name; the simplified-to-traditional table
 # turns it into 樸, which is a different surname altogether.
@@ -480,6 +516,10 @@ def _name(text):
             break
         if char in '年月日生卒墓配系':
             break
+        # 初名 充一, 字 玉汝: a note begins, and the name, if the reader missed
+        # it, is not to be made of the note.
+        if char in '字號諱' or text.startswith(('初名', '一名'), index):
+            break
         # 三順 and 一男 are names, so a numeral ends one only where a date starts.
         if char in DIGITS and DATE_START.match(text, index):
             break
@@ -507,6 +547,10 @@ def _marks(stream, starts=None):
     """
     inside, found, wed = False, [], False
     for index, char in enumerate(stream):
+        if char == LINEAGE:
+            found.append(index)
+            inside = wed = False
+            continue
         # A daughter's entry names her husband (夫) and then her son, who is of
         # his father's line and not of this book's.
         if char == '夫' and found and stream[found[-1]] == '女':
@@ -643,6 +687,14 @@ def _entries(stream, surname, starts=None):
             # still stands, with the 본관 left for a hand to fill.
             bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan)) if len(bon_gwan) == 2 else ''
             hanja = family + given
+        elif marker == LINEAGE:
+            heading, _, rest = chunk[1:].partition(LINEAGE_END)
+            given = _name(rest)
+            if all(char in DIGITS for char in given):
+                given = ''
+            bon_gwan = ''
+            hanja = ((surname + given) if surname else given) if given else ''
+            chunk = LINEAGE + rest
         elif marker == '女' and SON_IN_LAW.match(chunk, 1):
             husband, home = SON_IN_LAW.match(chunk, 1).groups()
             husband = _fixed(husband)
@@ -728,7 +780,10 @@ def _entries(stream, surname, starts=None):
             # it is not read a second time as a month and day alone. A
             # daughter's note is her own: her husband and their children go
             # with him.
-            'note': _notes(chunk[:chunk.index('夫')] if marker == '女' and '夫' in chunk else chunk, every),
+            'note': ' · '.join(filter(None, [
+                ('계통 ' + '·'.join(_lineage(heading))) if marker == LINEAGE else '',
+                '이름 판독 안 됨' if marker == LINEAGE and not hanja else '',
+                _notes(chunk[:chunk.index('夫')] if marker == '女' and '夫' in chunk else chunk, every)])),
             'raw': chunk[:80],
             'at': start,
         })
@@ -864,7 +919,13 @@ def _read_ruled(boxes, spread, surname):
         for box in ordered:
             starts.add(len(stream))
             heads.append((len(stream), box))
-            stream += box['text']
+            # A bracket left open in the column before holds the hangul of a
+            # spouse's name, which the reader turns into a run of stray hanja
+            # (潔明東國) that would pass for forebears.
+            before = heads[-2][1]['text'] if len(heads) > 1 else ''
+            open_bracket = len(re.findall(r'[（(]', before)) > len(re.findall(r'[）)]', before))
+            forebears = [] if open_bracket else _lineage(box['text'])
+            stream += (LINEAGE + ''.join(forebears) + LINEAGE_END) if forebears else box['text']
         found = _entries(stream, surname, starts)
         if not found:
             continue

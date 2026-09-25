@@ -214,3 +214,20 @@ def test_spouses_are_paired_from_the_page():
     names = [one['hanja_name'] for one in read]
     pairs = {names[i]: names[one['spouse']] for i, one in enumerate(read) if one['spouse'] is not None}
     assert pairs == {'曺賢永': '金氏', '李斗來': '', '金熙旋': '金順熙'}
+
+
+def test_a_son_headed_by_his_forebears_is_read_without_子():
+    # Where a line picks up again, the book heads the son with his forebears in
+    # small type and prints no 子: 芝淑 相錫 正煥 over 澈純.
+    assert r._lineage('芝淑相錫正煥') == ['芝淑', '相錫', '正煥']
+    # Grave places and notes come in runs of hanja too, and are no forebears.
+    assert r._lineage('陽洞後山') == [] and r._lineage('議公誠后') == [] and r._lineage('一九七三') == []
+    stream = ('配安東金氏京玟' + r.LINEAGE + '芝淑相錫正煥' + r.LINEAGE_END + '澈純一九七三年癸丑五月八日生'
+              + r.LINEAGE + '舜穆賄精文守' + r.LINEAGE_END + '初名充一一九五七年丁酉十月五日生')
+    read = r._entries(stream, '金', {0, stream.index(r.LINEAGE), stream.rindex(r.LINEAGE)})
+    assert [(one['hanja_name'], one['birth_date'], one['note']) for one in read] == [
+        ('金京玟', '', ''),
+        ('金澈純', '1973-05-08', '계통 芝淑·相錫·正煥'),
+        # The reader lost his name; his note is not made into one.
+        ('', '1957-10-05', '계통 舜穆·賄精·文守 · 이름 판독 안 됨 · 初名 充一'),
+    ]
