@@ -1111,6 +1111,16 @@ body.view-full .frame-resizer {
   color: #fff;
 }
 
+/* Not a choice, only what saving this line will do. */
+.scan-match .scan-new {
+  padding: 3px 9px;
+  border: 1px solid #b9cbbf;
+  border-radius: 999px;
+  background: #eef5f0;
+  color: var(--green);
+  font-weight: 700;
+}
+
 .scan-start {
   display: flex;
   align-items: flex-end;

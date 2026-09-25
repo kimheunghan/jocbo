@@ -1533,7 +1533,7 @@ function scanRowHTML(id,generation){
   <label>본관<input name="bon_gwan" maxlength="200" autocomplete="off"></label>
   <label>출생일<input name="birth_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
   <label>사망일<input name="death_date" type="date" min="0001-01-01" max="${todayISO()}"></label>
-  <label>기록<input name="note" maxlength="10000" autocomplete="off" placeholder="예: 父 東國(동국)"></label>
+  <label>기록<input name="note" maxlength="10000" autocomplete="off"></label>
   <p class="scan-match" hidden></p>
  </div>`;
 }
@@ -1597,10 +1597,15 @@ function scanMatch(row){
 function paintScanMatch(row){
  const found=scanMatch(row),note=row.querySelector('.scan-match');
  if(!found){
-  note.hidden=true;
   row.dataset.matchId='';
   row.dataset.fillId='';
   row.classList.remove('filling');
+  // A line with a name that is not in the book yet says so, so every line
+  // shows whether it adds a person or updates one.
+  const get=scanRowFields(row);
+  const named=get('korean_name').value.trim()||get('hanja_name').value.trim();
+  note.hidden=!named;
+  note.innerHTML=named?'<span>족보에 없는 인물</span><b class="scan-new">신규 등록</b>':'';
   return;
  }
  // Filling is the opening offer whenever a fresh match turns up.
@@ -1614,8 +1619,8 @@ function paintScanMatch(row){
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
   +(blanks.length?`빈칸 ${esc(blanks.join('·'))}`:'빈칸 없음')+'</span>'
-  +`<button type="button" class="secondary" data-fill aria-pressed="${filling}">빈칸만 채우기</button>`
-  +`<button type="button" class="secondary" data-fresh aria-pressed="${!filling}">따로 등록</button>`;
+  +`<button type="button" class="secondary" data-fill aria-pressed="${filling}" title="기존 인물의 빈칸·미상만 채웁니다">업데이트</button>`
+  +`<button type="button" class="secondary" data-fresh aria-pressed="${!filling}" title="동명이인이면 새 인물로 따로 둡니다">별도 등록</button>`;
  note.querySelector('[data-fill]').onclick=()=>{row.dataset.fillId=String(found.id);paintScanMatch(row);};
  note.querySelector('[data-fresh]').onclick=()=>{row.dataset.fillId='';paintScanMatch(row);};
 }
@@ -1774,10 +1779,10 @@ $('#scanSave').onclick=async()=>{
  }
  const fresh=people.filter(person=>!person.id),refined=people.filter(person=>person.id);
  const lines=[];
- if(fresh.length)lines.push(`새로 등록 ${fresh.length}명 — ${fresh.map(person=>person.korean_name).join(', ')}`);
- if(refined.length)lines.push(`빈칸만 채움 ${refined.length}명 — ${refined.map(person=>person.korean_name).join(', ')}`);
+ if(fresh.length)lines.push(`신규·별도 등록 ${fresh.length}명 — ${fresh.map(person=>person.korean_name).join(', ')}`);
+ if(refined.length)lines.push(`업데이트 ${refined.length}명 — ${refined.map(person=>person.korean_name).join(', ')}`);
  const question=`「${book.title}」에 ${people.length}줄 반영\n\n${lines.join('\n')}`
-  +(refined.length?'\n\n채우기 — 빈칸·미상만 대상 · 기재된 값과 세대는 유지':'')
+  +(refined.length?'\n\n업데이트 — 빈칸·미상만 채움 · 기재된 값과 세대는 유지':'')
   +'\n\n가족 관계는 반영 후 [가족 추가]에서 지정';
  if(!await ask(question,'반영'))return;
  try{
@@ -1787,8 +1792,8 @@ $('#scanSave').onclick=async()=>{
   await refresh();
   const touched=(done.filled||[]).filter(one=>one.fields.length).length;
   const untouched=(done.filled||[]).length-touched;
-  message([`새로 등록 ${(done.added||[]).length}명`,
-   touched?`빈칸 채움 ${touched}명`:'',
+  message([`신규·별도 등록 ${(done.added||[]).length}명`,
+   touched?`업데이트 ${touched}명`:'',
    untouched?`변경 없음 ${untouched}명`:'',
    '가족 관계는 [가족 추가]에서 지정'].filter(Boolean).join(' · '));
  }catch(err){scanError(err.message);}
