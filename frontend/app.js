@@ -1896,19 +1896,31 @@ $('#scanSave').onclick=async()=>{
 // The reader proposes; it never files. Every line it offers lands in the same
 // boxes a hand would have typed into, so it is corrected before it counts — and
 // a woodblock page will always give it some trouble.
+// The book prints a name's hangul beside it — 學龍(학룡) — and a note reads the
+// same way: each run of two or more hanja gets its reading in brackets, where
+// the reading is known for every character and the page gave none already.
+const NOTE_LABELS=new Set(['初名','一名','系子','生父']);
+function withReadings(text){
+ return text.replace(/[㐀-鿿豈-﫿]{2,}(?![(（][가-힣])/g,run=>{
+  if(NOTE_LABELS.has(run))return run;
+  const reading=readingOf(run);
+  return reading&&/^[가-힣]+$/.test(reading)?`${run}(${reading})`:run;
+ });
+}
 function scanFillRow(row,person,generation){
  const get=scanRowFields(row);
  get('generation').value=generation;
  get('hanja_name').value=person.hanja_name||'';
- // The page gives the characters; the reading follows from them.
- get('korean_name').value=readingOf(person.hanja_name||'')||'';
+ // The page gives the characters; the reading follows from them — unless the
+ // reader could read the hangul the page prints beside the name itself.
+ get('korean_name').value=person.korean_name||readingOf(person.hanja_name||'')||'';
  get('bon_gwan').value=person.bon_gwan||(book?book.bon_gwan||'':'');
  get('gender').value=person.gender||'미상';
  get('birth_date').value=person.birth_date||'';
  get('death_date').value=person.death_date||'';
  paintDateBoxes(row);
  // 字·初名·墓, a daughter's husband, a day remembered without a year.
- get('note').value=person.note||'';
+ get('note').value=withReadings(person.note||'');
  // A year and its 간지 that disagree mean one of the two was misread.
  row.classList.toggle('doubted',person.ganji_agrees===false);
  // Who this line married, as the page says (配 after a son, 夫 in a daughter's
@@ -1918,14 +1930,46 @@ function scanFillRow(row,person,generation){
  row.title=person.ganji_agrees===false?'간지 불일치 — 원본 대조 필요':'';
  paintScanMatch(row);
 }
-$('#scanRead').onclick=async()=>{
+// Two readers fill the same lines: the one on this computer, which knows hanja
+// only, and Claude, which reads the hangul beside every name and the notes too
+// but needs the photo sent to Anthropic and a key to do it.
+$('#scanRead').onclick=()=>readScan('',$('#scanRead'),'판독 중…');
+$('#scanReadClaude').onclick=async()=>{
+ scanError();
+ let status;
+ try{status=await api('/claude');}catch(err){scanError(err.message);return;}
+ if(!status.available){scanError('Claude 판독 꾸러미 미설치 — start.bat을 다시 실행해 주세요');return;}
+ if(!status.configured){
+  $('#claudeKeyBox').hidden=false;
+  $('#claudeKey').focus();
+  scanError('Claude API 키 입력 필요 — 한 번만 넣으면 됩니다');
+  return;
+ }
+ await readScan('claude',$('#scanReadClaude'),'Claude 판독 중… (1~3분)');
+};
+$('#claudeKeySave').onclick=async()=>{
+ scanError();
+ const key=$('#claudeKey').value.trim();
+ if(!key){scanError('API 키 입력 필요',$('#claudeKey'));return;}
+ try{
+  await busy($('#claudeKeySave'),'확인 중…',()=>api('/claude/key','PUT',{key}));
+ }catch(err){scanError(err.message,$('#claudeKey'));return;}
+ $('#claudeKey').value='';
+ $('#claudeKeyBox').hidden=true;
+ message('Claude API 키 저장 완료 — [Claude로 판독]을 다시 누르세요');
+};
+async function readScan(engine,button,waiting){
  scanError();
  const id=Number($('#scanPick').value);
  if(!id){scanError('족보 이미지 없음 — 먼저 올리기');return;}
  let found;
  try{
-  found=await busy($('#scanRead'),'판독 중…',()=>api('/scans/'+id+'/read','POST'));
- }catch(err){scanError(err.message);return;}
+  found=await busy(button,waiting,()=>api('/scans/'+id+'/read'+(engine?'?engine='+engine:''),'POST'));
+ }catch(err){
+  if(engine==='claude'&&/키/.test(err.message))$('#claudeKeyBox').hidden=false;
+  scanError(err.message);
+  return;
+ }
  const people=found.people||[];
  const note=$('#scanReadNote');
  note.hidden=false;
@@ -1948,12 +1992,12 @@ $('#scanRead').onclick=async()=>{
  bindScanFamily();
  const doubted=people.filter(person=>person.ganji_agrees===false).length;
  const nameless=people.filter(person=>!person.hanja_name).length;
- note.textContent=`판독 ${people.length}명 · 원본 대조 후 등록 — 목판 인쇄는 누락·오독 있음`
+ note.textContent=(found.engine==='claude'?`Claude 판독 ${people.length}명 · 원본 대조 후 등록`:`판독 ${people.length}명 · 원본 대조 후 등록 — 목판 인쇄는 누락·오독 있음`)
   +(labelled?' · 세대는 여백의 世 표기 기준':'')
   +(doubted?` · 간지 불일치 ${doubted}줄(붉은 줄)`:' · 간지 전수 일치')
   +(nameless?` · 이름 판독 안 됨 ${nameless}줄 — 이름 입력 필요`:'');
  paintScanCount();
-};
+}
 
 // ── 혼인과 자녀 ─────────────────────────────────────
 // A child recorded under one parent alone belongs to that parent's marriage as

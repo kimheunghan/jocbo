@@ -138,7 +138,7 @@ def test_what_only_the_head_of_a_column_can_open():
     assert r._entries('配金寫金氏美蘭（可相（女一九六〇年庚子一月十一日生', '金')[0]['note'] == ''
     assert r._entries('配金寫金氏美蘭', '金')[0]['bon_gwan'] == '金寧'
     # An older book names a daughter by her husband and his 본관.
-    assert read[1]['note'] == '사위 金震埴(瑞興人) · 딸 이름 미기재'
+    assert read[1]['note'] == '사위 金震埴 瑞興人 · 딸 이름 미기재'
 
 
 def test_a_date_is_not_a_name():

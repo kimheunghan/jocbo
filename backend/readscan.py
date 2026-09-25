@@ -633,7 +633,7 @@ def _entries(stream, surname, starts=None):
             people.append({
                 'hanja_name': hanja, 'gender': '여', 'bon_gwan': '',
                 'birth_date': '', 'death_date': '', 'married_in': False, 'ganji_agrees': None,
-                'note': '사위 %s(%s人) · 딸 이름 미기재' % (husband, _bon_gwan(home)),
+                'note': '사위 %s %s人 · 딸 이름 미기재' % (husband, _bon_gwan(home)),
                 'raw': chunk[:80], 'at': start,
             })
             # A date after the husband's 본관 is no part of her entry: it is what

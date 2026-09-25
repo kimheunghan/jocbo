@@ -81,7 +81,7 @@ if not exist ".venv\Scripts\python.exe" (
 set "VENV=.venv\Scripts\python.exe"
 
 rem -- 꾸러미 -----------------------------------
-"%VENV%" -c "import fastapi, uvicorn, sqlalchemy, multipart" >nul 2>&1
+"%VENV%" -c "import fastapi, uvicorn, sqlalchemy, multipart, anthropic" >nul 2>&1
 if errorlevel 1 (
   echo   꾸러미 설치 중... ^(처음 한 번만^)
   "%VENV%" -m pip install --quiet --upgrade pip

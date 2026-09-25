@@ -1156,6 +1156,27 @@ body.view-full .frame-resizer {
   font-weight: 700;
 }
 
+/* The key is asked for once, beside the buttons that need it. */
+.claude-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #a9bcd4;
+  border-radius: var(--radius);
+  background: #f2f6fb;
+}
+
+.claude-key label {
+  flex: 1 1 260px;
+}
+
+.claude-key small {
+  flex-basis: 100%;
+}
+
 .scan-start {
   display: flex;
   align-items: flex-end;

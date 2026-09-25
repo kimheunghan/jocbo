@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict, model_validator
@@ -370,18 +370,64 @@ async def upload_scan(bid: int, file: UploadFile, uid=Depends(auth)):
         raise
     return {'id': sid, 'name': name}
 
+class ClaudeKey(Input):
+    key: str = Field(default='', max_length=300)
+
+@app.get('/api/claude')
+def claude_status(uid=Depends(auth)):
+    from backend import claude_read
+    return {'available': claude_read.available(), 'configured': bool(claude_read.stored_key())}
+
+@app.put('/api/claude/key')
+def claude_key(data: ClaudeKey, uid=Depends(auth)):
+    # The key is tried against Anthropic before it is kept, so a mistyped one
+    # is caught here rather than on the first reading.
+    from backend import claude_read
+    if not claude_read.available():
+        raise HTTPException(503, 'anthropic 꾸러미가 설치되어 있지 않습니다. start.bat을 다시 실행해 주세요.')
+    if data.key:
+        import anthropic
+        try:
+            claude_read.check_key(data.key)
+        except anthropic.AuthenticationError:
+            raise HTTPException(400, 'API 키가 올바르지 않습니다.')
+        except anthropic.APIConnectionError:
+            raise HTTPException(502, 'Anthropic에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.')
+    claude_read.save_key(data.key)
+    return {'configured': bool(data.key)}
+
+def claude_reading(path, book):
+    import anthropic
+    from backend import claude_read
+    if not claude_read.available():
+        raise HTTPException(503, 'anthropic 꾸러미가 설치되어 있지 않습니다. start.bat을 다시 실행해 주세요.')
+    try:
+        return claude_read.read(path, dict(book))
+    except anthropic.AuthenticationError:
+        raise HTTPException(401, 'Claude API 키가 없거나 올바르지 않습니다. 키를 다시 넣어 주세요.')
+    except anthropic.PermissionDeniedError:
+        raise HTTPException(403, '이 API 키로는 Claude를 쓸 수 없습니다.')
+    except anthropic.RateLimitError:
+        raise HTTPException(429, 'Claude 사용량 한도에 걸렸습니다. 잠시 뒤 다시 해 주십시오.')
+    except anthropic.APIConnectionError:
+        raise HTTPException(502, 'Anthropic에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.')
+    except anthropic.APIStatusError as problem:
+        raise HTTPException(502, f'Claude 판독 실패 ({problem.status_code}): {problem.message}')
+
 @app.post('/api/scans/{sid}/read')
-def read_page(sid: int, uid=Depends(auth)):
+def read_page(sid: int, reader: str = Query('', alias='engine'), uid=Depends(auth)):
     # The reading is only ever a proposal: it is handed back for correction and
     # nothing is written to the record here.
     from backend import readscan
-    if not readscan.available():
+    if reader != 'claude' and not readscan.available():
         raise HTTPException(503, '판독기가 설치되어 있지 않습니다. requirements.txt의 rapidocr-onnxruntime을 설치해 주세요.')
     with engine.connect() as c:
         row = c.execute(select(scans).where(scans.c.id == sid)).mappings().first()
         if not row:
             raise HTTPException(404, '스캔이 없습니다.')
         book = own_book(c, row['book_id'], uid)
+    if reader == 'claude':
+        return claude_reading(str(UPLOADS / row['storage_key']), book)
     # The page leaves the family name off a child of the line, so it is taken
     # from the book itself.
     surname = (book['clan_name'] or '').replace('氏', '').strip()[:1]
