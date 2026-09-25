@@ -624,26 +624,15 @@ function outsideTheLine(hostOf){
  }
  return outside;
 }
-// The 계통도 names whose line this book is (芝淑). The tree and the book begin
-// with that person: those above, and their other branches, stay in the list of
-// people but are not drawn.
+// The 계통도 names whose line this book is (芝淑, 28세). The tree and the book
+// begin at that person's 世: the generations above stay in the list of people
+// but are not drawn, and every branch from that 世 down is (漢淑, also 28세).
 function fromLineHead(people){
  const name=String(book.lineage||'').trim();
  if(!name)return people;
  const head=book.persons.find(p=>[p.hanja_name,p.korean_name].some(full=>full&&(full===name||full.slice(-name.length)===name&&full.length-name.length<=2)));
  if(!head)return people;
- const kept=new Set([head.id]);
- for(let grew=true;grew;){
-  grew=false;
-  for(const link of book.relations){
-   if(!kept.has(link.source_id)||kept.has(link.target_id))continue;
-   if(link.kind==='parent'||link.kind==='spouse'){kept.add(link.target_id);grew=true;}
-  }
-  for(const link of book.relations){
-   if(link.kind==='spouse'&&kept.has(link.target_id)&&!kept.has(link.source_id)){kept.add(link.source_id);grew=true;}
-  }
- }
- return people.filter(p=>kept.has(p.id));
+ return people.filter(p=>p.generation>=head.generation);
 }
 // How wide each person's column comes out, and how much of a row a sheet has
 // room for, taken from a sheet laid out off screen in the same type.
