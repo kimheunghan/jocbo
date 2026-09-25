@@ -327,6 +327,16 @@ body.view-full .frame-resizer {
   display: none;
 }
 
+/* The 한글/한자 switch on the zoom bar is for 전체 화면 only; elsewhere the one
+   beside the view tabs is in reach. */
+.zoom-bar .zoom-script {
+  display: none;
+}
+
+body.view-full .zoom-bar .zoom-script {
+  display: inline-block;
+}
+
 .zoom-sizer {
   position: relative;
 }
