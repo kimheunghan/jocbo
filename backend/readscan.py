@@ -869,11 +869,12 @@ def read(path, surname=''):
         boxes.append({'x': width - max(ys), 'y': min(xs), 'w': max(ys) - min(ys), 'h': max(xs) - min(xs),
                       'text': _traditional(text), 'score': float(score)})
     _reread_names(page, boxes)
+    number = page_number(page)
     spread = pages(page)
     if spread:
         people, count = _read_ruled(boxes, spread, surname, page)
         if people:
-            return {'people': _paired(people), 'bands': count, 'boxes': len(boxes)}
+            return {'people': _paired(people), 'bands': count, 'boxes': len(boxes), 'page': number}
     people, lowest = [], {}
     for band in bands(boxes, lines=rules(page)):
         stream = ''.join(box['text'] for box in band)
@@ -888,7 +889,29 @@ def read(path, surname=''):
             person['score'] = round(worst, 2)
             people.append(person)
         lowest[index] = worst
-    return {'people': _paired(people), 'bands': len(lowest), 'boxes': len(boxes)}
+    return {'people': _paired(people), 'bands': len(lowest), 'boxes': len(boxes), 'page': number}
+
+
+PAGE_NUMBER = re.compile(r'\d{1,4}')
+
+
+def page_number(page):
+    """The page number printed across the head or foot of the page, or at its side.
+
+    It is set in Arabic figures, lying across the page where every other line
+    stands, so the page is read upright once more, over its margins alone. What
+    is not read clearly is left for the reader to fill in, never guessed.
+    """
+    width, height = page.size
+    margins = [(0, 0, width, int(height * 0.15)), (0, int(height * 0.85), width, height),
+               (0, 0, int(width * 0.12), height), (int(width * 0.88), 0, width, height)]
+    for box in margins:
+        result, _ = _reader()(page.crop(box))
+        found = [(len(text.strip()), score, text.strip()) for _, text, score in result or []
+                 if PAGE_NUMBER.fullmatch(text.strip()) and score >= 0.9 and len(text.strip()) >= 2]
+        if found:
+            return str(int(max(found)[2]))
+    return ''
 
 
 def _paired(people):

@@ -2202,6 +2202,10 @@ async function readScan(engine,button,waiting){
  const people=found.people||[];
  const note=$('#scanReadNote');
  note.hidden=false;
+ // The page number as the photo prints it; blank when it could not be read,
+ // and open to correction either way.
+ $('#scanPage').value=found.page||'';
+ $('#scanPageBox').hidden=false;
  if(!people.length){
   note.textContent='판독 결과 없음';
   return;

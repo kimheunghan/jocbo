@@ -115,8 +115,8 @@ PERSON = {
 }
 SCHEMA = {
     'type': 'object',
-    'properties': {'people': {'type': 'array', 'items': PERSON}},
-    'required': ['people'],
+    'properties': {'page': {'type': 'string'}, 'people': {'type': 'array', 'items': PERSON}},
+    'required': ['page', 'people'],
     'additionalProperties': False,
 }
 
@@ -151,7 +151,10 @@ What to give back: one item per person, in reading order.
 
 Accuracy
 - Read every character from the photo. Where one cannot be made out, write □ in its place rather than guessing; where a whole name cannot be read, leave hanja_name "" and put 이름 판독 안 됨 in the note.
-- Check each date against its 간지, and each name against its printed hangul reading."""
+- Check each date against its 간지, and each name against its printed hangul reading.
+
+The page number
+- `page` is the page number printed in Arabic figures at the head, foot or side of the page (612). With two pages, give the right-hand page's. If no number can be read clearly, give an empty string."""
 
 
 def read(path, book):
@@ -188,8 +191,10 @@ def read(path, book):
     if message.stop_reason == 'max_tokens':
         raise RuntimeError('판독 결과가 너무 길어 끊겼습니다. 한 쪽씩 찍어 올려 주십시오.')
     text = next((block.text for block in message.content if block.type == 'text'), '')
-    people = json.loads(text)['people']
-    return {'people': shaped(people), 'bands': 0, 'boxes': 0, 'engine': 'claude',
+    answer = json.loads(text)
+    page = answer.get('page', '').strip()
+    return {'people': shaped(answer['people']), 'bands': 0, 'boxes': 0, 'engine': 'claude',
+            'page': page if page.isdigit() else '',
             'usage': {'input': message.usage.input_tokens, 'output': message.usage.output_tokens}}
 
 

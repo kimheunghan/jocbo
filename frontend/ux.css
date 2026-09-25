@@ -1300,7 +1300,7 @@ body.view-full .zoom-bar .zoom-script {
 
 .scan-start {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -1534,4 +1534,19 @@ body.view-full .zoom-bar .zoom-script {
   margin-top: 3px;
   padding: 6px 8px;
   font-size: 13px;
+}
+
+/* The page number read off the photo, beside the count and open to correction. */
+.scan-start .scan-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  margin: 0;
+  font-size: 13px;
+}
+
+.scan-start .scan-page input {
+  width: 5.5em;
+  padding: 4px 8px;
 }
