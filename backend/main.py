@@ -228,12 +228,20 @@ def get_book(bid: int, uid=Depends(auth)):
         # consistent even before the record is edited again.
         generations = {p['id']: p['generation'] for p in book['persons']}
         parent_relations = [r for r in book['relations'] if r['kind'] == 'parent']
+        # Husband and wife stand in one generation, so someone who married in,
+        # entered at the default 1, takes the generation of the one married.
+        spouse_relations = [r for r in book['relations'] if r['kind'] == 'spouse']
         for _ in range(len(book['persons'])):
             changed = False
             for relation in parent_relations:
                 expected = generations[relation['source_id']] + 1
                 if generations[relation['target_id']] < expected:
                     generations[relation['target_id']] = expected
+                    changed = True
+            for relation in spouse_relations:
+                one, other = relation['source_id'], relation['target_id']
+                if one in generations and other in generations and generations[one] != generations[other]:
+                    generations[one] = generations[other] = max(generations[one], generations[other])
                     changed = True
             if not changed:
                 break

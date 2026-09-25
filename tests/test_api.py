@@ -313,3 +313,15 @@ def test_a_reading_does_not_give_a_person_a_second_father(client):
         'id': pid, 'korean_name': '박순남', 'hanja_name': '朴順南', 'generation': 30, 'note': '父 甘泰 · 字 玉汝'}]})
     note = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == pid)['note']
     assert note.splitlines() == ['父 泰鎬(태호)', '字 玉汝']
+
+
+def test_a_spouse_takes_the_generation_of_the_one_married(client):
+    account(client)
+    bid = book(client)
+    father = client.post(f'/api/books/{bid}/persons', json={'korean_name': '김정환', 'hanja_name': '金正煥', 'generation': 30}).json()['id']
+    son = client.post(f'/api/books/{bid}/persons', json={'korean_name': '김철순', 'hanja_name': '金澈純', 'generation': 1}).json()['id']
+    wife = client.post(f'/api/books/{bid}/persons', json={'korean_name': '한명래', 'hanja_name': '韓明來', 'generation': 1}).json()['id']
+    assert client.post('/api/relations', json={'source_id': father, 'target_id': son, 'kind': 'parent'}).status_code == 201
+    assert client.post('/api/relations', json={'source_id': son, 'target_id': wife, 'kind': 'spouse'}).status_code == 201
+    generations = {p['id']: p['generation'] for p in client.get(f'/api/books/{bid}').json()['persons']}
+    assert (generations[son], generations[wife]) == (31, 31)
