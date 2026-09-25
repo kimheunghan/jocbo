@@ -146,6 +146,18 @@ def test_ownership_and_uploads(client):
     assert client.get(f'/api/files/{fid}').status_code == 404
 
 
+def test_an_attachment_is_taken_off(client):
+    first = account(client)
+    pid = person(client, book(client))
+    fid = client.post(f'/api/persons/{pid}/files', files={'file': ('photo.pdf', b'%PDF-1.4 photo', 'application/pdf')}).json()['id']
+    account(client)
+    assert client.delete(f'/api/files/{fid}').status_code == 404
+    client.post('/api/login', json=first)
+    assert client.delete(f'/api/files/{fid}').status_code == 200
+    assert client.get(f'/api/files/{fid}').status_code == 404
+    assert list(m.UPLOADS.iterdir()) == []
+
+
 def test_static_frontend_and_validation(client):
     assert client.get('/').status_code == 200
     assert '우리의 족보' in client.get('/').text

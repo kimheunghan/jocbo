@@ -1288,7 +1288,7 @@ function editPerson(id){
  $('#addFamily').hidden=!p;
  $('#attachments').hidden=!p;
  $('#fileInput').value='';
- $('#fileList').innerHTML=p?book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join(''):'';
+ $('#fileList').innerHTML=p?fileListHTML(id):'';
  setPersonScriptFields(p||{bon_gwan:book.bon_gwan||'',note:''});
  paintDateBoxes(f);
  // The relation window reopens this one in place, so it may already be up.
@@ -1573,7 +1573,25 @@ $('#personForm').onsubmit=async e=>{e.preventDefault();const f=e.target;dialogEr
  try{const saved=await busy($('#savePerson'),'저장 중…',()=>api(id?'/persons/'+id:'/books/'+book.id+'/persons',id?'PUT':'POST',data));if(!id&&relative){pendingRelative=relative;await linkRelative(saved.id);pendingRelative=null;}$('#personDialog').close();
   const alsoTook=relative&&!id?await settleMarriage(relative.kind,relative.anchor.id,saved.id):'';if(!id)$('#search').value='';await refresh();message(id?`${who} — 저장 완료`:relative?`${who} — ${relative.anchor.korean_name}의 ${RELATIVE_LABELS[relative.kind]}로 등록 완료${alsoTook}`:`${who} — 등록 완료 · 검색어 해제됨`);}catch(err){dialogError(err.message);}};
 $('#deletePerson').onclick=async()=>{if(!await ask(`${$('#personForm').elements.korean_name.value} — 연결된 관계와 첨부파일까지 모두 삭제 · 되돌릴 수 없음`,'삭제'))return;dialogError();try{await busy($('#deletePerson'),'삭제 중…',()=>api('/persons/'+$('#personForm').elements.id.value,'DELETE'));$('#personDialog').close();await refresh();message('삭제 완료');}catch(err){dialogError(err.message);}};
-$('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=book.files.filter(x=>x.person_id===id).map(x=>`<p><a href="/api/files/${x.id}">${esc(x.name)}</a></p>`).join('');$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
+$('#upload').onclick=async()=>{dialogError();const file=$('#fileInput').files[0];if(!file){dialogError('업로드할 파일을 먼저 선택하세요.',$('#fileInput'));return;}if(file.size>5*1024*1024){dialogError('파일은 5MB 이하만 업로드할 수 있습니다.',$('#fileInput'));return;}const id=Number($('#personForm').elements.id.value),data=new FormData();data.append('file',file);try{await busy($('#upload'),'업로드 중…',()=>api('/persons/'+id+'/files','POST',data));await refresh();$('#fileList').innerHTML=fileListHTML(id);$('#fileInput').value='';const el=$('#personError');el.textContent='첨부파일을 저장했습니다.';el.hidden=false;el.classList.add('success');}catch(err){dialogError(err.message);}};
+// Each attachment with a 삭제 beside it; a wrong photo is taken off again.
+function fileListHTML(id){
+ return book.files.filter(x=>x.person_id===id).map(x=>`<p class="file-row"><a href="/api/files/${x.id}">${esc(x.name)}</a>`
+  +`<button type="button" class="danger small" data-remove-file="${x.id}">삭제</button></p>`).join('');
+}
+$('#fileList').onclick=async event=>{
+ const button=event.target.closest('[data-remove-file]');
+ if(!button)return;
+ const file=book.files.find(x=>x.id===Number(button.dataset.removeFile));
+ if(!file||!await ask(`${file.name} — 첨부파일 삭제 · 되돌릴 수 없음`,'삭제'))return;
+ dialogError();
+ try{
+  await busy(button,'삭제 중…',()=>api('/files/'+file.id,'DELETE'));
+  await refresh();
+  $('#fileList').innerHTML=fileListHTML(file.person_id);
+  const el=$('#personError');el.textContent='첨부파일을 삭제했습니다.';el.hidden=false;el.classList.add('success');
+ }catch(err){dialogError(err.message);}
+};
 function renderRelations(){if(!book)return;const options='<option value="">인물 선택</option>'+book.persons.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');const anchor=$('#relationForm').elements.source_id;const kept=anchor.value;anchor.innerHTML=options;
  // Whoever was searched for is the one the reader has in mind, so the form
  // starts from them rather than from the first name in the book.

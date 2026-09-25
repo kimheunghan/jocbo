@@ -1570,3 +1570,23 @@ body.view-full .zoom-bar .zoom-script {
 #openScan span {
   margin-right: 2px;
 }
+
+/* An attachment and the button that takes it off, on one line. */
+#fileList .file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#fileList .file-row a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#fileList .file-row button {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+}

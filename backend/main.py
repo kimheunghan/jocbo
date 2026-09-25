@@ -519,6 +519,17 @@ def download(fid: int, uid=Depends(auth)):
         own_person(c, row['person_id'], uid)
     return served(row)
 
+@app.delete('/api/files/{fid}')
+def remove_file(fid: int, uid=Depends(auth)):
+    with engine.begin() as c:
+        row = c.execute(select(files).where(files.c.id == fid)).mappings().first()
+        if not row:
+            raise HTTPException(404, '파일이 없습니다.')
+        own_person(c, row['person_id'], uid)
+        c.execute(delete(files).where(files.c.id == fid))
+    (UPLOADS / row['storage_key']).unlink(missing_ok=True)
+    return {'ok': True}
+
 class FreshStatic(StaticFiles):
     """Ask the browser to revalidate every file.
 
