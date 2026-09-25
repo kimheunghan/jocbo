@@ -147,6 +147,9 @@ def _yearless(text, dated):
         if any(start <= match.start() < end or start < match.end() <= end for start, end in spans):
             continue
         month, day = _small(match.group(2)), _small(match.group(3))
+        # 忌七六月: a stray character run into the month; the month is its end.
+        if (not month or not 1 <= month <= 12) and len(match.group(2)) > 1:
+            month = _small(match.group(2)[-1])
         if not month or not day or not (1 <= month <= 12) or not (1 <= day <= 31):
             continue
         kind = match.group(4) or match.group(5) or ''
@@ -184,6 +187,125 @@ def rules(image):
         slope, base = numpy.polyfit(xs + x, ys + y, 1)
         found.append((float(slope), float(base)))
     return sorted(found, key=lambda line: line[1] + line[0] * width / 2)
+
+
+def _horizontal(ink, x0, x1, keep):
+    """Long runs of ink across [x0, x1): each as its slope, height, and extent."""
+    import cv2
+    import numpy
+    part = ink[:, x0:x1]
+    width = x1 - x0
+    opened = cv2.morphologyEx(part, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (max(20, width // 25), 1)))
+    joined = cv2.dilate(opened, cv2.getStructuringElement(cv2.MORPH_RECT, (max(3, width // 20), 7)))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(joined)
+    found = []
+    for label in range(1, count):
+        x, y, w, h = stats[label][:4]
+        if w < width * keep or h > width * 0.12:
+            continue
+        ys, xs = numpy.nonzero(opened[y:y + h, x:x + w] & (labels[y:y + h, x:x + w] == label))
+        if len(xs) < 2:
+            continue
+        slope, base = numpy.polyfit(xs + x + x0, ys + y, 1)
+        found.append({'slope': float(slope), 'base': float(base), 'x0': int(x + x0), 'x1': int(x + w + x0)})
+    return found
+
+
+def pages(image):
+    """The page or pages in the photo, each with the rules that cross it.
+
+    A book photographed open shows two pages whose rules stand at different
+    heights, since the paper curls toward the spine. Taken together their bands
+    run into one another, so the spread is cut at the gutter, where no rule
+    crosses, and each page keeps its own. A rule printed thin and tilted by the
+    curl breaks into short runs of ink, so strokes are thickened a little
+    upward first.
+    """
+    try:
+        import cv2
+        import numpy
+    except Exception:
+        return []
+    gray = cv2.cvtColor(numpy.asarray(image), cv2.COLOR_RGB2GRAY)
+    width = gray.shape[1]
+    ink = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 31, 10)
+    ink = cv2.dilate(ink, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5)))
+    spans = [(line['x0'], line['x1']) for line in _horizontal(ink, 0, width, 0.15)]
+    covered = numpy.zeros(width, int)
+    for start, end in spans:
+        covered[start:end] += 1
+    # The gutter: the widest stretch near the middle that far fewer rules cross
+    # than cross the pages. The edge of the cover or the table can still run
+    # the whole width under the book, so it is not asked to be crossed by none.
+    middle = covered[int(width * 0.3):int(width * 0.7)]
+    cuts = [0, width]
+    if len(middle) and covered.max() >= 3:
+        low = middle.min()
+        split, run, best = None, 0, 0
+        for x in range(int(width * 0.3), int(width * 0.7)):
+            run = run + 1 if covered[x] == low else 0
+            if run > best:
+                best, split = run, x - run // 2
+        if split and low <= covered.max() * 0.34 and best >= width * 0.004:
+            cuts = [0, split, width]
+    found = []
+    for x0, x1 in zip(cuts, cuts[1:]):
+        lines = sorted(_horizontal(ink, x0, x1, 0.4), key=lambda line: line['base'] + line['slope'] * (x0 + x1) / 2)
+        if lines:
+            found.append({'x0': x0, 'x1': x1, 'lines': lines})
+    return found
+
+
+def _above(lines, x, y):
+    """How many of a page's rules pass above the point (x, y)."""
+    return sum(1 for line in lines if line['base'] + line['slope'] * x < y)
+
+
+def _aligned(spread):
+    """For each page, what to add to its band number to reach the right page's.
+
+    A 족보 is read from the right-hand page, and both pages of a spread carry the
+    same generation rows. Where the two pages meet, a row's rule on one side
+    meets the same row's rule on the other, so the rules are paired there.
+    """
+    if not spread:
+        return []
+    right = spread[-1]
+    shifts = []
+    for page in spread:
+        if page is right:
+            shifts.append(0)
+            continue
+        at = page['x1']
+        here = [line['base'] + line['slope'] * at for line in page['lines']]
+        there = [line['base'] + line['slope'] * at for line in right['lines']]
+        gaps = [b - a for a, b in zip(there, there[1:])] or [0]
+        tolerance = sorted(gaps)[len(gaps) // 2] * 0.4
+        pairs = []
+        for index, y in enumerate(here):
+            nearest = min(range(len(there)), key=lambda other: abs(there[other] - y))
+            if abs(there[nearest] - y) <= tolerance:
+                pairs.append(nearest - index)
+        shifts.append(sorted(pairs)[len(pairs) // 2] if pairs else 0)
+    return shifts
+
+
+# The generation printed down the margin beside each band: 二十六世. The reader
+# sometimes returns 世 as 川 and drops a character or adds a stray one.
+GENERATION_LABEL = re.compile(r'^[一二三四五六七八九十百廿卅川庫\s]*[世川]$')
+
+
+def _generation(text):
+    """二十六世 → 26, or None where the label was misread."""
+    match = re.fullmatch(r'([一二三四五六七八九]?)(十?)([一二三四五六七八九]?)世', re.sub(r'\s', '', text))
+    if not match:
+        return None
+    high, ten, low = match.groups()
+    if ten:
+        return (DIGITS[high] if high else 1) * 10 + (DIGITS[low] if low else 0)
+    if high and not low:
+        return DIGITS[high]
+    return None
 
 
 def _margin(box):
@@ -255,16 +377,27 @@ MARKERS = {'子': '남', '女': '여', '配': '여'}
 NAME_CHAR = re.compile(r'[㐀-鿿]')
 # 朴 is its own character in a Korean name; the simplified-to-traditional table
 # turns it into 樸, which is a different surname altogether.
-MISCONVERTED = {'樸': '朴', '硃': '朱'}
+MISCONVERTED = {'樸': '朴', '硃': '朱', '曹': '曺'}
 # A Korean book prints some names in the short form (点 for 點), and the table
 # lengthens them. In a name the book's own form is kept.
 SHORT_FORMS = {'點': '点'}
 # Characters the reader returns for a name character it mistook, that are
 # themselves all but never given in a Korean name: 踢 for 錫 shares its 易.
-NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫'}
+NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫',
+                # The table gives 鐘 (a bell) for 钟; a Korean name writes 鍾.
+                '鐘': '鍾',
+                # 鎭 loses its 眞 to 貨 and 磬 its 石 to 石 under 广.
+                '鎖': '鎭', '磨': '磬', '填': '埴',
+                # The table lengthens 斗 into 鬥, which no one is named.
+                '鬥': '斗'}
 # 본관 characters the reader mistakes for one of like shape: 摩州 is 慶州, both
 # under 广. A 본관 is a place, so these stand only where a place name does.
-BON_GWAN_MISREAD = {'摩': '慶', '麐': '慶', '晨': '晉', '青': '淸', '清': '淸', '倘': '尙'}
+BON_GWAN_MISREAD = {'摩': '慶', '麐': '慶', '晨': '晉', '青': '淸', '清': '淸', '倘': '尙', '尚': '尙', '寕': '寧'}
+
+
+def _fixed(name):
+    """A name as it was printed, with the table's and the reader's slips put back."""
+    return ''.join(NAME_MISREAD.get(char, MISCONVERTED.get(char, char)) for char in name)
 
 
 def _bon_gwan(text):
@@ -281,6 +414,12 @@ def _name(text):
     for index, char in enumerate(text):
         if len(out) >= GIVEN_NAME:
             break
+        # 英子 and 春子 end in 子, which does not open the next entry when no
+        # name follows it.
+        if (char == '子' and len(out) == 1
+                and not NAME_CHAR.match(text[index + 1:index + 2] or ' ')):
+            out.append(char)
+            continue
         if char in MARKERS or char in '（）()[]，,。.':
             break
         if char in '年月日生卒墓配系':
@@ -298,12 +437,17 @@ def _name(text):
     return ''.join(out)
 
 
-def _marks(stream):
+def _marks(stream, starts=None):
     """Where the entries begin.
 
     子 and 女 also turn up inside the small notes the page sets in brackets, and
     子 is one of the twelve branches, so it stands in every 甲子 and 庚子 on the
     page. Neither starts a person.
+
+    Where it is known where each of the reader's boxes began (starts), an entry
+    is also known to open a column: 東國(동국)女, a spouse's father named with
+    her, sits in the middle of one, and so do the children a daughter's entry
+    lists after her husband.
     """
     inside, found, wed = False, [], False
     for index, char in enumerate(stream):
@@ -312,6 +456,15 @@ def _marks(stream):
         if char == '夫' and found and stream[found[-1]] == '女':
             wed = True
             continue
+        if starts is not None and char in '子女':
+            head = max((start for start in starts if start <= index), default=0)
+            # Only marks of punctuation or noise may stand before it in its box,
+            # and a 子 alone in a box of its own is a stray, not a person.
+            if NAME_CHAR.search(stream[head:index]):
+                continue
+            following = min((start for start in starts if start > index), default=len(stream))
+            if not NAME_CHAR.search(stream[index + 1:following]):
+                continue
         if char in '（(':
             inside = True
             continue
@@ -322,12 +475,16 @@ def _marks(stream):
             continue
         if char in BRANCHES and index and stream[index - 1] in STEMS:
             continue
+        # 英子（영자）: a 子 that ends a name has no name after it to open.
+        if char == '子' and index and NAME_CHAR.match(stream[index - 1]) \
+                and not NAME_CHAR.match(stream[index + 1:index + 2] or ' '):
+            continue
         # Inside a note, a marker counts only when a whole name follows it. That
         # is what keeps （子） out while still finding the entry that comes after
         # a bracket the reader never closed.
         if inside and len(_name(stream[index + 1:])) < GIVEN_NAME:
             continue
-        if wed and char == '子':
+        if wed and char == '子' and starts is None:
             wed = False
             continue
         wed = False
@@ -337,7 +494,7 @@ def _marks(stream):
 
 # 配 <본관 two characters> <family name> 氏 <given name>. The given name is left
 # to _name, so the first digit of the date that follows is not read into it.
-BON_GWAN = re.compile(r'配\s*([㐀-鿿]{2})\s*([㐀-鿿])\s*氏\s*(.*)', re.S)
+BON_GWAN = re.compile(r'配\s*([㐀-鿿]{1,2})\s*([㐀-鿿])\s*氏\s*(.*)', re.S)
 
 
 # Other names the page gives a person, each followed by the name itself.
@@ -345,7 +502,7 @@ OTHER_NAMES = re.compile(r'(字|初名|號|諱)\s*([㐀-鿿]{2})')
 # Where a person lies: 墓 up to the way the grave faces. 墓는 comes back as 墓二,
 # since the reader has no hangul.
 HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2,4}?)(?=[（(子]|$)')
-FATHER = re.compile(r'([㐀-鿿]{2})\s*(?:[（(][^）)]*[）)]?)?\s*女')
+FATHER = re.compile(r'([㐀-鿿]{2})\s*(?:[（(][^（(）)]*[）)]?)?\s*女')
 GRAVE = re.compile(r'墓\s*[는二]?\s*([^墓配忌生卒]{2,24}?[坐向])')
 
 
@@ -356,22 +513,31 @@ def _notes(chunk, dated):
     reader turns into nonsense characters, so brackets are left out.
     """
     plain = re.sub(r'[（(][^）)]*[）)]?', '', chunk)
-    notes = ['%s %s' % match.groups() for match in OTHER_NAMES.finditer(plain)]
+    notes = ['%s %s' % (match.group(1), _fixed(match.group(2))) for match in OTHER_NAMES.finditer(plain)
+             if not DATE_START.match(plain, match.start(2) + 1)]
     notes += ['墓 ' + re.sub(r'[\s，,。.]', '', match.group(1)) for match in GRAVE.finditer(plain)]
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
-        notes += ['父 ' + name for name in FATHER.findall(chunk)]
+        # The father stands beside the hangul reading of the spouse's name,
+        # which the reader turns into characters of its own, so a name read
+        # there is as often the noise beside it: it is marked to be checked.
+        notes += ['父 %s(확인 필요)' % _fixed(name) for name in FATHER.findall(chunk)]
     # 女 … 夫 諸葛芝奉 子 柄律: a daughter's husband, and her son of his line.
     if chunk.startswith('女'):
-        notes += ['夫 ' + name for name in HUSBAND.findall(plain)]
+        notes += ['夫 ' + _fixed(name) for name in HUSBAND.findall(chunk)]
         notes += ['子 ' + name for name in re.findall(r'夫[^子]*子\s*([㐀-鿿]{2})', chunk)]
     notes += _yearless(chunk, dated)
     return ' · '.join(notes)
 
 
-def _entries(stream, surname):
+# 女 嚴柱華 寧越人: an older book names a daughter by her husband, his 본관
+# after him and 人, and does not give her own name at all.
+SON_IN_LAW = re.compile(r'\s*([㐀-鿿]{3})\s*([㐀-鿿]{2})\s*[（(]?[^人子女配）)]{0,6}[）)]?\s*人')
+
+
+def _entries(stream, surname, starts=None):
     """Cut a band's text into one entry per person."""
-    marks = _marks(stream)
+    marks = _marks(stream, starts)
     people = []
     for order, start in enumerate(marks):
         end = marks[order + 1] if order + 1 < len(marks) else len(stream)
@@ -388,12 +554,44 @@ def _entries(stream, surname):
             # family name to go on.
             given = _name(re.sub(r'^\s*[（(][^）)]*[）)]?', '', given))
             family = MISCONVERTED.get(family, family)
-            bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan))
+            # 金寧金氏 read as 金金氏 has lost a character of the 본관; the person
+            # still stands, with the 본관 left for a hand to fill.
+            bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan)) if len(bon_gwan) == 2 else ''
             hanja = family + given
+        elif marker == '女' and SON_IN_LAW.match(chunk, 1):
+            husband, home = SON_IN_LAW.match(chunk, 1).groups()
+            husband = _fixed(husband)
+            bon_gwan = ''
+            hanja = (surname + '氏') if surname else ''
+            found = _dates(chunk)
+            people.append({
+                'hanja_name': hanja, 'gender': '여', 'bon_gwan': '',
+                'birth_date': '', 'death_date': '', 'married_in': False, 'ganji_agrees': None,
+                'note': '사위 %s(%s人) · 딸 이름 미기재' % (husband, _bon_gwan(home)),
+                'raw': chunk[:80],
+            })
+            # A date after the husband's 본관 is no part of her entry: it is what
+            # is left of the next one, whose name the reader missed. It is
+            # offered with the name blank rather than lost.
+            rest = chunk[SON_IN_LAW.match(chunk, 1).end():]
+            left = _dates(rest)
+            if left:
+                birth = next((one for one in left if one['kind'] == '生'), None)
+                death = next((one for one in left if one['kind'] == '卒'), None)
+                notes = _notes(rest, left)
+                people.append({
+                    'hanja_name': '', 'gender': '미상', 'bon_gwan': '',
+                    'birth_date': birth['date'] if birth else '', 'death_date': death['date'] if death else '',
+                    'married_in': False, 'ganji_agrees': all(one['agrees'] for one in left),
+                    'note': '이름 판독 안 됨' + (' · ' + notes if notes else ''),
+                    'raw': rest[:80],
+                })
+            continue
         else:
             given = _name(chunk[1:])
-            # A bare marker, or one that is really part of a 간지, is not a person.
-            if not 1 <= len(given) <= 3:
+            # A bare marker, or one that is really part of a 간지, is not a person;
+            # nor is (지한)女 一九二四年, a date the reader took for a name.
+            if not 1 <= len(given) <= 3 or all(char in DIGITS for char in given):
                 continue
             bon_gwan = ''
             hanja = (surname + given) if surname else given
@@ -436,6 +634,11 @@ def read(path, surname=''):
         # Back to the page as it stands: across the turned image is down the page.
         boxes.append({'x': width - max(ys), 'y': min(xs), 'w': max(ys) - min(ys), 'h': max(xs) - min(xs),
                       'text': _traditional(text), 'score': float(score)})
+    spread = pages(page)
+    if spread:
+        people, count = _read_ruled(boxes, spread, surname)
+        if people:
+            return {'people': people, 'bands': count, 'boxes': len(boxes)}
     people, lowest = [], {}
     for band in bands(boxes, lines=rules(page)):
         stream = ''.join(box['text'] for box in band)
@@ -451,3 +654,60 @@ def read(path, surname=''):
             people.append(person)
         lowest[index] = worst
     return {'people': people, 'bands': len(lowest), 'boxes': len(boxes)}
+
+
+def _read_ruled(boxes, spread, surname):
+    """Read the page or spread band by band, each band across both pages.
+
+    A box belongs to the page it stands on and to the band between that page's
+    rules; the left page's bands are then numbered as the right page's are, so a
+    generation reads on from one page to the other as the book does. Where the
+    margin names the generations (二十六世) each band is given its own; a label
+    the reader garbled is made up from its neighbours.
+    """
+    shifts = _aligned(spread)
+
+    def where(box):
+        middle_x, middle_y = box['x'] + box['w'] / 2, box['y'] + box['h'] / 2
+        for index, one in enumerate(spread):
+            if one['x0'] <= middle_x < one['x1']:
+                return index, _above(one['lines'], middle_x, middle_y) + shifts[index]
+        return None, None
+
+    labels, grouped = [], {}
+    for box in boxes:
+        text = re.sub(r'\s', '', box['text'])
+        side, band = where(box)
+        if side is None:
+            continue
+        # The margin: generation labels, page numbers, the book's own title.
+        if GENERATION_LABEL.match(text):
+            generation = _generation(text)
+            if generation:
+                labels.append((band, generation))
+            continue
+        if re.fullmatch(r'[0-9]+', text) or _margin(box):
+            continue
+        grouped.setdefault(band, []).append(box)
+    offsets = sorted(generation - band for band, generation in labels)
+    offset = offsets[len(offsets) // 2] if offsets else None
+
+    people, count = [], 0
+    for band in sorted(grouped):
+        ordered = columns(grouped[band])
+        stream, starts = '', set()
+        for box in ordered:
+            starts.add(len(stream))
+            stream += box['text']
+        found = _entries(stream, surname, starts)
+        if not found:
+            continue
+        worst = min(box['score'] for box in ordered)
+        for person in found:
+            person['band'] = count
+            person['score'] = round(worst, 2)
+            if offset is not None:
+                person['generation'] = band + offset
+            people.append(person)
+        count += 1
+    return people, count

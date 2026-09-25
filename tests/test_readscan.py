@@ -53,7 +53,7 @@ def test_what_does_not_open_an_entry():
 
 def test_a_name_stops_where_the_name_stops():
     # The small 字 note that follows a name is read as more characters.
-    assert r._entries('子鐘煥吾鬥一九五四年甲午五月二十九日生', '金')[0]['hanja_name'] == '金鐘煥'
+    assert r._entries('子鐘煥吾鬥一九五四年甲午五月二十九日生', '金')[0]['hanja_name'] == '金鍾煥'
     # 朴 is a surname in its own right; the simplified table turns it into 樸.
     assert r._entries('配密陽樸氏順南', '金')[0]['hanja_name'] == '朴順南'
 
@@ -115,3 +115,49 @@ def test_misreads_no_name_or_본관_would_carry():
     # 摩州 is no 본관; 慶州 is one character away, and nothing else is.
     assert r._entries('配摩州崔氏三順', '金')[0]['bon_gwan'] == '慶州'
     assert r._entries('配天安全氏京愛', '金')[0]['bon_gwan'] == '天安'
+
+
+def test_what_only_the_head_of_a_column_can_open():
+    # With the boxes' beginnings known, an entry opens only at the head of one:
+    # 東國(동국)女 names a spouse's father, and the sons a daughter's entry lists
+    # after her husband (子柄) belong to his line.
+    stream = '配天安全氏京愛（社潔明東國（子）女一九五六年丙申七月二十七日生' + '女金震填瑞興（）人寒暄堂宏弼後子' + '柄'
+    starts = {0, stream.index('女金震'), len(stream) - 1}
+    read = r._entries(stream, '金', starts)
+    assert [one['hanja_name'] for one in read] == ['全京愛', '金氏']
+    assert read[0]['birth_date'] == '1956-07-27'
+    assert read[0]['note'] == '父 東國(확인 필요)'
+    # An older book names a daughter by her husband and his 본관.
+    assert read[1]['note'] == '사위 金震埴(瑞興人) · 딸 이름 미기재'
+
+
+def test_a_date_is_not_a_name():
+    # (지한)女 一九二四年: the reader's 女 before a year is no daughter named 一九.
+    assert r._entries('女一九二四年甲子八月一日生', '金') == []
+
+
+def test_a_name_may_end_in_子():
+    assert r._entries('配金海金氏英子（召', '金')[0]['hanja_name'] == '金英子'
+    # …but a 子 with a name after it opens the next entry.
+    assert [one['hanja_name'] for one in r._entries('配金寧金氏美蘭子起煥', '金')] == ['金美蘭', '金起煥']
+
+
+def test_the_margin_names_the_generation():
+    assert r._generation('二十六世') == 26
+    assert r._generation('三十一世') == 31
+    assert r._generation('九世') == 9
+    assert r._generation('十川') is None
+    assert r.GENERATION_LABEL.match('庫一十川')
+
+
+def test_the_two_pages_of_a_spread_are_read_as_one_row():
+    # Where the pages meet, each row's rule on the left meets its rule on the
+    # right, even when one page shows a rule the other lost.
+    left = {'x0': 0, 'x1': 100, 'lines': [{'slope': 0.0, 'base': y} for y in (100, 400, 700)]}
+    right = {'x0': 100, 'x1': 200, 'lines': [{'slope': 0.0, 'base': y} for y in (-150, 105, 395, 705)]}
+    assert r._aligned([left, right]) == [1, 0]
+
+
+def test_a_spouse_whose_본관_lost_a_character_is_still_proposed():
+    read = r._entries('配金金氏美蘭一九六〇年庚子一月十一日生', '金')[0]
+    assert (read['hanja_name'], read['bon_gwan'], read['birth_date']) == ('金美蘭', '', '1960-01-11')

@@ -1836,16 +1836,23 @@ $('#scanRead').onclick=async()=>{
   note.textContent='판독 결과 없음 — 더 선명한 이미지 또는 직접 입력';
   return;
  }
+ // Where the margin names each band's generation (二十六世), the page says it;
+ // otherwise the bands count on from the first generation typed above.
+ const labelled=people.some(person=>person.generation);
+ if(labelled)$('#scanFirstGeneration').value=Math.min(...people.filter(person=>person.generation).map(person=>person.generation));
  const first=Number($('#scanFirstGeneration').value)||1;
  $('#scanList').innerHTML='';
  scanRowSeq=0;
  for(const person of people){
   const row=scanAddRow();
-  scanFillRow(row,person,Math.min(200,first+(person.band||0)));
+  scanFillRow(row,person,Math.min(200,person.generation||first+(person.band||0)));
  }
  const doubted=people.filter(person=>person.ganji_agrees===false).length;
+ const nameless=people.filter(person=>!person.hanja_name).length;
  note.textContent=`판독 ${people.length}명 · 원본 대조 후 등록 — 목판 인쇄는 누락·오독 있음`
-  +(doubted?` · 간지 불일치 ${doubted}줄(붉은 줄)`:' · 간지 전수 일치');
+  +(labelled?' · 세대는 여백의 世 표기 기준':'')
+  +(doubted?` · 간지 불일치 ${doubted}줄(붉은 줄)`:' · 간지 전수 일치')
+  +(nameless?` · 이름 판독 안 됨 ${nameless}줄 — 이름 입력 필요`:'');
  paintScanCount();
 };
 
