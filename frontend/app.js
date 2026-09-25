@@ -1818,13 +1818,17 @@ $('#scanSave').onclick=async()=>{
    gender:get('gender').value,birth_date:get('birth_date').value,
    death_date:get('death_date').value,note:get('note').value.trim(),
    ...(fillId?{id:fillId}:{}),
-   family:line.row.dataset.family==='1'?1:0
+   family:line.row.dataset.family==='1'?1:0,
+   key:line.row.dataset.key,spouse:line.row.dataset.spouse
   });
  }
  const target=scanFamilyTarget();
  const apart=target==='same'?[]:people.filter(person=>person.family===1);
  const here=people.filter(person=>target==='same'||person.family!==1);
- for(const person of people)delete person.family;
+ // The key and spouse ride along only as far as the save; the record has no
+ // place for them.
+ const pairing=new Map(people.map(person=>[person,{key:person.key,spouse:person.spouse}]));
+ for(const person of people){delete person.family;delete person.key;delete person.spouse;}
  const fresh=here.filter(person=>!person.id),refined=here.filter(person=>person.id);
  const lineage=scanFamilyLineage(apart);
  const picked=target.startsWith('book:')?$('#bookSelect').querySelector(`option[value="${target.slice(5)}"]`):null;
@@ -1836,10 +1840,22 @@ $('#scanSave').onclick=async()=>{
   +(apart.length&&target!=='skip'?`\n\n다른 가족 ${apart.length}명 — ${elsewhere}에 등록\n${apart.map(person=>person.korean_name).join(', ')}`:'')
   +(apart.length&&target==='skip'?`\n\n다른 가족 ${apart.length}명 — 등록하지 않음`:'')
   +(refined.length?'\n\n업데이트 — 빈칸·미상만 채움 · 기재된 값과 세대는 유지':'')
-  +'\n\n가족 관계는 반영 후 [가족 추가]에서 지정';
+  +'\n\n배우자(配·夫)는 함께 연결 · 부모·자녀 관계는 반영 후 [가족 추가]에서 지정';
  if(!await ask(question,'반영'))return;
  try{
   const done=here.length?await busy($('#scanSave'),'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people:here})):{added:[],filled:[]};
+  // Each line's record, by its key: a new one takes the next id the save
+  // handed back, a line that updated someone keeps theirs.
+  const filed=new Map();
+  const note=(lines,added,where)=>{
+   let next=0;
+   for(const person of lines){
+    const id=person.id||added[next++];
+    const {key}=pairing.get(person);
+    if(id&&key!=='')filed.set(key,{id,where});
+   }
+  };
+  note(here,done.added||[],book.id);
   let apartDone=0;
   if(apart.length&&target!=='skip'){
    let other=Number(target.slice(5))||0;
@@ -1851,8 +1867,21 @@ $('#scanSave').onclick=async()=>{
     other=(await api('/books','POST',{...values,title:`${book.title} (${lineage} 계통)`,lineage,
      description:`「${book.title}」${book.page?` ${book.page}쪽`:''} 판독에서 나뉜 가족 — ${lineage} 계통`})).id;
    }
-   await busy($('#scanSave'),'반영 중…',()=>api('/books/'+other+'/persons/bulk','POST',{people:apart}));
+   const across=await busy($('#scanSave'),'반영 중…',()=>api('/books/'+other+'/persons/bulk','POST',{people:apart}));
+   note(apart,across.added||[],other);
    apartDone=apart.length;
+  }
+  // Spouses the page names are joined now. A pair split across books, or one of
+  // whom was left out, is not; one already joined is left as it is.
+  let joined=0;
+  for(const [person,{key,spouse}] of pairing){
+   if(spouse===''||spouse===undefined||!filed.has(key)||!filed.has(spouse))continue;
+   const one=filed.get(key),other=filed.get(spouse);
+   if(one.where!==other.where)continue;
+   // Only the one who married in names a partner: the line member is the
+   // source, the spouse the target.
+   try{await api('/relations','POST',{source_id:other.id,target_id:one.id,kind:'spouse'});joined++;}
+   catch{}
   }
   $('#scanDialog').close();
   $('#search').value='';
@@ -1863,7 +1892,8 @@ $('#scanSave').onclick=async()=>{
    touched?`업데이트 ${touched}명`:'',
    untouched?`변경 없음 ${untouched}명`:'',
    apartDone?`다른 가족 ${apartDone}명 — ${elsewhere}`:'',
-   '가족 관계는 [가족 추가]에서 지정'].filter(Boolean).join(' · '));
+   joined?`배우자 ${joined}쌍 연결`:'',
+   '부모·자녀 관계는 [가족 추가]에서 지정'].filter(Boolean).join(' · '));
  }catch(err){scanError(err.message);}
 };
 
@@ -1886,6 +1916,10 @@ function scanFillRow(row,person,generation){
  get('note').value=person.note||'';
  // A year and its 간지 that disagree mean one of the two was misread.
  row.classList.toggle('doubted',person.ganji_agrees===false);
+ // Who this line married, as the page says (配 after a son, 夫 in a daughter's
+ // entry), so the two are joined when the page is filed.
+ row.dataset.key=person.key??'';
+ row.dataset.spouse=person.spouse??'';
  row.title=person.ganji_agrees===false?'간지 불일치 — 원본 대조 필요':'';
  paintScanMatch(row);
 }

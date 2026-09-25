@@ -96,8 +96,12 @@ def test_what_a_spouse_and_a_daughter_bring():
 
     # A daughter's son belongs to her husband's line, not this book's.
     band = r._entries('女點先夫諸葛芝奉（제갈지봉）子柄律子相錫一九二一年辛酉十二月二十六日生', '金')
-    assert [one['hanja_name'] for one in band] == ['金点先', '金相錫']
+    assert [one['hanja_name'] for one in band] == ['金点先', '諸葛芝奉', '金相錫']
     assert band[0]['note'] == '夫 諸葛芝奉 · 子 柄律'
+    # Her husband is proposed after her, to be filed as her spouse.
+    assert (band[1]['gender'], band[1]['married_in'], band[1]['note']) == ('남', True, '女 金点先의 夫')
+    husband = r._entries('女順熙一九五二年壬辰二月二十九日生夫金熙旋（김희선）瑞興（서흥）人父學龍（학룡）子東炫', '金')[1]
+    assert (husband['hanja_name'], husband['bon_gwan'], husband['note']) == ('金熙旋', '瑞興', '女 金順熙의 夫 · 父 學龍')
 
 
 def test_columns_are_read_right_to_left_and_down():
@@ -178,3 +182,22 @@ def test_a_family_that_starts_on_the_left_page_is_set_apart():
     assert [(p['hanja_name'], p['family']) for p in people] == [
         ('金鍾煥', 0), ('金壯純', 0), ('金順熙', 0), ('', 0),
         ('金氏', 1), ('金鎭元', 1), ('金鍾煥', 1)]
+
+
+def test_a_second_birth_is_someone_the_reader_lost():
+    read = r._entries('配晉州姜氏熙善一九八七年丁卯六月三日生一九九二年壬申六月四日生', '金')
+    assert [(one['hanja_name'], one['birth_date']) for one in read] == [
+        ('', '1992-06-04'), ('姜熙善', '1987-06-03')]
+    assert read[0]['note'] == '이름 판독 안 됨'
+    assert read[1]['note'] == ''
+
+
+def test_spouses_are_paired_from_the_page():
+    # 配 is the wife of the son before her, even one whose name was missed; a
+    # daughter's 夫 is her husband.
+    stream = ('女曹賢永夏山（處)人初名泰東一九○○年庚子八月十八日生' + '配星州李氏斗來'
+              + '女順熙一九五二年壬辰二月二十九日生夫金熙旋（）瑞興（）人')
+    read = r._paired(r._entries(stream, '金', {0, stream.index('配'), stream.index('女順')}))
+    names = [one['hanja_name'] for one in read]
+    pairs = {names[i]: names[one['spouse']] for i, one in enumerate(read) if one['spouse'] is not None}
+    assert pairs == {'李斗來': '', '金熙旋': '金順熙'}

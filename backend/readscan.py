@@ -189,26 +189,70 @@ def rules(image):
     return sorted(found, key=lambda line: line[1] + line[0] * width / 2)
 
 
-def _horizontal(ink, x0, x1, keep):
-    """Long runs of ink across [x0, x1): each as its slope, height, and extent."""
+def _curves(ink, x0, x1, span, scale):
+    """The rules across [x0, x1), each followed as far as it runs unbroken.
+
+    A photo of an open book bends every rule, and more toward the spine; a thin
+    rule printed pale breaks into short runs wherever it tilts. Each run is taken
+    on its own and joined to the next where it carries on almost without a gap,
+    as a rule does and the strokes of a line of characters, broken by the blank
+    between columns, do not. Characters sitting on a rule join it, so a run is
+    allowed some height. What is found is a curve: a gentle bow, not a line.
+    """
     import cv2
     import numpy
     part = ink[:, x0:x1]
-    width = x1 - x0
-    opened = cv2.morphologyEx(part, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (max(20, width // 25), 1)))
-    joined = cv2.dilate(opened, cv2.getStructuringElement(cv2.MORPH_RECT, (max(3, width // 20), 7)))
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(joined)
-    found = []
+    length = max(20, scale // 60)
+    opened = cv2.morphologyEx(part, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (length, 1)))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(opened)
+    runs = []
     for label in range(1, count):
         x, y, w, h = stats[label][:4]
-        if w < width * keep or h > width * 0.12:
+        if w < length * 1.2 or h > scale * 0.04:
             continue
-        ys, xs = numpy.nonzero(opened[y:y + h, x:x + w] & (labels[y:y + h, x:x + w] == label))
-        if len(xs) < 2:
+        ys, xs = numpy.nonzero(labels[y:y + h, x:x + w] == label)
+        xs, ys = xs + x + x0, ys + y
+        left, right = xs < xs.min() + 20, xs > xs.max() - 20
+        runs.append({'x0': int(xs.min()), 'x1': int(xs.max()), 'xs': xs, 'ys': ys,
+                     'left': float(numpy.median(ys[left])), 'right': float(numpy.median(ys[right]))})
+    runs.sort(key=lambda run: run['x0'])
+    gap, rise = scale / 120, scale / 257
+    chains = []
+    for run in runs:
+        best = None
+        for chain in chains:
+            last = chain[-1]
+            apart = run['x0'] - last['x1']
+            if not -40 < apart < gap:
+                continue
+            slope = (last['right'] - last['left']) / max(1, last['x1'] - last['x0'])
+            miss = abs(last['right'] + slope * apart - run['left'])
+            if miss < rise and (best is None or miss < best[0]):
+                best = (miss, chain)
+        if best:
+            best[1].append(run)
+        else:
+            chains.append([run])
+    found = []
+    for chain in chains:
+        start, stop = chain[0]['x0'], max(run['x1'] for run in chain)
+        if stop - start < (x1 - x0) * span:
             continue
-        slope, base = numpy.polyfit(xs + x + x0, ys + y, 1)
-        found.append({'slope': float(slope), 'base': float(base), 'x0': int(x + x0), 'x1': int(x + w + x0)})
+        xs = numpy.concatenate([run['xs'] for run in chain])
+        ys = numpy.concatenate([run['ys'] for run in chain])
+        fit = numpy.polyfit(xs, ys, 2 if stop - start > scale * 0.1 else 1)
+        found.append({'fit': [float(value) for value in fit], 'x0': int(start), 'x1': int(stop)})
     return found
+
+
+def _y(line, x):
+    """The height of a rule at x."""
+    if 'fit' in line:
+        value = 0.0
+        for coefficient in line['fit']:
+            value = value * x + coefficient
+        return value
+    return line['base'] + line['slope'] * x
 
 
 def pages(image):
@@ -217,9 +261,8 @@ def pages(image):
     A book photographed open shows two pages whose rules stand at different
     heights, since the paper curls toward the spine. Taken together their bands
     run into one another, so the spread is cut at the gutter, where no rule
-    crosses, and each page keeps its own. A rule printed thin and tilted by the
-    curl breaks into short runs of ink, so strokes are thickened a little
-    upward first.
+    crosses, and each page keeps its own. A page too little of which is in the
+    photo to show a rule of its own is read by its neighbour's.
     """
     try:
         import cv2
@@ -229,20 +272,22 @@ def pages(image):
     gray = cv2.cvtColor(numpy.asarray(image), cv2.COLOR_RGB2GRAY)
     width = gray.shape[1]
     ink = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 31, 10)
-    ink = cv2.dilate(ink, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5)))
-    spans = [(line['x0'], line['x1']) for line in _horizontal(ink, 0, width, 0.15)]
+    # Thickened upward, so a rule tilted by the curl stays one run of ink.
+    ink = cv2.dilate(ink, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 11)))
     covered = numpy.zeros(width, int)
-    for start, end in spans:
-        covered[start:end] += 1
-    # The gutter: the widest stretch near the middle that far fewer rules cross
-    # than cross the pages. The edge of the cover or the table can still run
-    # the whole width under the book, so it is not asked to be crossed by none.
-    middle = covered[int(width * 0.3):int(width * 0.7)]
+    for line in _curves(ink, 0, width, 0.15, width):
+        covered[line['x0']:line['x1']] += 1
+    # The gutter: the widest stretch that far fewer rules cross than cross the
+    # pages. The edge of the cover or the table can still run the whole width
+    # under the book, so it is not asked to be crossed by none; and a photo may
+    # show one page whole and only a strip of the other, so it is looked for
+    # well off the middle.
+    low_end, high_end = int(width * 0.15), int(width * 0.85)
     cuts = [0, width]
-    if len(middle) and covered.max() >= 3:
-        low = middle.min()
+    if covered.max() >= 3:
+        low = covered[low_end:high_end].min()
         split, run, best = None, 0, 0
-        for x in range(int(width * 0.3), int(width * 0.7)):
+        for x in range(low_end, high_end):
             run = run + 1 if covered[x] == low else 0
             if run > best:
                 best, split = run, x - run // 2
@@ -250,15 +295,24 @@ def pages(image):
             cuts = [0, split, width]
     found = []
     for x0, x1 in zip(cuts, cuts[1:]):
-        lines = sorted(_horizontal(ink, x0, x1, 0.4), key=lambda line: line['base'] + line['slope'] * (x0 + x1) / 2)
+        lines = _curves(ink, x0, x1, 0.4, width)
+        lines.sort(key=lambda line: _y(line, (x0 + x1) / 2))
         if lines:
             found.append({'x0': x0, 'x1': x1, 'lines': lines})
+        elif found:
+            found[-1]['x1'] = x1
+    # A strip of a page with no rule of its own goes with the page beside it.
+    if found:
+        found[0]['x0'] = 0
+        found[-1]['x1'] = width
+        for left, right in zip(found, found[1:]):
+            left['x1'] = right['x0']
     return found
 
 
 def _above(lines, x, y):
     """How many of a page's rules pass above the point (x, y)."""
-    return sum(1 for line in lines if line['base'] + line['slope'] * x < y)
+    return sum(1 for line in lines if _y(line, x) < y)
 
 
 def _aligned(spread):
@@ -277,8 +331,8 @@ def _aligned(spread):
             shifts.append(0)
             continue
         at = page['x1']
-        here = [line['base'] + line['slope'] * at for line in page['lines']]
-        there = [line['base'] + line['slope'] * at for line in right['lines']]
+        here = [_y(line, at) for line in page['lines']]
+        there = [_y(line, at) for line in right['lines']]
         gaps = [b - a for a, b in zip(there, there[1:])] or [0]
         tolerance = sorted(gaps)[len(gaps) // 2] * 0.4
         pairs = []
@@ -465,6 +519,16 @@ def _marks(stream, starts=None):
             following = min((start for start in starts if start > index), default=len(stream))
             if not NAME_CHAR.search(stream[index + 1:following]):
                 continue
+            # (동국)女 at the head of a box is still a spouse's father named
+            # with her: the bracket before it says so.
+            if stream[head:index].rstrip().endswith(('）', ')')):
+                continue
+        # 女 一九五六年: a year where the name would be opens nothing, and
+        # cutting there would take the date from the entry it belongs to.
+        if char in '子女':
+            ahead = re.sub(r'\s', '', stream[index + 1:index + 3])
+            if ahead and all(one in DIGITS for one in ahead):
+                continue
         if char in '（(':
             inside = True
             continue
@@ -595,10 +659,33 @@ def _entries(stream, surname, starts=None):
                 continue
             bon_gwan = ''
             hanja = (surname + given) if surname else given
-        found = _dates(chunk)
+        found = every = _dates(chunk)
+        # A second birth in one entry is the next person's, whose name the
+        # reader missed (子亨純 lost, 一九九二年…生 left under the entry before).
+        # It is offered with the name blank rather than given to the wrong one.
+        births = [one for one in found if one['kind'] == '生']
+        stray = births[1:]
+        if stray:
+            found = [one for one in found if one['at'] < stray[0]['at']]
         birth = next((one for one in found if one['kind'] == '生'), None)
         death = next((one for one in found if one['kind'] == '卒'), None)
+        for one in stray:
+            people.append({
+                'hanja_name': '', 'gender': '미상', 'bon_gwan': '',
+                'birth_date': one['date'], 'death_date': '', 'married_in': False,
+                'ganji_agrees': one['agrees'], 'note': '이름 판독 안 됨',
+                'raw': chunk[one['at']:one['at'] + 80], 'at': start + one['at'],
+            })
+        entry = len(people)
+        # 配 is the spouse of the son just before: 子鍾煥 … 配 全京愛. A daughter
+        # has her 夫 instead, and a son whose name the reader missed is still
+        # the one she married.
+        partner = None
+        if marker == '配':
+            partner = next((one for one in reversed(people)
+                            if not one['married_in'] and one['gender'] != '여'), None)
         people.append({
+            '_partner': partner,
             'hanja_name': hanja,
             'gender': MARKERS[marker],
             'bon_gwan': bon_gwan,
@@ -606,10 +693,29 @@ def _entries(stream, surname, starts=None):
             'death_date': death['date'] if death else '',
             'married_in': marker == '配',
             'ganji_agrees': all(one['agrees'] for one in found) if found else None,
-            'note': _notes(chunk, found),
+            # Every dated span is known to the notes, the stray birth too, so
+            # it is not read a second time as a month and day alone.
+            'note': _notes(chunk, every),
             'raw': chunk[:80],
             'at': start,
         })
+        # A daughter's husband has no line of his own in the book; he is named in
+        # hers — 夫 金熙旋 瑞興人 父 學龍 — and is proposed after her, so he can
+        # be filed and joined to her as her spouse.
+        if marker == '女':
+            for match in HUSBAND.finditer(chunk):
+                husband = _fixed(match.group(1))
+                after = chunk[match.end():match.end() + 24]
+                home = re.match(r'\s*(?:[（(][^）)]*[）)]?)?\s*([㐀-鿿]{2})\s*(?:[（(][^）)人]*[）)]?)?\s*人', after)
+                father = re.search(r'人\s*父\s*([㐀-鿿]{2})', after)
+                people.insert(entry + 1, {
+                    '_partner': people[entry],
+                    'hanja_name': husband, 'gender': '남',
+                    'bon_gwan': _bon_gwan(home.group(1)) if home else '',
+                    'birth_date': '', 'death_date': '', 'married_in': True, 'ganji_agrees': None,
+                    'note': ' · '.join(['女 %s의 夫' % hanja] + (['父 ' + _fixed(father.group(1))] if father else [])),
+                    'raw': chunk[match.start():match.start() + 80], 'at': start,
+                })
     return people
 
 
@@ -639,7 +745,7 @@ def read(path, surname=''):
     if spread:
         people, count = _read_ruled(boxes, spread, surname)
         if people:
-            return {'people': people, 'bands': count, 'boxes': len(boxes)}
+            return {'people': _paired(people), 'bands': count, 'boxes': len(boxes)}
     people, lowest = [], {}
     for band in bands(boxes, lines=rules(page)):
         stream = ''.join(box['text'] for box in band)
@@ -654,7 +760,22 @@ def read(path, surname=''):
             person['score'] = round(worst, 2)
             people.append(person)
         lowest[index] = worst
-    return {'people': people, 'bands': len(lowest), 'boxes': len(boxes)}
+    return {'people': _paired(people), 'bands': len(lowest), 'boxes': len(boxes)}
+
+
+def _paired(people):
+    """Give each proposed person a key, and each spouse the key of the partner.
+
+    Spouses are known from the page itself — 配 follows the one married, 夫 is
+    named in the daughter's entry — so they can be joined when the page is
+    filed, rather than one by one afterwards.
+    """
+    keys = {id(person): index for index, person in enumerate(people)}
+    for index, person in enumerate(people):
+        partner = person.pop('_partner', None)
+        person['key'] = index
+        person['spouse'] = keys.get(id(partner)) if partner is not None else None
+    return people
 
 
 def _read_ruled(boxes, spread, surname):
@@ -676,8 +797,13 @@ def _read_ruled(boxes, spread, surname):
         return None, None
 
     labels, grouped = [], {}
+    edge = max((one['x1'] for one in spread), default=0)
     for box in boxes:
         text = re.sub(r'\s', '', box['text'])
+        # A column the photo cuts off at its edge is only part read: 女金震埴
+        # comes back as 女金司.
+        if box['x'] <= 2 or box['x'] + box['w'] >= edge - 2:
+            continue
         side, band = where(box)
         if side is None:
             continue
