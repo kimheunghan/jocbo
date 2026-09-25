@@ -283,3 +283,22 @@ def test_a_date_is_kept_as_far_as_it_is_known(client):
     assert make('1956-03-02', '1956').status_code == 201
     assert make('1956', '1955-12-31').status_code == 422
     assert make('--09-19', '1900').status_code == 201
+
+
+def test_a_reading_adds_to_a_note_what_it_does_not_say_yet(client):
+    account(client)
+    bid = book(client)
+    pid = client.post(f'/api/books/{bid}/persons', json={
+        'korean_name': '김진영', 'hanja_name': '金珍英', 'generation': 31, 'note': '女 智恩(지은)·睿恩(예은)'}).json()['id']
+    done = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [{
+        'id': pid, 'korean_name': '김진영', 'hanja_name': '金珍英', 'generation': 31,
+        'note': '夫 金興漢(김흥한) 安東(안동)人 父 敬鎭(경진) · 女 智恩 · 睿恩'}]}).json()
+    assert 'note' in done['filled'][0]['fields']
+    note = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == pid)['note']
+    # What was there stays; only what it lacked is added, readings aside.
+    assert note == '女 智恩(지은)·睿恩(예은)\n夫 金興漢(김흥한) 安東(안동)人 父 敬鎭(경진)'
+    # Read again, nothing is added twice.
+    again = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [{
+        'id': pid, 'korean_name': '김진영', 'hanja_name': '金珍英', 'generation': 31,
+        'note': '夫 金興漢 安東人 父 敬鎭'}]}).json()
+    assert again['filled'][0]['fields'] == []

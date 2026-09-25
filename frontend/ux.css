@@ -1143,6 +1143,14 @@ body.view-full .frame-resizer {
   filter: brightness(.95);
 }
 
+/* 신규 등록 adds someone the book does not have, so it stands out from 업데이트:
+   solid green against the pale blue of a line that only fills blanks. */
+.scan-match button.scan-new:not(.scan-update) {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+
 .scan-row.saved {
   box-shadow: inset 4px 0 0 var(--green);
 }

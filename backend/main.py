@@ -251,6 +251,20 @@ def add_person(bid: int, data: Person, uid=Depends(auth)):
 # may fill these in; it may never write over something already there.
 BLANK = {'hanja_name': '', 'bon_gwan': '', 'birth_date': '', 'death_date': '', 'note': '', 'gender': '미상'}
 
+def merged_note(old, new):
+    """The note on record with the items of a new reading it lacks added on.
+
+    Items are the parts between · or on lines of their own. An item counts as
+    said already when, readings in brackets and spacing aside, the old note
+    holds it: 父 敬鎭 is in 父 敬鎭(경진).
+    """
+    import re
+    bare = lambda text: re.sub(r'[\s·]|[(（][^)）]*[)）]', '', text)
+    held = bare(old)
+    extra = [item.strip() for item in re.split(r'\s*·\s*|\n', new)
+             if item.strip() and bare(item) and bare(item) not in held]
+    return old + ''.join('\n' + item for item in extra) if extra else old
+
 @app.post('/api/books/{bid}/persons/bulk', status_code=201)
 def add_people(bid: int, data: PersonBatch, uid=Depends(auth)):
     # A page is read as a whole. One bad line must not leave half a page filed,
@@ -269,7 +283,13 @@ def add_people(bid: int, data: PersonBatch, uid=Depends(auth)):
             # 세대 and 한글명 are what the line was matched on, so a reading never
             # moves them; everything else is filled only where nothing was known.
             fill = {name: values[name] for name, blank in BLANK.items()
-                    if values.get(name) and row[name] == blank}
+                    if values.get(name) and values[name] != blank and row[name] == blank}
+            # A note already on record keeps all it says, and gains whatever the
+            # reading found that it does not say yet.
+            if values.get('note') and row['note'] and 'note' not in fill:
+                merged = merged_note(row['note'], values['note'])
+                if merged != row['note']:
+                    fill['note'] = merged
             if fill:
                 c.execute(persons.update().where(persons.c.id == line.id).values(**fill))
             filled.append({'id': line.id, 'fields': sorted(fill)})
