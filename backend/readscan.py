@@ -443,7 +443,9 @@ NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫',
                 # 鎭 loses its 眞 to 貨 and 磬 its 石 to 石 under 广.
                 '鎖': '鎭', '磨': '磬', '填': '埴',
                 # The table lengthens 斗 into 鬥, which no one is named.
-                '鬥': '斗'}
+                '鬥': '斗',
+                # 鎮 is 鎭 as China prints it; the book writes 鎭.
+                '鎮': '鎭'}
 # 본관 characters the reader mistakes for one of like shape: 摩州 is 慶州, both
 # under 广. A 본관 is a place, so these stand only where a place name does.
 BON_GWAN_MISREAD = {'摩': '慶', '麐': '慶', '晨': '晉', '青': '淸', '清': '淸', '倘': '尙', '尚': '尙', '寕': '寧', '寫': '寧'}
@@ -588,12 +590,29 @@ def _notes(chunk, dated):
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
         notes += ['父 ' + _fixed(name) for name in FATHER.findall(chunk)]
-    # 女 … 夫 諸葛芝奉 子 柄律: a daughter's husband, and her son of his line.
-    if chunk.startswith('女'):
-        notes += ['夫 ' + _fixed(name) for name in HUSBAND.findall(chunk)]
-        notes += ['子 ' + name for name in re.findall(r'夫[^子]*子\s*([㐀-鿿]{2})', chunk)]
     notes += _yearless(chunk, dated)
     return ' · '.join(notes)
+
+
+def _children(text):
+    """子 東炫 女 志娟, as a husband's entry lists them: each 子 or 女 with the
+    two-character names after it (女 智恩 睿恩 is two daughters). A date ends
+    the list, and the 子 of 庚子 is no son."""
+    plain = re.sub(r'[（(][^）)]*[）)]?', '', text)
+    cut = DATE_START.search(plain)
+    plain = plain[:cut.start()] if cut else plain
+    marks = [index for index, char in enumerate(plain) if char in '子女'
+             and not (char == '子' and index and plain[index - 1] in STEMS)]
+    out = []
+    for order, index in enumerate(marks):
+        end = marks[order + 1] if order + 1 < len(marks) else len(plain)
+        run = re.match(r'[㐀-鿿]+', plain[index + 1:end])
+        names = [run.group(0)[at:at + 2] for at in range(0, len(run.group(0)) - 1, 2)] if run else []
+        names = [_fixed(name) for name in names
+                 if not any(char in DIGITS or char in '年月日生卒' for char in name)]
+        if names:
+            out.append('%s %s' % (plain[index], ' · '.join(names)))
+    return out
 
 
 # 女 嚴柱華 寧越人: an older book names a daughter by her husband, his 본관
@@ -630,10 +649,20 @@ def _entries(stream, surname, starts=None):
             bon_gwan = ''
             hanja = (surname + '氏') if surname else ''
             found = _dates(chunk)
-            people.append({
+            daughter = {
                 'hanja_name': hanja, 'gender': '여', 'bon_gwan': '',
                 'birth_date': '', 'death_date': '', 'married_in': False, 'ganji_agrees': None,
-                'note': '사위 %s %s人 · 딸 이름 미기재' % (husband, _bon_gwan(home)),
+                'note': '딸 이름 미기재',
+                'raw': chunk[:80], 'at': start,
+            }
+            people.append(daughter)
+            # Her husband, named in her place, is proposed as her spouse, with
+            # his 본관 where it goes and their children in his note.
+            people.append({
+                '_partner': daughter,
+                'hanja_name': husband, 'gender': '남', 'bon_gwan': _bon_gwan(home),
+                'birth_date': '', 'death_date': '', 'married_in': True, 'ganji_agrees': None,
+                'note': ' · '.join(_children(chunk[SON_IN_LAW.match(chunk, 1).end():])),
                 'raw': chunk[:80], 'at': start,
             })
             # A date after the husband's 본관 is no part of her entry: it is what
@@ -696,8 +725,10 @@ def _entries(stream, surname, starts=None):
             'married_in': marker == '配',
             'ganji_agrees': all(one['agrees'] for one in found) if found else None,
             # Every dated span is known to the notes, the stray birth too, so
-            # it is not read a second time as a month and day alone.
-            'note': _notes(chunk, every),
+            # it is not read a second time as a month and day alone. A
+            # daughter's note is her own: her husband and their children go
+            # with him.
+            'note': _notes(chunk[:chunk.index('夫')] if marker == '女' and '夫' in chunk else chunk, every),
             'raw': chunk[:80],
             'at': start,
         })
@@ -710,12 +741,17 @@ def _entries(stream, surname, starts=None):
                 after = chunk[match.end():match.end() + 24]
                 home = re.match(r'\s*(?:[（(][^）)]*[）)]?)?\s*([㐀-鿿]{2})\s*(?:[（(][^）)人]*[）)]?)?\s*人', after)
                 father = re.search(r'人\s*父\s*([㐀-鿿]{2})', after)
+                # His name and 본관 have fields of their own and the marriage is
+                # the spouse link; his note is what is left: his father and
+                # their children.
+                rest = chunk[match.end() + (father.end() if father else 0):]
+                note = (['父 ' + _fixed(father.group(1))] if father else []) + _children(rest)
                 people.insert(entry + 1, {
                     '_partner': people[entry],
                     'hanja_name': husband, 'gender': '남',
                     'bon_gwan': _bon_gwan(home.group(1)) if home else '',
                     'birth_date': '', 'death_date': '', 'married_in': True, 'ganji_agrees': None,
-                    'note': ' · '.join(['女 %s의 夫' % hanja] + (['父 ' + _fixed(father.group(1))] if father else [])),
+                    'note': ' · '.join(note),
                     'raw': chunk[match.start():match.start() + 80], 'at': start,
                 })
     return people

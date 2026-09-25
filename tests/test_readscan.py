@@ -97,11 +97,16 @@ def test_what_a_spouse_and_a_daughter_bring():
     # A daughter's son belongs to her husband's line, not this book's.
     band = r._entries('女點先夫諸葛芝奉（제갈지봉）子柄律子相錫一九二一年辛酉十二月二十六日生', '金')
     assert [one['hanja_name'] for one in band] == ['金点先', '諸葛芝奉', '金相錫']
-    assert band[0]['note'] == '夫 諸葛芝奉 · 子 柄律'
-    # Her husband is proposed after her, to be filed as her spouse.
-    assert (band[1]['gender'], band[1]['married_in'], band[1]['note']) == ('남', True, '女 金点先의 夫')
-    husband = r._entries('女順熙一九五二年壬辰二月二十九日生夫金熙旋（김희선）瑞興（서흥）人父學龍（학룡）子東炫', '金')[1]
-    assert (husband['hanja_name'], husband['bon_gwan'], husband['note']) == ('金熙旋', '瑞興', '女 金順熙의 夫 · 父 學龍')
+    # Her husband is proposed after her, to be filed as her spouse; her note is
+    # hers, and what the page says of him and their children is his.
+    assert band[0]['note'] == ''
+    assert (band[1]['gender'], band[1]['married_in'], band[1]['note']) == ('남', True, '子 柄律')
+    # (Read as the page is, the entry one column long: its 女 志娟 is theirs.)
+    daughter, husband = r._entries('女順熙一九五二年壬辰二月二十九日生夫金熙旋（김희선）瑞興（서흥）人父學龍（학룡）子東炫女志娟', '金', {0})
+    assert daughter['note'] == ''
+    assert (husband['hanja_name'], husband['bon_gwan'], husband['note']) == ('金熙旋', '瑞興', '父 學龍 · 子 東炫 · 女 志娟')
+    # 女 智恩 睿恩 is two daughters.
+    assert r._entries('女珍英夫金興漢（김흥한）安東（안동）人父敬鎮（경진）女智恩睿恩', '金', {0})[1]['note'] == '父 敬鎭 · 女 智恩 · 睿恩'
 
 
 def test_columns_are_read_right_to_left_and_down():
@@ -128,7 +133,7 @@ def test_what_only_the_head_of_a_column_can_open():
     stream = '配天安全氏京愛（社潔明東國（子）女一九五六年丙申七月二十七日生' + '女金震填瑞興（）人寒暄堂宏弼後子' + '柄'
     starts = {0, stream.index('女金震'), len(stream) - 1}
     read = r._entries(stream, '金', starts)
-    assert [one['hanja_name'] for one in read] == ['全京愛', '金氏']
+    assert [one['hanja_name'] for one in read] == ['全京愛', '金氏', '金震埴']
     assert read[0]['birth_date'] == '1956-07-27'
     # 東國 runs into the noise the hangul before him became, so he is left out
     # rather than read wrong; one set clear between brackets is kept.
@@ -137,8 +142,10 @@ def test_what_only_the_head_of_a_column_can_open():
     assert clear['note'] == '父 東國'
     assert r._entries('配金寫金氏美蘭（可相（女一九六〇年庚子一月十一日生', '金')[0]['note'] == ''
     assert r._entries('配金寫金氏美蘭', '金')[0]['bon_gwan'] == '金寧'
-    # An older book names a daughter by her husband and his 본관.
-    assert read[1]['note'] == '사위 金震埴 瑞興人 · 딸 이름 미기재'
+    # An older book names a daughter by her husband and his 본관: she is
+    # proposed without a name of her own, he as her spouse with his 본관.
+    assert read[1]['note'] == '딸 이름 미기재'
+    assert (read[2]['gender'], read[2]['bon_gwan'], read[2]['married_in']) == ('남', '瑞興', True)
 
 
 def test_a_date_is_not_a_name():
@@ -206,4 +213,4 @@ def test_spouses_are_paired_from_the_page():
     read = r._paired(r._entries(stream, '金', {0, stream.index('配'), stream.index('女順')}))
     names = [one['hanja_name'] for one in read]
     pairs = {names[i]: names[one['spouse']] for i, one in enumerate(read) if one['spouse'] is not None}
-    assert pairs == {'李斗來': '', '金熙旋': '金順熙'}
+    assert pairs == {'曺賢永': '金氏', '李斗來': '', '金熙旋': '金順熙'}
