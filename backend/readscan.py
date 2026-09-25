@@ -568,7 +568,7 @@ def _entries(stream, surname, starts=None):
                 'hanja_name': hanja, 'gender': '여', 'bon_gwan': '',
                 'birth_date': '', 'death_date': '', 'married_in': False, 'ganji_agrees': None,
                 'note': '사위 %s(%s人) · 딸 이름 미기재' % (husband, _bon_gwan(home)),
-                'raw': chunk[:80],
+                'raw': chunk[:80], 'at': start,
             })
             # A date after the husband's 본관 is no part of her entry: it is what
             # is left of the next one, whose name the reader missed. It is
@@ -584,7 +584,7 @@ def _entries(stream, surname, starts=None):
                     'birth_date': birth['date'] if birth else '', 'death_date': death['date'] if death else '',
                     'married_in': False, 'ganji_agrees': all(one['agrees'] for one in left),
                     'note': '이름 판독 안 됨' + (' · ' + notes if notes else ''),
-                    'raw': rest[:80],
+                    'raw': rest[:80], 'at': start + SON_IN_LAW.match(chunk, 1).end(),
                 })
             continue
         else:
@@ -608,6 +608,7 @@ def _entries(stream, surname, starts=None):
             'ganji_agrees': all(one['agrees'] for one in found) if found else None,
             'note': _notes(chunk, found),
             'raw': chunk[:80],
+            'at': start,
         })
     return people
 
@@ -695,19 +696,57 @@ def _read_ruled(boxes, spread, surname):
     people, count = [], 0
     for band in sorted(grouped):
         ordered = columns(grouped[band])
-        stream, starts = '', set()
+        stream, starts, heads = '', set(), []
         for box in ordered:
             starts.add(len(stream))
+            heads.append((len(stream), box))
             stream += box['text']
         found = _entries(stream, surname, starts)
         if not found:
             continue
         worst = min(box['score'] for box in ordered)
         for person in found:
+            at = person.pop('at', 0)
+            box = max((one for one in heads if one[0] <= at), key=lambda one: one[0])[1]
+            person['_box'] = box
+            person['_side'] = where(box)[0]
             person['band'] = count
             person['score'] = round(worst, 2)
             if offset is not None:
                 person['generation'] = band + offset
             people.append(person)
         count += 1
+    _families(people, len(spread) - 1)
+    for person in people:
+        del person['_box'], person['_side']
     return people, count
+
+
+def _families(people, right):
+    """Tell the family carried over from the right-hand page from one that starts.
+
+    A spread goes on with the family the right page began and, somewhere on the
+    left page, starts another. A person on the left page of an older generation
+    than any on the right cannot be a descendant of the family being carried
+    on, so it opens the next one; the columns of that family reach no further
+    right than its right-most such person. Everyone to the left of that edge is
+    of the new family, 30世 or not, and everyone to the right of it goes on with
+    the old — as does the entry that runs over the gutter.
+    """
+    for person in people:
+        person['family'] = 0
+    named = [person for person in people if person.get('generation') and person['hanja_name']]
+    carried = [person['generation'] for person in named if person['_side'] == right]
+    if not carried:
+        return
+    top = min(carried)
+    older = [person for person in named if person['_side'] != right and person['generation'] < top]
+    if not older:
+        return
+    edge = max(person['_box']['x'] + person['_box']['w'] for person in older)
+    for person in people:
+        box = person['_box']
+        if person['_side'] != right and box['x'] + box['w'] / 2 < edge:
+            person['family'] = 1
+    # The page is read family by family: the one carried on, then the new one.
+    people.sort(key=lambda person: person['family'])

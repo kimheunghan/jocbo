@@ -1111,6 +1111,34 @@ body.view-full .frame-resizer {
   color: #fff;
 }
 
+/* The rule a new family starts under, as the book draws between two lines. */
+.scan-family {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 18px 0 10px;
+  padding: 10px 14px;
+  border-top: 3px solid #b3322b;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: #fbf0ee;
+  font-size: 13px;
+}
+
+.scan-family strong {
+  color: #b3322b;
+}
+
+.scan-family span {
+  flex: 1 1 260px;
+  color: var(--ink-soft);
+}
+
+/* Lines that will not be filed are dimmed, not removed. */
+.scan-family.skipped ~ .scan-row {
+  opacity: .45;
+}
+
 /* Not a choice, only what saving this line will do. */
 .scan-match .scan-new {
   padding: 3px 9px;

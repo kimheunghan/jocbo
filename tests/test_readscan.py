@@ -161,3 +161,20 @@ def test_the_two_pages_of_a_spread_are_read_as_one_row():
 def test_a_spouse_whose_본관_lost_a_character_is_still_proposed():
     read = r._entries('配金金氏美蘭一九六〇年庚子一月十一日生', '金')[0]
     assert (read['hanja_name'], read['bon_gwan'], read['birth_date']) == ('金美蘭', '', '1960-01-11')
+
+
+def test_a_family_that_starts_on_the_left_page_is_set_apart():
+    # The right page (side 1) carries 30世 and 31世 on. On the left page (side 0)
+    # 鎭元 of 27世 and his daughter of 28世 are older than any of them, so a new
+    # family starts; its 30世 grandson to their left is of it, while the entry
+    # that ran over the gutter, right of that family's edge, stays with the old.
+    def one(name, generation, side, x):
+        return {'hanja_name': name, 'generation': generation, '_side': side,
+                '_box': {'x': x, 'w': 80}}
+    people = [one('金鍾煥', 30, 1, 3200), one('金壯純', 31, 1, 3280),
+              one('金順熙', 30, 1, 1930), one('', 30, 0, 1500),
+              one('金氏', 28, 0, 1255), one('金鎭元', 27, 0, 470), one('金鍾煥', 30, 0, 355)]
+    r._families(people, 1)
+    assert [(p['hanja_name'], p['family']) for p in people] == [
+        ('金鍾煥', 0), ('金壯純', 0), ('金順熙', 0), ('', 0),
+        ('金氏', 1), ('金鎭元', 1), ('金鍾煥', 1)]

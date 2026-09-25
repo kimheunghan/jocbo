@@ -1545,6 +1545,7 @@ function scanAddRow(){
  const generation=last?(scanRowFields(last)('generation').value||1):1;
  $('#scanList').insertAdjacentHTML('beforeend',scanRowHTML(++scanRowSeq,generation));
  const added=$('#scanList').lastElementChild;
+ if($('#scanFamily'))added.dataset.family='1';
  for(const native of added.querySelectorAll('input[type="date"]'))upgradeDateInput(native);
  scanRowFields(added)('bon_gwan').value=book?dialogScriptText(book.bon_gwan||''):'';
  bindScanRow(added);
@@ -1585,6 +1586,9 @@ const SCAN_FILLABLE=[['hanja_name','','한자명'],['bon_gwan','','본관'],
 // in rather than quietly making a double.
 function scanMatch(row){
  if(!book)return null;
+ // A family read off the same spread but not of this book's line is not matched
+ // against it: its 金鍾煥 is another man than this book's 金鍾煥.
+ if(row.dataset.family==='1'&&scanFamilyTarget()!=='same')return null;
  const get=scanRowFields(row);
  const korean=get('korean_name').value.trim(),hanja=get('hanja_name').value.trim();
  if(!korean&&!hanja)return null;
@@ -1750,6 +1754,45 @@ $('#scanDelete').onclick=async()=>{
   paintScanList();
  }catch(err){scanError(err.message);}
 };
+// ── 다른 가족 ─────────────────────────────
+// A spread carries this book's family on from the right-hand page and may start
+// another family on the left. That family is set apart under a rule of its own
+// and goes, by default, into a book (계통) of its own rather than into this one.
+function scanFamilyHTML(people){
+ const others=people.filter(person=>person.family===1&&person.hanja_name&&person.generation);
+ const top=others.reduce((best,person)=>!best||person.generation<best.generation?person:best,null);
+ const books=[...$('#bookSelect').options].filter(option=>Number(option.value)!==book.id)
+  .map(option=>`<option value="book:${option.value}">${esc(option.textContent)}에 등록</option>`).join('');
+ return `<div class="scan-family" id="scanFamily">
+  <strong>여기부터 다른 가족</strong>
+  <span>${top?`${top.generation}世 ${esc(top.hanja_name)}부터 · `:''}앞 가족보다 윗세대에서 새로 시작하는 계통 — 이 족보의 가족과 섞지 않음</span>
+  <label>등록할 곳<select id="scanFamilyTarget">
+   <option value="new">새 족보(계통)로 따로 만들기</option>
+   <option value="same">이 족보에 함께 등록</option>
+   <option value="skip">등록하지 않음</option>${books}
+  </select></label>
+ </div>`;
+}
+function scanFamilyTarget(){
+ const select=$('#scanFamilyTarget');
+ return select?select.value:'same';
+}
+function bindScanFamily(){
+ const select=$('#scanFamilyTarget');
+ if(!select)return;
+ select.onchange=()=>{
+  for(const row of document.querySelectorAll('.scan-row[data-family="1"]'))paintScanMatch(row);
+  $('#scanFamily').classList.toggle('skipped',select.value==='skip');
+ };
+}
+// The given name of the new family's eldest, which the new book is traced from.
+function scanFamilyLineage(people){
+ const top=people.reduce((best,person)=>!best||person.generation<best.generation?person:best,null);
+ if(!top)return '';
+ const name=top.hanja_name||top.korean_name;
+ const surname=(book.clan_name||'').replace(/[氏씨\s]/g,'')[0];
+ return surname&&name.length>2&&name[0]===surname?name.slice(1):name;
+}
 $('#scanSave').onclick=async()=>{
  scanError();
  const written=scanLines().filter(line=>line.korean||line.hanja);
@@ -1774,27 +1817,52 @@ $('#scanSave').onclick=async()=>{
    bon_gwan:get('bon_gwan').value.trim(),generation,
    gender:get('gender').value,birth_date:get('birth_date').value,
    death_date:get('death_date').value,note:get('note').value.trim(),
-   ...(fillId?{id:fillId}:{})
+   ...(fillId?{id:fillId}:{}),
+   family:line.row.dataset.family==='1'?1:0
   });
  }
- const fresh=people.filter(person=>!person.id),refined=people.filter(person=>person.id);
+ const target=scanFamilyTarget();
+ const apart=target==='same'?[]:people.filter(person=>person.family===1);
+ const here=people.filter(person=>target==='same'||person.family!==1);
+ for(const person of people)delete person.family;
+ const fresh=here.filter(person=>!person.id),refined=here.filter(person=>person.id);
+ const lineage=scanFamilyLineage(apart);
+ const picked=target.startsWith('book:')?$('#bookSelect').querySelector(`option[value="${target.slice(5)}"]`):null;
+ const elsewhere=target==='new'?`새 족보 「${book.title} (${lineage} 계통)」`:picked?`「${picked.textContent}」`:'';
  const lines=[];
  if(fresh.length)lines.push(`신규·별도 등록 ${fresh.length}명 — ${fresh.map(person=>person.korean_name).join(', ')}`);
  if(refined.length)lines.push(`업데이트 ${refined.length}명 — ${refined.map(person=>person.korean_name).join(', ')}`);
- const question=`「${book.title}」에 ${people.length}줄 반영\n\n${lines.join('\n')}`
+ const question=`「${book.title}」에 ${here.length}줄 반영\n\n${lines.join('\n')}`
+  +(apart.length&&target!=='skip'?`\n\n다른 가족 ${apart.length}명 — ${elsewhere}에 등록\n${apart.map(person=>person.korean_name).join(', ')}`:'')
+  +(apart.length&&target==='skip'?`\n\n다른 가족 ${apart.length}명 — 등록하지 않음`:'')
   +(refined.length?'\n\n업데이트 — 빈칸·미상만 채움 · 기재된 값과 세대는 유지':'')
   +'\n\n가족 관계는 반영 후 [가족 추가]에서 지정';
  if(!await ask(question,'반영'))return;
  try{
-  const done=await busy($('#scanSave'),'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people}));
+  const done=here.length?await busy($('#scanSave'),'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people:here})):{added:[],filled:[]};
+  let apartDone=0;
+  if(apart.length&&target!=='skip'){
+   let other=Number(target.slice(5))||0;
+   if(target==='new'){
+    // The new book keeps this one's clan, 본관, 파, 권, 쪽 and 시조; only its
+    // 계통 — the eldest of the family it holds — is its own.
+    const keep=['clan_name','bon_gwan','branch_name','volume','page','founder'];
+    const values=Object.fromEntries(keep.map(name=>[name,book[name]||'']));
+    other=(await api('/books','POST',{...values,title:`${book.title} (${lineage} 계통)`,lineage,
+     description:`「${book.title}」${book.page?` ${book.page}쪽`:''} 판독에서 나뉜 가족 — ${lineage} 계통`})).id;
+   }
+   await busy($('#scanSave'),'반영 중…',()=>api('/books/'+other+'/persons/bulk','POST',{people:apart}));
+   apartDone=apart.length;
+  }
   $('#scanDialog').close();
   $('#search').value='';
-  await refresh();
+  await loadBooks(book.id);
   const touched=(done.filled||[]).filter(one=>one.fields.length).length;
   const untouched=(done.filled||[]).length-touched;
   message([`신규·별도 등록 ${(done.added||[]).length}명`,
    touched?`업데이트 ${touched}명`:'',
    untouched?`변경 없음 ${untouched}명`:'',
+   apartDone?`다른 가족 ${apartDone}명 — ${elsewhere}`:'',
    '가족 관계는 [가족 추가]에서 지정'].filter(Boolean).join(' · '));
  }catch(err){scanError(err.message);}
 };
@@ -1844,9 +1912,11 @@ $('#scanRead').onclick=async()=>{
  $('#scanList').innerHTML='';
  scanRowSeq=0;
  for(const person of people){
+  if(person.family===1&&!$('#scanFamily'))$('#scanList').insertAdjacentHTML('beforeend',scanFamilyHTML(people));
   const row=scanAddRow();
   scanFillRow(row,person,Math.min(200,person.generation||first+(person.band||0)));
  }
+ bindScanFamily();
  const doubted=people.filter(person=>person.ganji_agrees===false).length;
  const nameless=people.filter(person=>!person.hanja_name).length;
  note.textContent=`판독 ${people.length}명 · 원본 대조 후 등록 — 목판 인쇄는 누락·오독 있음`
