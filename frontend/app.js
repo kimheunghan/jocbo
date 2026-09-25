@@ -2149,6 +2149,19 @@ async function readScan(engine,button,waiting){
  // otherwise the bands count on from the first generation typed above.
  const labelled=people.some(person=>person.generation);
  if(labelled)$('#scanFirstGeneration').value=Math.min(...people.filter(person=>person.generation).map(person=>person.generation));
+ // Where the margin's 世 could not be read, a son headed by his forebears
+ // (芝淑 相錫 正煥 over 澈純) still tells it: his father 正煥 is in the book at
+ // 30世, so the son's band is 31世 and the bands above and below follow.
+ let traced=null;
+ if(!labelled){
+  const surname=clanSurname().hanja;
+  for(const person of people){
+   const father=(person.forebears||[]).slice(-1)[0];
+   if(!father)continue;
+   const known=book.persons.find(one=>one.hanja_name===surname+father||one.hanja_name===father);
+   if(known){traced={person,father:known};$('#scanFirstGeneration').value=known.generation+1-(person.band||0);break;}
+  }
+ }
  const first=Number($('#scanFirstGeneration').value)||1;
  $('#scanList').innerHTML='';
  scanRowSeq=0;
@@ -2162,6 +2175,7 @@ async function readScan(engine,button,waiting){
  const nameless=people.filter(person=>!person.hanja_name).length;
  note.textContent=(found.engine==='claude'?`Claude 판독 ${people.length}명 · 원본 대조 후 등록`:`판독 ${people.length}명 · 원본 대조 후 등록 — 목판 인쇄는 누락·오독 있음`)
   +(labelled?' · 세대는 여백의 世 표기 기준':'')
+  +(traced?` · 세대는 계통의 ${traced.father.hanja_name}(${traced.father.generation}세) 기준`:'')
   +(doubted?` · 간지 불일치 ${doubted}줄(붉은 줄)`:' · 간지 전수 일치')
   +(nameless?` · 이름 판독 안 됨 ${nameless}줄 — 이름 입력 필요`:'');
  paintScanCount();

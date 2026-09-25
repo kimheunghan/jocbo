@@ -768,6 +768,9 @@ def _entries(stream, surname, starts=None):
                             if not one['married_in'] and one['gender'] != '여'), None)
         people.append({
             '_partner': partner,
+            # The forebears a heading names (芝淑 相錫 正煥): the last is the
+            # father, whose generation in the book gives this band its own.
+            'forebears': _lineage(heading) if marker == LINEAGE else [],
             'hanja_name': hanja,
             'gender': MARKERS[marker],
             'bon_gwan': bon_gwan,
