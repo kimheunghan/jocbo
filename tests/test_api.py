@@ -146,6 +146,17 @@ def test_ownership_and_uploads(client):
     assert client.get(f'/api/files/{fid}').status_code == 404
 
 
+def test_a_parent_stands_above_the_child(client):
+    account(client)
+    bid = book(client)
+    father = client.post(f'/api/books/{bid}/persons', json={'korean_name': '김찬환', 'generation': 30}).json()['id']
+    cousin = client.post(f'/api/books/{bid}/persons', json={'korean_name': '김기환', 'generation': 30}).json()['id']
+    son = client.post(f'/api/books/{bid}/persons', json={'korean_name': '김기순', 'generation': 31}).json()['id']
+    wrong = client.post('/api/relations', json={'source_id': father, 'target_id': cousin, 'kind': 'parent'})
+    assert wrong.status_code == 400 and '세대' in wrong.json()['detail']
+    assert client.post('/api/relations', json={'source_id': father, 'target_id': son, 'kind': 'parent'}).status_code == 201
+
+
 def test_an_attachment_is_taken_off(client):
     first = account(client)
     pid = person(client, book(client))

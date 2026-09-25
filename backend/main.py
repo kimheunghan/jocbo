@@ -341,6 +341,12 @@ def add_relation(data: Relation, uid=Depends(auth)):
         # Serialize relation writes per book on PostgreSQL to prevent concurrent cycles.
         c.execute(select(books.c.id).where(books.c.id == a['book_id']).with_for_update())
         if data.kind == 'parent':
+            # A child stands below the parent. One entered at the default 1 has
+            # no generation of its own yet and takes it from the parent; one
+            # already at the parent's generation or above is someone else
+            # (金讚煥 30세 is no father of 金起煥 30세).
+            if b['generation'] > 1 and b['generation'] <= a['generation']:
+                raise HTTPException(400, f"세대가 맞지 않습니다: 부모 {a['generation']}세대, 자녀 {b['generation']}세대")
             edges = list(c.execute(select(relations).where(relations.c.kind == 'parent')).mappings())
             pending, seen = [b['id']], set()
             while pending:
