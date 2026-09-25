@@ -1790,10 +1790,12 @@ function scanMatch(row){
  return pool.find(person=>person.generation===generation)||pool[0];
 }
 // Another person with the same hangul name: the characters on the line and on
-// record are both there and differ.
+// record are both there and differ, or the book already holds more than one
+// person of that name.
 function isNamesake(row,found){
  const hanja=scanRowFields(row)('hanja_name').value.trim();
- return Boolean(hanja&&found.hanja_name&&found.hanja_name!==hanja);
+ if(hanja&&found.hanja_name&&found.hanja_name!==hanja)return true;
+ return book.persons.filter(person=>person.korean_name===found.korean_name).length>1;
 }
 // The same rule the server keeps when it updates a note: an item is said
 // already when, readings in brackets and spacing aside, the old note holds it.
@@ -1830,12 +1832,15 @@ function paintScanMatch(row){
  // it is, unless 업데이트 was chosen.
  if(isNamesake(row,found)){
   row.dataset.matchId=String(found.id);
-  if(row.dataset.namesake!==String(found.id)){row.dataset.namesake=String(found.id);row.dataset.fillId='';}
+  // Filed with the page, a line with other characters is a new person; one
+  // with the very characters of a record is that record.
+  const same=scanRowFields(row)('hanja_name').value.trim()===found.hanja_name;
+  if(row.dataset.namesake!==String(found.id)){row.dataset.namesake=String(found.id);row.dataset.fillId=same?String(found.id):'';}
   row.classList.remove('filling');
   note.hidden=false;
   note.innerHTML=`<span>동명이인: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대</span>`
    +'<button type="button" class="scan-new scan-update" data-namesake="update" title="기존 인물의 빈칸·미상만 채움">업데이트</button>'
-   +'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 새로 등록">별도 등록</button>';
+   +'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 새로 등록">신규 등록</button>';
   note.querySelector('[data-namesake="update"]').onclick=()=>{row.dataset.fillId=String(found.id);saveScanRow(row);};
   note.querySelector('[data-namesake="apart"]').onclick=()=>{row.dataset.fillId='';saveScanRow(row);};
   return;
