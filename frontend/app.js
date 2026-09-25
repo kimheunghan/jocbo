@@ -642,13 +642,13 @@ function bookHTML(people){
   }
   pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
  }
- // Each sheet is printed on paper of its own, headed with when it was printed
- // and the page of the printed book it stands for (617, 618, …), and footed
+ // Each sheet is printed on paper of its own, headed with the page of the
+ // printed book it stands for (617, 618, …) and when it was printed, and footed
  // with its place among the sheets. The browser's own lines — the app's title,
  // its address — are left off the paper.
  const firstPage=parseInt(book.page,10);
- return pages.map((page,index)=>`<section class="book-sheet"><div class="sheet-head"><span class="sheet-date"></span>`
-  +`<span>${Number.isFinite(firstPage)?firstPage+index:''}</span></div>${page}`
+ return pages.map((page,index)=>`<section class="book-sheet"><div class="sheet-head">`
+  +`<span class="sheet-page">${Number.isFinite(firstPage)?firstPage+index:''}</span><span class="sheet-date"></span></div>${page}`
   +`<div class="sheet-foot">${index+1} / ${pages.length}</div></section>`).join('');
 }
 // The moment of printing, as the sheet heads it: 2026. 9. 25. 오후 10:50.

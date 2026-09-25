@@ -816,7 +816,7 @@ body.view-full .zoom-bar .zoom-script {
     margin-bottom: 5mm;
   }
 
-  .sheet-head span:last-child {
+  .sheet-head .sheet-page {
     font: 11pt/1 var(--serif);
     letter-spacing: 1px;
   }
