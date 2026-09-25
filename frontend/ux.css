@@ -1550,3 +1550,23 @@ body.view-full .zoom-bar .zoom-script {
   width: 5.5em;
   padding: 4px 8px;
 }
+
+/* Reading a page off a photo is what the app is for, so its button stands
+   apart from the green ones beside it: the seal red, a little raised. */
+#openScan {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px #9c3b2e40;
+}
+
+#openScan:hover {
+  border-color: #7f2f24;
+  background: #7f2f24;
+  box-shadow: 0 4px 14px #9c3b2e59;
+}
+
+#openScan span {
+  margin-right: 2px;
+}
