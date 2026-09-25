@@ -1513,9 +1513,18 @@ enter().catch(()=>{});
 let scanRowSeq=0,scanZoom=1;
 function scanError(text='',field){
  const box=$('#scanError');
+ box.classList.remove('success');
  box.textContent=text;
  box.hidden=!text;
  if(field)field.focus();
+}
+// The notice the page shows for a save sits under the open dialog, which the
+// browser keeps above everything; what a line's own save did is said inside it.
+function scanNotice(text){
+ const box=$('#scanError');
+ box.classList.add('success');
+ box.textContent=text;
+ box.hidden=!text;
 }
 function scanRowFields(row){
  return name=>row.querySelector(`[name="${name}"]`);
@@ -1852,9 +1861,13 @@ async function saveScanRow(row){
   const labels=Object.fromEntries(SCAN_FILLABLE.map(([name,,label])=>[name,label]));
   row.classList.add('saved');
   paintScanMatch(row);
-  message(updating
-   ?(fields.length?`${record.korean_name} — 업데이트 완료 · ${fields.map(name=>labels[name]||name).join('·')} 채움`:`${record.korean_name} — 채울 빈칸 없음 · 변경 없음`)
-   :`${record.korean_name} — 신규 등록 완료`);
+  const said=updating
+   ?(fields.length?`업데이트 완료 · ${fields.map(name=>labels[name]||name).join('·')} 반영`:'업데이트 완료 · 새로 채울 내용 없음(기존과 같음)')
+   :'신규 등록 완료';
+  // Said on the line itself, where the button was pressed, and above.
+  const status=row.querySelector('.scan-match span');
+  if(status)status.innerHTML=`<strong class="scan-done">✓ ${esc(said)}</strong>`;
+  scanNotice(`${record.korean_name} — ${said}`);
  }catch(err){scanError(err.message);}
 }
 $('#scanSave').onclick=async()=>{

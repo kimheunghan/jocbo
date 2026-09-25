@@ -1163,6 +1163,10 @@ body.view-full .frame-resizer {
   box-shadow: inset 4px 0 0 var(--green);
 }
 
+.scan-match .scan-done {
+  color: var(--green);
+}
+
 /* 업데이트 reads as a mark like 신규 등록, in the blue of a matched line. */
 .scan-match .scan-update {
   border-color: #a9bcd4;
