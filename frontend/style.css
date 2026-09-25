@@ -923,6 +923,13 @@ footer {
   margin: 14mm;
 }
 
+/* The book's sheets carry their own head and foot; with no margin the browser
+   has nowhere to print its own. */
+@page book-sheet {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
   .book-facts {
     display: none;

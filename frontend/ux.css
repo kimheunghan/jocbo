@@ -602,8 +602,15 @@ body.view-full .zoom-bar .zoom-script {
   color: #1f241f;
 }
 
-.traditional-book + .traditional-book {
+.traditional-book + .traditional-book,
+.book-sheet + .book-sheet {
   margin-top: 26px;
+}
+
+/* A sheet's head and foot are for paper; on screen the sheet is the page alone. */
+.sheet-head,
+.sheet-foot {
+  display: none;
 }
 
 .genealogy-side,
@@ -771,15 +778,52 @@ body.view-full .zoom-bar .zoom-script {
     height: 250mm;
     margin: 0;
     break-inside: avoid;
+  }
+
+  /* A sheet is a page of paper with no margin of the browser's, which is what
+     keeps the browser from printing its own head and foot (the date, the app's
+     title, its address) around it; the sheet sets its own margins and lines. */
+  .book-sheet {
+    page: book-sheet;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    padding: 10mm 15mm 8mm;
     break-after: page;
   }
 
-  .traditional-book:last-child {
+  .book-sheet:last-child {
     break-after: auto;
   }
 
-  .traditional-book + .traditional-book {
+  .book-sheet + .book-sheet {
     margin-top: 0;
+  }
+
+  .sheet-head,
+  .sheet-foot {
+    display: flex;
+    justify-content: space-between;
+    width: 180mm;
+    color: #333;
+    font: 9pt/1 var(--sans);
+  }
+
+  .sheet-head {
+    margin-bottom: 5mm;
+  }
+
+  .sheet-head span:last-child {
+    font: 11pt/1 var(--serif);
+    letter-spacing: 1px;
+  }
+
+  .sheet-foot {
+    justify-content: center;
+    margin-top: auto;
   }
 
   .genealogy-body,

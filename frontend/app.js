@@ -642,8 +642,21 @@ function bookHTML(people){
   }
   pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
  }
- return pages.join('');
+ // Each sheet is printed on paper of its own, headed with when it was printed
+ // and the page of the printed book it stands for (617, 618, …), and footed
+ // with its place among the sheets. The browser's own lines — the app's title,
+ // its address — are left off the paper.
+ const firstPage=parseInt(book.page,10);
+ return pages.map((page,index)=>`<section class="book-sheet"><div class="sheet-head"><span class="sheet-date"></span>`
+  +`<span>${Number.isFinite(firstPage)?firstPage+index:''}</span></div>${page}`
+  +`<div class="sheet-foot">${index+1} / ${pages.length}</div></section>`).join('');
 }
+// The moment of printing, as the sheet heads it: 2026. 9. 25. 오후 10:50.
+function stampSheets(){
+ const now=new Date().toLocaleString('ko-KR',{year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'});
+ document.querySelectorAll('.sheet-date').forEach(one=>{one.textContent=now;});
+}
+window.addEventListener('beforeprint',stampSheets);
 // Which details each tree card shows. The set is shared by every card so one card
 // height fits all, and it is remembered per browser.
 const TREE_FIELDS=[['generation','세대'],['hanja','이름 병기'],['bon_gwan','본관'],['birth','출생일'],['death','사망일'],['age','나이'],['photo','사진'],['note','기록/생애'],['gender','성별 색']];
@@ -1507,7 +1520,7 @@ $('#relationForm').onsubmit=e=>{
  if(!id){message('기준 인물 선택 필요','error');return;}
  addRelative(form.elements.kind.value,id);
 };
-$('#print').onclick=()=>{view='book';$('#search').value='';render();window.print();};
+$('#print').onclick=()=>{view='book';$('#search').value='';render();stampSheets();window.print();};
 $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books','POST',{title:'가상 가족의 기록 (샘플)',clan_name:'예시 김씨',description:'실존 인물과 무관한 예제입니다.'});const people=[{korean_name:'김예시',hanja_name:'金例示',generation:1,birth_date:'1940-01-01',gender:'남'},{korean_name:'이샘플',hanja_name:'李樣本',generation:1,birth_date:'1942-02-02',gender:'여'},{korean_name:'김가상',hanja_name:'金假想',generation:2,birth_date:'1970-03-03',gender:'남'},{korean_name:'김미래',hanja_name:'金未來',generation:3,birth_date:'2000-04-04',gender:'미상'}];const ids=[];for(const p of people)ids.push((await api('/books/'+b.id+'/persons','POST',{...p,note:'실제 개인정보가 아닌 가상 인물입니다.'})).id);for(const [s,t,kind] of [[0,1,'spouse'],[0,2,'parent'],[1,2,'parent'],[2,3,'parent']])await api('/relations','POST',{source_id:ids[s],target_id:ids[t],kind});await loadBooks(b.id);message('예제 족보 추가 완료');}finally{button.disabled=false;}});
 enter().catch(()=>{});
 
