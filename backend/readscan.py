@@ -480,6 +480,8 @@ NAME_MISREAD = {'踢': '錫', '惕': '錫', '賜': '錫',
                 '鎖': '鎭', '磨': '磬', '填': '埴',
                 # The table lengthens 斗 into 鬥, which no one is named.
                 '鬥': '斗',
+                # 佶 comes back as 仕, all but never given in a Korean name.
+                '仕': '佶',
                 # 鎮 is 鎭 as China prints it; the book writes 鎭.
                 '鎮': '鎭'}
 # 본관 characters the reader mistakes for one of like shape: 摩州 is 慶州, both
@@ -839,7 +841,7 @@ def read(path, surname=''):
     _reread_names(page, boxes)
     spread = pages(page)
     if spread:
-        people, count = _read_ruled(boxes, spread, surname)
+        people, count = _read_ruled(boxes, spread, surname, page)
         if people:
             return {'people': _paired(people), 'bands': count, 'boxes': len(boxes)}
     people, lowest = [], {}
@@ -909,7 +911,48 @@ def _reread_names(page, boxes):
                 break
 
 
-def _read_ruled(boxes, spread, surname):
+def _reread_by_generation_name(page, ordered):
+    """Read again the son whose name does not carry his brothers' shared character.
+
+    The sons of one generation share a character (돌림자): 魯錫, 魯世 and 魯佶.
+    One whose name was read without it (子結上 for 子魯佶) was misread, so his
+    name alone is cropped and read again at a few sizes, and the reading that
+    begins with the shared character is taken — the most often read, if they
+    differ.
+    """
+    from PIL import Image
+    sons = [(box, _name(box['text'][1:])) for box in ordered if box['text'][:1] == '子']
+    firsts = [name[0] for _, name in sons if len(name) == GIVEN_NAME]
+    shared = max(set(firsts), key=firsts.count) if firsts else ''
+    if not shared or firsts.count(shared) < 2:
+        return
+    for box, name in sons:
+        if len(name) == GIVEN_NAME and name[0] == shared:
+            continue
+        votes = {}
+        for pad in (0.08, 0.17, 0.25):
+            for scale in (1.5, 2, 3):
+                margin = int(box['w'] * pad)
+                # The name, in its large type, fills the top of the column.
+                crop = page.crop((max(0, int(box['x'] - margin)), max(0, int(box['y'] - margin)),
+                                  min(page.width, int(box['x'] + box['w'] + margin)),
+                                  min(page.height, int(box['y'] + box['h'] * 0.55 + margin))))
+                crop = crop.resize((int(crop.width * scale), int(crop.height * scale)), Image.LANCZOS)
+                try:
+                    result, _ = _reader()(crop.rotate(90, expand=True))
+                except Exception:
+                    return
+                pieces = sorted(result or [], key=lambda one: min(point[0] for point in one[0]))
+                again = ''.join(_traditional(found) for _, found, _ in pieces)
+                found = _name(again[1:]) if again[:1] == '子' else ''
+                if len(found) == GIVEN_NAME and found[0] == shared:
+                    votes[found] = votes.get(found, 0) + 1
+        if votes:
+            best = max(votes, key=votes.get)
+            box['text'] = '子' + best + box['text'][1 + len(name):]
+
+
+def _read_ruled(boxes, spread, surname, page=None):
     """Read the page or spread band by band, each band across both pages.
 
     A box belongs to the page it stands on and to the band between that page's
@@ -953,6 +996,8 @@ def _read_ruled(boxes, spread, surname):
     people, count = [], 0
     for band in sorted(grouped):
         ordered = columns(grouped[band])
+        if page is not None:
+            _reread_by_generation_name(page, ordered)
         stream, starts, heads = '', set(), []
         for box in ordered:
             starts.add(len(stream))
