@@ -1199,6 +1199,15 @@ body.view-full .zoom-bar .zoom-script {
   color: #fff;
 }
 
+/* A generation's lines in a reading are headed with it. */
+.scan-generation {
+  margin: 14px 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  color: var(--green);
+  font: 700 13px/1.4 var(--sans);
+}
+
 /* The rule a new family starts under, as the book draws between two lines. */
 .scan-family {
   display: flex;

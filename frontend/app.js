@@ -2184,10 +2184,20 @@ async function readScan(engine,button,waiting){
  const first=Number($('#scanFirstGeneration').value)||1;
  $('#scanList').innerHTML='';
  scanRowSeq=0;
+ // Each generation the page holds is headed in the list, with how many it has,
+ // so a later one is not lost below the fold of a long first one.
+ const generationOf=person=>Math.min(200,person.generation||first+(person.band||0));
+ const counts=new Map();
+ for(const person of people)counts.set(generationOf(person),(counts.get(generationOf(person))||0)+1);
+ let heading=null;
  for(const person of people){
   if(person.family===1&&!$('#scanFamily'))$('#scanList').insertAdjacentHTML('beforeend',scanFamilyHTML(people));
+  if(generationOf(person)!==heading){
+   heading=generationOf(person);
+   $('#scanList').insertAdjacentHTML('beforeend',`<p class="scan-generation">${heading}세 · ${counts.get(heading)}명</p>`);
+  }
   const row=scanAddRow();
-  scanFillRow(row,person,Math.min(200,person.generation||first+(person.band||0)));
+  scanFillRow(row,person,generationOf(person));
  }
  bindScanFamily();
  const doubted=people.filter(person=>person.ganji_agrees===false).length;
