@@ -2123,7 +2123,26 @@ $('#scanSave').onclick=async()=>{
 // same way: each run of two or more hanja gets its reading in brackets, where
 // the reading is known for every character and the page gave none already.
 const NOTE_LABELS=new Set(['初名','一名','系子','生父']);
+// A line the reader marked with () takes readings only there, each for the
+// words just before it, as the page prints them: 陽里(대구시 달성군 유가면 양리)
+// covers 大邱市 達城郡 瑜伽面 陽里.
+function fillMarkedReadings(line){
+ const words=line.split(' ');
+ for(let i=0;i<words.length;i++){
+  if(!words[i].endsWith('()'))continue;
+  const base=words[i].slice(0,-2),group=[base];
+  for(let j=i-1;j>=0;j--){
+   const word=words[j];
+   if(!/^[\u3400-\u9fff\uf900-\ufaff]+$/.test(word)||/^[〇一二三四五六七八九十百千]+$/.test(word)||NOTE_LABELS.has(word))break;
+   group.unshift(word);
+  }
+  const reading=base?readingOf(group.join(' ')):'';
+  words[i]=base+(reading&&/^[가-힣 ]+$/.test(reading)?`(${reading})`:'');
+ }
+ return words.filter(Boolean).join(' ');
+}
 function withReadings(text){
+ if(text.includes('()'))return text.split('\n').map(line=>line.includes('()')?fillMarkedReadings(line):withReadings(line)).join('\n');
  return text.replace(/[㐀-鿿豈-﫿]{2,}(?![(（][가-힣])/g,run=>{
   if(NOTE_LABELS.has(run))return run;
   // A lot number (一六五一) is read as figures, not as a word.

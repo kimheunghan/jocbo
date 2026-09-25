@@ -98,16 +98,16 @@ def test_what_a_spouse_and_a_daughter_bring():
     # a grave shared with her husband is 合墳, facing no way at all.
     wife = r._entries('配昌寧成氏（諮從）元永（）女墓雲合墳（計號）', '金', starts={0})[0]
     assert (wife['hanja_name'], wife['bon_gwan']) == ('成元永', '昌寧')
-    assert wife['note'] == '墓 合墳\n父 元永'
+    assert wife['note'] == '墓는 合墳()\n父 元永'
     # A bracket the reader left open does not swallow the 忌 and 墓 after it.
     wife = r._entries('配延安車氏（補從忌六七月二十八日墓亡陽洞後山（喜享處）子坐(R對)', '金', starts={0})[0]
     # A grave given by its address runs on to its 雙墳 and 石物, each word set
     # apart to take its own reading, through the reader's broken brackets.
     son = r._entries('子相三字龍三一九一五年乙卯十二月二十三日生一九八二年壬戌二月八日卒'
                      '墓六大邱市達城郡瑜伽面陽裏（川子川生F（一六五一雙墳（咎是）石物（勻量）', '金', starts={0})[0]
-    assert son['note'] == '字 龍三\n墓 大邱市 達城郡 瑜伽面 陽里 一六五一 雙墳 石物'
+    assert son['note'] == '字 龍三\n墓는 大邱市 達城郡 瑜伽面 陽里() 一六五一 雙墳() 石物()'
     # 忌 七月二十八日 is the day she died, the year not given.
-    assert (wife['hanja_name'], wife['death_date'], wife['note']) == ('延安車氏', '--07-28', '墓 陽洞後山 子坐')
+    assert (wife['hanja_name'], wife['death_date'], wife['note']) == ('延安車氏', '--07-28', '墓는 陽洞後山() 子坐()')
 
     # A daughter's son belongs to her husband's line, not this book's.
     band = r._entries('女點先夫諸葛芝奉（제갈지봉）子柄律子相錫一九二一年辛酉十二月二十六日生', '金')

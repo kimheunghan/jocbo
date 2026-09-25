@@ -647,8 +647,12 @@ FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
 # 墓는 合墳(합분): a grave shared with the spouse names no place at all.
 # 墓는 大邱市 達城郡 瑜伽面 陽里 山一六五-一 雙墳 石物(석물) 있음: a place given
 # by its address runs on to the 雙墳 and whatever stones stand at it.
-GRAVE = re.compile(r'墓\s*[는二雲亡乞六匕]?\s*([^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,24}?[坐向]'
-                   r'|[^墓配忌生卒]{2,40}?墳)((?:石物|床石|碑石|墓碑)*)')
+# BRACKET marks where the page prints a hangul reading, which is kept so the
+# reading goes where the page puts it: once after 大邱市 達城郡 瑜伽面 陽里, not
+# after each word.
+BRACKET = ''
+GRAVE = re.compile(r'墓\s*(?P<nun>[는二雲亡乞六匕])?\s*(?P<place>[^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,24}?[坐向]'
+                   r'|[^墓配忌生卒]{2,40}?墳)(?P<stones>(?:%s?(?:石物|床石|碑石|墓碑))*%s?)' % (BRACKET, BRACKET))
 # 里 comes back as 裏 where an address names its village.
 GRAVE_MISREAD = {'裏': '里'}
 
@@ -658,14 +662,23 @@ BEARING = '子午卯酉壬丙庚甲乙辛癸丁乾坤艮巽亥巳寅申辰戌丑
 
 
 def _grave_words(text):
-    """A grave's place in the words the page sets apart, each to take its own
-    reading: 大邱市 達城郡 瑜伽面 陽里 一六五一 雙墳 石物, 陽洞後山 子坐."""
+    """A grave's place in the words the page sets apart, with () where the
+    page prints a hangul reading, for the reading of the words before it:
+    大邱市 達城郡 瑜伽面 陽里() 一六五一 雙墳() 石物(), 陽洞後山() 子坐()."""
     text = ''.join(GRAVE_MISREAD.get(char, char) for char in re.sub(r'[\s，,。.]', '', text))
-    text = re.sub(r'([市郡面邑里])(?=.)', r'\1 ', text)
     numerals = ''.join(DIGITS)
-    text = re.sub(r'(?<=[^\s%s])(?=[%s]{2,})' % (numerals, numerals), ' ', text)
-    text = re.sub(r'(?<=[^\s])(?=雙墳|合墳|石物|床石|碑石|墓碑|[%s][坐向]$)' % BEARING, ' ', text)
-    return text
+    pieces = text.split(BRACKET)
+    out = []
+    for index, piece in enumerate(pieces):
+        piece = re.sub(r'([市郡面邑里])(?=.)', r'\1 ', piece)
+        piece = re.sub(r'(?<=[^\s%s])(?=[%s]{2,})' % (numerals, numerals), ' ', piece)
+        piece = re.sub(r'(?<=[^\s])(?=雙墳|合墳|石物|床石|碑石|墓碑|[%s][坐向]$)' % BEARING, ' ', piece)
+        if not piece:
+            continue
+        # A bracket after a lot number reads nothing the page did not.
+        read = index < len(pieces) - 1 and not re.search(r'(^|\s)[%s]+$' % numerals, piece)
+        out.append(piece + ('()' if read else ''))
+    return ' '.join(out)
 
 
 def _notes(chunk, dated):
@@ -678,11 +691,18 @@ def _notes(chunk, dated):
     # it held, never a 忌 or 墓 after them (補從忌六七月… keeps the 忌) nor the
     # numerals of an address (（一六五一雙墳 keeps 一六五一). Latin letters are
     # the reader's noise.
-    plain = re.sub(r'[（(][^（(）)]*[）)]', '', chunk)
-    plain = re.sub(r'[（(][^（(）)忌墓配%s]{0,6}|[）)]|[A-Za-z]' % ''.join(DIGITS), '', plain)
+    marked = re.sub(r'[（(][^（(）)]*[）)]', BRACKET, chunk)
+    marked = re.sub(r'[（(][^（(）)忌墓配%s]{0,6}' % ''.join(DIGITS), BRACKET, marked)
+    # (2）長) is one bracket the reader broke in two: what stands between
+    # them was inside it.
+    marked = re.sub(BRACKET + r'[^（(）)%s]{1,3}[）)]' % BRACKET, BRACKET, marked)
+    marked = re.sub(r'[）)]|[A-Za-z]', '', marked)
+    plain = marked.replace(BRACKET, '')
     notes = ['%s %s' % (match.group(1), _fixed(match.group(2))) for match in OTHER_NAMES.finditer(plain)
              if not DATE_START.match(plain, match.start(2) + 1)]
-    notes += ['墓 ' + _grave_words(match.group(1) + match.group(2)) for match in GRAVE.finditer(plain)]
+    # 墓는, as the page writes it, where the reader saw the 는 in some shape.
+    notes += [('墓는 ' if match.group('nun') else '墓 ') + _grave_words(match.group('place') + match.group('stones'))
+              for match in GRAVE.finditer(marked)]
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
         notes += ['父 ' + _fixed(name) for name in FATHER.findall(chunk)]
