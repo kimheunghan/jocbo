@@ -27,7 +27,9 @@ for /f %%H in ('git rev-parse origin/main 2^>nul') do set "LATEST=%%H"
 if "%HERE%"=="%LATEST%" goto checked
 git merge-base --is-ancestor HEAD origin/main >nul 2>&1 || goto checked
 echo   새 판이 있습니다 - 갱신합니다.
-"%~dp0install.bat" "%~dp0."
+rem 갱신은 새 판의 install.bat 이 맡습니다. 이 폴더의 것은 옛 판이라 새 규칙을 모릅니다.
+git show origin/main:install.bat > "%TEMP%\jocbo-install-new.bat" 2>nul || copy /y "%~dp0install.bat" "%TEMP%\jocbo-install-new.bat" >nul
+"%TEMP%\jocbo-install-new.bat" "%~dp0."
 :checked
 
 rem -- 파이썬 찾기 ------------------------------
@@ -110,11 +112,16 @@ if errorlevel 1 (
 )
 
 rem -- 처음 설치라면 족보를 넣어 둡니다 -----------
-rem 기록이 있는 설치는 건드리지 않습니다.
+rem 기록이 있는 설치는 건드리지 않습니다. db\initial.db 가 있으면 그것으로,
+rem 없으면 판독 기록 스크립트로 시작합니다.
 if not exist "jocbo.db" (
   echo   족보 불러오는 중...
-  "%VENV%" -m db.seed_reference_page
-  if errorlevel 1 echo   족보 불러오기 실패 - 빈 화면으로 시작합니다.
+  if exist "db\initial.db" (
+    copy /y "db\initial.db" "jocbo.db" >nul
+  ) else (
+    "%VENV%" -m db.seed_reference_page
+    if errorlevel 1 echo   족보 불러오기 실패 - 빈 화면으로 시작합니다.
+  )
 )
 
 rem -- 브라우저 ---------------------------------

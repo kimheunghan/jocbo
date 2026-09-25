@@ -67,7 +67,7 @@ if errorlevel 1 (
   goto failed
 )
 rem 이 컴퓨터에서 바뀌었거나 git 이 모르는 파일이 있으면 통째로 백업한 뒤
-rem 덮어씁니다. 여기서 입력한 기록도 백업 폴더의 jocbo.db 에 남습니다.
+rem 덮어씁니다. 족보 DB(jocbo.db)는 컴퓨터마다 따로라 git 이 다루지 않습니다.
 set "DIRTY="
 for /f "delims=" %%S in ('git status --porcelain 2^>nul') do set "DIRTY=1"
 if defined DIRTY call :backup
@@ -81,11 +81,16 @@ if not errorlevel 1 (
     echo   이 폴더에만 있던 커밋을 남겨 둡니다: backup-!STAMP!
   )
 )
+rem DB 를 git 으로 나르던 옛 판에서 넘어올 때 git 이 jocbo.db 를 지우므로,
+rem 옆에 비켜 두었다가 되돌립니다.
+if exist "jocbo.db" copy /y "jocbo.db" "%TEMP%\jocbo-keep.db" >nul
 git reset -q --hard origin/main
 if errorlevel 1 (
   popd
   goto failed
 )
+if not exist "jocbo.db" if exist "%TEMP%\jocbo-keep.db" copy /y "%TEMP%\jocbo-keep.db" "jocbo.db" >nul
+if exist "%TEMP%\jocbo-keep.db" del "%TEMP%\jocbo-keep.db"
 git branch -M main >nul 2>&1
 git branch -q --set-upstream-to=origin/main main >nul 2>&1
 for /f "delims=" %%L in ('git log --oneline -1') do echo   받은 판: %%L
