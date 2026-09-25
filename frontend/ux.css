@@ -1134,6 +1134,19 @@ body.view-full .frame-resizer {
   color: var(--ink-soft);
 }
 
+/* 신규 등록 and 업데이트 file their own line; a line filed so is marked. */
+.scan-match button.scan-new {
+  cursor: pointer;
+}
+
+.scan-match button.scan-new:hover {
+  filter: brightness(.95);
+}
+
+.scan-row.saved {
+  box-shadow: inset 4px 0 0 var(--green);
+}
+
 /* 업데이트 reads as a mark like 신규 등록, in the blue of a matched line. */
 .scan-match .scan-update {
   border-color: #a9bcd4;

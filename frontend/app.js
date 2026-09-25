@@ -1609,7 +1609,8 @@ function paintScanMatch(row){
   const get=scanRowFields(row);
   const named=get('korean_name').value.trim()||get('hanja_name').value.trim();
   note.hidden=!named;
-  note.innerHTML=named?'<span>족보에 없는 인물</span><b class="scan-new">신규 등록</b>':'';
+  note.innerHTML=named?'<span>족보에 없는 인물</span><button type="button" class="scan-new" data-save-row title="이 줄만 지금 족보에 등록">신규 등록</button>':'';
+  if(named)note.querySelector('[data-save-row]').onclick=()=>saveScanRow(row);
   return;
  }
  // A name already in the book is that person read again, so the line always
@@ -1621,7 +1622,8 @@ function paintScanMatch(row){
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
   +(blanks.length?`빈칸 ${esc(blanks.join('·'))}`:'빈칸 없음')+'</span>'
-  +'<b class="scan-new scan-update" title="기존 인물의 빈칸·미상만 채웁니다">업데이트</b>';
+  +'<button type="button" class="scan-new scan-update" data-save-row title="이 줄만 지금 반영 · 기존 인물의 빈칸·미상만 채움">업데이트</button>';
+ note.querySelector('[data-save-row]').onclick=()=>saveScanRow(row);
 }
 function scanLines(){
  return [...document.querySelectorAll('.scan-row')].map(row=>{
@@ -1788,34 +1790,67 @@ function scanFamilyLineage(people){
  const surname=(book.clan_name||'').replace(/[氏씨\s]/g,'')[0];
  return surname&&name.length>2&&name[0]===surname?name.slice(1):name;
 }
+// One line as a record, or null once the line's own problem has been shown.
+function scanLineRecord(line,label){
+ const {get}=line;
+ if(!line.korean){
+  scanError(`${label} — 한글명 없음 · 한자만으로는 등록 불가`,get('korean_name'));
+  return null;
+ }
+ const generation=Number(get('generation').value);
+ if(!(generation>=1&&generation<=200)){
+  scanError(`${label} — 세대는 1~200`,get('generation'));
+  return null;
+ }
+ const problem=dateProblem(get);
+ if(problem){scanError(`${label} — ${problem[1]}`,problem[0]);return null;}
+ const fillId=Number(line.row.dataset.fillId)||0;
+ return {
+  korean_name:line.korean,hanja_name:line.hanja,
+  bon_gwan:get('bon_gwan').value.trim(),generation,
+  gender:get('gender').value,birth_date:get('birth_date').value,
+  death_date:get('death_date').value,note:get('note').value.trim(),
+  ...(fillId?{id:fillId}:{}),
+  family:line.row.dataset.family==='1'?1:0,
+  key:line.row.dataset.key,spouse:line.row.dataset.spouse
+ };
+}
+// 업데이트 and 신규 등록 file their own line at once, into this book. A line of
+// another family waits for 모두 등록, which knows where that family goes.
+async function saveScanRow(row){
+ scanError();
+ if(row.dataset.family==='1'&&scanFamilyTarget()!=='same'){
+  scanError('다른 가족의 줄 — [모두 등록]에서 정한 곳으로 등록');
+  return;
+ }
+ const get=scanRowFields(row);
+ const line={row,get,korean:get('korean_name').value.trim(),hanja:get('hanja_name').value.trim()};
+ const record=scanLineRecord(line,line.korean||'이 줄');
+ if(!record)return;
+ const updating=Boolean(record.id);
+ delete record.family;delete record.key;delete record.spouse;
+ const button=row.querySelector('[data-save-row]');
+ try{
+  const done=await busy(button,'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people:[record]}));
+  await refresh();
+  const fields=(done.filled||[])[0]?.fields||[];
+  const labels=Object.fromEntries(SCAN_FILLABLE.map(([name,,label])=>[name,label]));
+  row.classList.add('saved');
+  paintScanMatch(row);
+  message(updating
+   ?(fields.length?`${record.korean_name} — 업데이트 완료 · ${fields.map(name=>labels[name]||name).join('·')} 채움`:`${record.korean_name} — 채울 빈칸 없음 · 변경 없음`)
+   :`${record.korean_name} — 신규 등록 완료`);
+ }catch(err){scanError(err.message);}
+}
 $('#scanSave').onclick=async()=>{
  scanError();
  const written=scanLines().filter(line=>line.korean||line.hanja);
  if(!written.length){scanError('입력된 인물 없음');return;}
  const people=[];
  for(const [index,line] of written.entries()){
-  const {get}=line;
-  if(!line.korean){
-   scanError(`${index+1}번째 줄 — 한글명 없음 · 한자만으로는 등록 불가`,get('korean_name'));
-   return;
-  }
-  const generation=Number(get('generation').value);
-  if(!(generation>=1&&generation<=200)){
-   scanError(`${index+1}번째 줄 — 세대는 1~200`,get('generation'));
-   return;
-  }
-  const problem=dateProblem(get);
-  if(problem){scanError(`${index+1}번째 줄 — ${problem[1]}`,problem[0]);return;}
-  const fillId=Number(line.row.dataset.fillId)||0;
-  people.push({
-   korean_name:line.korean,hanja_name:line.hanja,
-   bon_gwan:get('bon_gwan').value.trim(),generation,
-   gender:get('gender').value,birth_date:get('birth_date').value,
-   death_date:get('death_date').value,note:get('note').value.trim(),
-   ...(fillId?{id:fillId}:{}),
-   family:line.row.dataset.family==='1'?1:0,
-   key:line.row.dataset.key,spouse:line.row.dataset.spouse
-  });
+  const record=scanLineRecord(line,`${index+1}번째 줄`);
+  if(!record)return;
+  people.push(record);
  }
  const target=scanFamilyTarget();
  const apart=target==='same'?[]:people.filter(person=>person.family===1);
