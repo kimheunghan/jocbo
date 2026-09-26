@@ -1743,14 +1743,12 @@ function treePrintHTML(){
  const tall=TREE_SHEET.height/H<TREE_READABLE;
  const sheet=tall?TREE_SHEET_TALL:TREE_SHEET;
  const scale=Math.min(1,sheet.height/H);
- // The whole tree on a sheet the same way round as the rest, turned a
- // quarter where that shows it larger: turned clockwise, the eldest
- // generation stands at the right and the line runs on leftward, as a 족보
- // is read.
- const fits=[sheet].flatMap(paper=>[
-  {paper,turned:false,scale:Math.min(paper.width/W,paper.height/H,1)},
-  {paper,turned:true,scale:Math.min(paper.width/H,paper.height/W,1)}]);
- const best=fits.reduce((a,b)=>b.scale>a.scale?b:a);
+ // The whole tree on a standing sheet; a tree wider than it is tall is
+ // turned a quarter clockwise to lie along the sheet's length, the eldest
+ // generation at the right and the line running on leftward, as a 족보 is
+ // read.
+ const paper=TREE_SHEET_TALL,turned=W>H;
+ const best={paper,turned,scale:turned?Math.min(paper.width/H,paper.height/W,1):Math.min(paper.width/W,paper.height/H,1)};
  const overviewDrawing=full.outerHTML;
  const branches=treeBranches(sheet.width/scale-TREE_GUTTER);
  const parts=branches.map(ids=>{
