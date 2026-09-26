@@ -214,7 +214,6 @@ button.busy {
   border-radius: 999px;
   background: #fffdf8f2;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(3px);
 }
 
 .zoom-bar button {
@@ -1788,4 +1787,17 @@ body.view-full .zoom-bar .zoom-script {
 
 .view-tools .zoom-bar small .short {
   display: inline;
+}
+
+/* In the book a drag moves the sheets; the text is selected with Shift held. */
+.zoom-scroll .traditional-book .genealogy-person,
+.zoom-scroll .traditional-book .genealogy-side,
+.zoom-scroll .traditional-book .genealogy-branch,
+.zoom-scroll .traditional-book .genealogy-margin,
+.zoom-scroll .traditional-book .genealogy-generation h3 {
+  cursor: grab;
+}
+
+.zoom-scroll.panning .traditional-book * {
+  cursor: grabbing;
 }

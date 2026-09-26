@@ -28,13 +28,25 @@ body {
   font-family: var(--sans);
 }
 
-/* 한지 바탕 위에, 창 아래쪽으로 수묵 산수가 번집니다. */
+/* 한지 바탕 위에, 창 아래쪽으로 수묵 산수가 번집니다. The hills sit on a
+   layer of their own that stays with the window: a background fixed to the
+   page itself has the browser paint it again at every step of a scroll,
+   which made the wheel sluggish. */
 body {
   background:
-    url("landscape.svg") center bottom / 100% auto no-repeat fixed,
     radial-gradient(ellipse at 20% 0%, #fbf8f0 0%, transparent 60%),
     radial-gradient(ellipse at 90% 10%, #efe6d2 0%, transparent 55%),
     var(--paper);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url("landscape.svg") center bottom / 100% auto no-repeat;
+  pointer-events: none;
+  will-change: transform;
 }
 
 /* ── 머리 ─────────────────────────────────────── */
@@ -156,8 +168,7 @@ button:hover {
 .zoom-bar,
 .cards .person-card,
 .panel {
-  background: #fffdf8e6;
-  backdrop-filter: blur(2px);
+  background: #fffdf8ee;
 }
 
 footer {
@@ -359,5 +370,9 @@ footer {
 @media print {
   body {
     background: #fff;
+  }
+
+  body::before {
+    display: none;
   }
 }

@@ -949,7 +949,9 @@ function bindZoom(key){
  scroll.addEventListener('pointerdown',event=>{
   const middle=event.button===1;
   if(!middle&&event.button!==0)return;
-  if(!middle&&event.target.closest(KEEPS_ITS_OWN_DRAG))return;
+  // The book is text from edge to edge, so there a drag moves the sheets, as
+ // on the tree, and Shift with it selects the text instead.
+ if(!middle&&event.target.closest(KEEPS_ITS_OWN_DRAG)&&(key!=='book'||event.shiftKey))return;
   pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop,page:window.scrollY};
   dragged=false;
  });
