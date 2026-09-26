@@ -187,7 +187,7 @@ async function toggleScript(button){
  try{localStorage.setItem(switcher.key,switcher.get());}catch{}
  paintScriptToggle();
  // A window's switch turns that window over and leaves the page behind it alone.
- if(which==='dialog'){paintPersonScript();paintRelativeBanner();paintNewBookFields();return;}
+ if(which==='dialog'){paintPersonScript();paintRelativeBanner();paintNewBookFields();paintScanScript();return;}
  await loadBooks(book?book.id:undefined);
 }
 // One switch beside the view tabs, one the windows share, and the sidebar's own.
@@ -1857,6 +1857,25 @@ function scanNotice(text){
 function scanRowFields(row){
  return name=>row.querySelector(`[name="${name}"]`);
 }
+// The image window's 한글/한자 switch turns each line's 본관 and 기록 over as
+// the person window's does: what is shown may be the reading, what is kept
+// is the text as read or typed.
+const SCAN_SCRIPT_FIELDS=['bon_gwan','note'];
+function scanStored(input){
+ return input.dataset.shown!==undefined&&input.value===input.dataset.shown?input.dataset.stored:input.value;
+}
+function paintScanScript(){
+ for(const row of document.querySelectorAll('.scan-row')){
+  for(const name of SCAN_SCRIPT_FIELDS){
+   const input=scanRowFields(row)(name);
+   if(!input)continue;
+   if(input.value!==input.dataset.shown)input.dataset.stored=input.value;
+   input.value=dialogScriptText(input.dataset.stored||'');
+   input.dataset.shown=input.value;
+  }
+  paintScanMatch(row);
+ }
+}
 function scanRowHTML(id,generation){
  const genders=['미상','남','여']
   .map(value=>`<option value="${value}">${value}</option>`).join('');
@@ -2222,9 +2241,9 @@ function scanLineRecord(line,label){
  const fillId=Number(line.row.dataset.fillId)||0;
  return {
   korean_name:line.korean,hanja_name:line.hanja,
-  bon_gwan:get('bon_gwan').value.trim(),generation,
+  bon_gwan:scanStored(get('bon_gwan')).trim(),generation,
   gender:get('gender').value,birth_date:get('birth_date').value,
-  death_date:get('death_date').value,note:get('note').value.trim(),
+  death_date:get('death_date').value,note:scanStored(get('note')).trim(),
   ...(fillId?{id:fillId}:{}),
   ...(fillId&&line.row.dataset.replace==='1'&&line.row.dataset.shownId===String(fillId)?{replace:true}:{}),
   family:line.row.dataset.family==='1'?1:0,
@@ -2495,6 +2514,7 @@ async function readScan(engine,button,waiting){
  bindScanFamily();
  // Just the count; the lines say the rest.
  note.textContent=(found.engine==='claude'?'Claude ':'')+`판독 ${people.length}명`;
+ if(dialogScriptMode==='hangul')paintScanScript();
  paintScanCount();
 }
 
