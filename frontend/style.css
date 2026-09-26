@@ -933,13 +933,13 @@ footer {
 /* The tree is wider than it is tall, so it takes the sheet lying down. */
 @page tree-sheet {
   size: A4 landscape;
-  margin: 10mm;
+  margin: 0;
 }
 
 /* A tree too tall to read lying down stands up, top generation to bottom. */
 @page tree-sheet-tall {
   size: A4 portrait;
-  margin: 10mm;
+  margin: 0;
 }
 
 @media print {

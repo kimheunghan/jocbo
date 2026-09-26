@@ -1736,7 +1736,14 @@ function treePrintHTML(){
  const tall=TREE_SHEET.height/H<TREE_READABLE;
  const sheet=tall?TREE_SHEET_TALL:TREE_SHEET;
  const scale=Math.min(1,sheet.height/H);
- const whole=Math.min(sheet.width/W,sheet.height/H,1);
+ // The whole tree on a sheet the same way round as the rest, turned a
+ // quarter where that shows it larger: turned clockwise, the eldest
+ // generation stands at the right and the line runs on leftward, as a 족보
+ // is read.
+ const fits=[sheet].flatMap(paper=>[
+  {paper,turned:false,scale:Math.min(paper.width/W,paper.height/H,1)},
+  {paper,turned:true,scale:Math.min(paper.width/H,paper.height/W,1)}]);
+ const best=fits.reduce((a,b)=>b.scale>a.scale?b:a);
  const overviewDrawing=full.outerHTML;
  const branches=treeBranches(sheet.width/scale-TREE_GUTTER);
  const parts=branches.map(ids=>{
@@ -1750,7 +1757,13 @@ function treePrintHTML(){
  const total=parts.length+1;
  const page=`tree-page${tall?' tall':''}`;
  const head=number=>`<div class="tree-print-head"><strong>${title}</strong><span>${number} / ${total} · <span class="sheet-date"></span></span></div>`;
- const overview=`<section class="${page}">${head(1)}<div class="tree-tile" style="zoom:${whole};width:${W}px;height:${H}px">${overviewDrawing}</div></section>`;
+ const k=best.scale;
+ const drawnWhole=`<div class="tree-tile" style="zoom:${k};width:${W}px;height:${H}px">${overviewDrawing}</div>`;
+ const overview=`<section class="tree-page${best.paper===TREE_SHEET_TALL?' tall':''}">${head(1)}`
+  +(best.turned
+   ?`<div class="tree-turned" style="width:${Math.ceil(H*k)}px;height:${Math.ceil(W*k)}px"><div class="tree-turned-inner" style="width:${Math.ceil(W*k)}px;height:${Math.ceil(H*k)}px;transform:translateX(${Math.ceil(H*k)}px) rotate(90deg)">${drawnWhole}</div></div>`
+   :drawnWhole)
+  +'</section>';
  const pages=parts.map((part,index)=>{
   const labels=part.levels.map(level=>`<span class="tree-tile-level" style="top:${level.y-14}px">${esc(level.text)}</span>`).join('');
   return `<section class="${page}">${head(index+2)}<div class="tree-tile tree-tile-part" style="zoom:${scale};width:${part.w+TREE_GUTTER}px;height:${part.h}px">`

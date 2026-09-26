@@ -1607,9 +1607,28 @@ body.view-full .zoom-bar .zoom-script {
     display: block;
   }
 
+  /* A sheet sets its own margin, as the book's do, which leaves the browser
+     no room to print its own head and foot (the date, the app's title). */
   .tree-page {
     page: tree-sheet;
+    box-sizing: border-box;
+    width: 297mm;
+    height: 210mm;
+    padding: 10mm;
+    overflow: hidden;
     break-after: page;
+  }
+
+  /* The whole tree turned a quarter clockwise to fill the sheet. */
+  .tree-turned {
+    position: relative;
+  }
+
+  .tree-turned-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
   }
 
   .tree-page:last-child {
@@ -1618,6 +1637,8 @@ body.view-full .zoom-bar .zoom-script {
 
   .tree-page.tall {
     page: tree-sheet-tall;
+    width: 210mm;
+    height: 297mm;
   }
 
   .tree-print-head {
