@@ -562,4 +562,20 @@ class FreshStatic(StaticFiles):
         return response
 
 
+@app.get('/', include_in_schema=False)
+@app.get('/index.html', include_in_schema=False)
+def front_page():
+    """The page, naming its script and styles by when they last changed.
+
+    A browser that keeps an old app.js in its cache goes on running it after an
+    update, however often the page is reloaded; a new name is a file it has
+    never seen, so it fetches it.
+    """
+    front = ROOT / 'frontend'
+    page = (front / 'index.html').read_text(encoding='utf-8')
+    for name in ('app.js', 'style.css', 'ux.css'):
+        stamp = int((front / name).stat().st_mtime)
+        page = page.replace(f'"{name}"', f'"{name}?v={stamp}"')
+    return Response(page, media_type='text/html; charset=utf-8', headers={'Cache-Control': 'no-cache'})
+
 app.mount('/', FreshStatic(directory=ROOT / 'frontend', html=True), name='frontend')
