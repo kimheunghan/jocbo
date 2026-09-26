@@ -18,6 +18,14 @@
   --navy: #13254a;
   --gold: #b08a45;
   --accent: #b3372a;
+  /* Web fonts, so every PC shows the same type; the system's follow if the
+     fonts cannot be fetched. */
+  --serif: "Noto Serif KR", "Batang", "AppleMyungjo", serif;
+  --sans: "Noto Sans KR", system-ui, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+}
+
+body {
+  font-family: var(--sans);
 }
 
 /* 한지 바탕 위에, 창 아래쪽으로 수묵 산수가 번집니다. */
@@ -26,6 +34,16 @@ body {
     url("landscape.svg") center bottom / 100% auto no-repeat fixed,
     radial-gradient(ellipse at 20% 0%, #fbf8f0 0%, transparent 60%),
     radial-gradient(ellipse at 90% 10%, #efe6d2 0%, transparent 55%),
+    var(--paper);
+}
+
+/* The first screen has the hanok's eaves at its upper right, with the pine
+   over them, as the poster sets it. */
+body:has(#auth:not([hidden])) {
+  background:
+    url("hanok.svg") right top / min(46vw, 760px) auto no-repeat,
+    url("landscape.svg") center bottom / 100% auto no-repeat fixed,
+    radial-gradient(ellipse at 20% 0%, #fbf8f0 0%, transparent 60%),
     var(--paper);
 }
 
@@ -170,37 +188,74 @@ footer {
 
 .intro-side {
   grid-area: side;
+  /* The card and the scroll hang under the hanok's eaves. */
+  margin-top: clamp(120px, 15vw, 230px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 0 18px;
 }
 
-.intro-side .intro-motto {
+.intro-side .intro-scroll {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.intro-side .panel {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.intro-lead {
+  margin: 0 0 22px;
+  color: var(--ink) !important;
+  font: 500 clamp(18px, 1.8vw, 24px)/1.6 var(--serif);
+}
+
+.intro-title {
+  margin: 0 0 22px;
+  color: var(--navy);
+  font: 900 clamp(40px, 5.4vw, 76px)/1.14 var(--sans);
+  letter-spacing: -1.5px;
+}
+
+.intro-title em {
+  color: var(--blue);
+  font-style: normal;
+}
+
+.intro-text {
+  margin: 0 0 22px;
+  color: var(--ink) !important;
+  font-size: 17px !important;
+  line-height: 1.65;
+}
+
+.intro-motto {
   grid-column: 1;
   grid-row: 1;
 }
 
 .intro-side .intro-scroll {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
 }
 
 .intro-side .panel {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
 }
 
 .intro-lead {
   margin: 0 0 22px;
   color: var(--ink) !important;
-  font: 400 clamp(18px, 1.8vw, 24px)/1.5 var(--serif);
+  font: 500 clamp(18px, 1.8vw, 24px)/1.6 var(--serif);
 }
 
 .intro-title {
   margin: 0 0 22px;
   color: var(--navy);
-  font: 900 clamp(40px, 5.4vw, 72px)/1.12 var(--sans);
+  font: 900 clamp(40px, 5.4vw, 76px)/1.14 var(--sans);
   letter-spacing: -1.5px;
 }
 
@@ -247,7 +302,7 @@ footer {
 
 .intro-motto {
   position: relative;
-  margin: 4px 0 20px;
+  margin: 30px 0 0;
   color: var(--ink) !important;
   font: 700 clamp(20px, 2vw, 26px)/1.5 var(--serif);
 }
@@ -290,8 +345,8 @@ footer {
   box-shadow: 0 8px 20px #0000001f;
   writing-mode: vertical-rl;
   color: #1c1a16;
-  font: 700 26px/1.3 var(--serif);
-  letter-spacing: 6px;
+  font: 700 30px/1.3 var(--serif);
+  letter-spacing: 8px;
 }
 
 .intro-scroll small {

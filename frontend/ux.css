@@ -644,7 +644,7 @@ body.view-full .zoom-bar .zoom-script {
   grid-column: 3;
   grid-row: 1;
   gap: 16px;
-  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font-family: "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
 }
 
 /* Batang has no bold face; asking it for one makes the browser overprint the
@@ -652,7 +652,7 @@ body.view-full .zoom-bar .zoom-script {
    names come from a Myeongjo that ships a real bold, and synthesis stays off so a
    machine with none of them shows clean regular type rather than the smear. */
 .genealogy-side strong {
-  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font-family: "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
   font-size: 21px;
   font-weight: 700;
   font-synthesis: none;
@@ -671,7 +671,7 @@ body.view-full .zoom-bar .zoom-script {
 .genealogy-branch {
   grid-column: 2;
   grid-row: 1;
-  font: 700 18px/1 "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font: 700 18px/1 "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
   font-synthesis: none;
 }
 
@@ -696,7 +696,7 @@ body.view-full .zoom-bar .zoom-script {
   padding: 18px 0;
   border-right: 1px solid #77796a;
   letter-spacing: 2px;
-  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font-family: "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
 }
 
 .genealogy-margin strong {
@@ -753,7 +753,7 @@ body.view-full .zoom-bar .zoom-script {
   margin: 0;
   padding: 8px 5px;
   border-left: 1px solid #77796a;
-  font: 400 14px/1.3 "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font: 400 14px/1.3 "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
   letter-spacing: 1px;
 }
 
@@ -778,11 +778,11 @@ body.view-full .zoom-bar .zoom-script {
   flex: 0 0 auto;
   height: 100%;
   padding: 8px 4px 8px 7px;
-  font: 11px/1.28 "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font: 11px/1.28 "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
 }
 
 .genealogy-person strong {
-  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+  font-family: "Noto Serif KR", "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
   font-size: 18px;
   font-weight: 700;
   font-synthesis: none;
