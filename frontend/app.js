@@ -938,7 +938,19 @@ function bindZoom(key){
  // than the window. The plain wheel keeps scrolling; Ctrl with it zooms about the
  // pointer, which stays put while everything around it grows.
  scroll.addEventListener('wheel',event=>{
-  if(!event.ctrlKey&&!event.metaKey)return;
+  if(!event.ctrlKey&&!event.metaKey){
+   // At the top or foot of the frame the wheel goes on to the page. Left to
+   // the browser, a turn of the wheel that began inside the frame stays with
+   // it after it has reached its end, and the page stands still until the
+   // wheel rests.
+   if(document.body.classList.contains('view-full')||!event.deltaY)return;
+   const atTop=scroll.scrollTop<=0,atFoot=scroll.scrollTop+scroll.clientHeight>=scroll.scrollHeight-1;
+   if(event.deltaY<0?atTop:atFoot){
+    event.preventDefault();
+    window.scrollBy(0,event.deltaY*(event.deltaMode===1?40:event.deltaMode===2?window.innerHeight:1));
+   }
+   return;
+  }
   event.preventDefault();
   apply(zoom*(event.deltaY<0?1.12:1/1.12),event.clientX,event.clientY);
  },{passive:false});
