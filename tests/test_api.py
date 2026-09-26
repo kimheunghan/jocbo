@@ -146,6 +146,24 @@ def test_ownership_and_uploads(client):
     assert client.get(f'/api/files/{fid}').status_code == 404
 
 
+def test_a_corrected_line_is_kept_as_it_stands(client):
+    account(client)
+    bid = book(client)
+    pid = client.post(f'/api/books/{bid}/persons', json={'korean_name': '김철순', 'hanja_name': '金哲純', 'generation': 31,
+                                                         'birth_date': '1976-08-02', 'note': '初名 純哲'}).json()['id']
+    line = {'id': pid, 'korean_name': '김철순', 'hanja_name': '金哲純', 'generation': 31, 'gender': '남',
+            'birth_date': '1967-08-02', 'note': '初名 純哲(순철)'}
+    # Without replace a reading only fills what was blank.
+    client.post(f'/api/books/{bid}/persons/bulk', json={'people': [line]})
+    kept = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == pid)
+    assert kept['birth_date'] == '1976-08-02' and kept['gender'] == '남'
+    # A line corrected by hand is written as it stands.
+    done = client.post(f'/api/books/{bid}/persons/bulk', json={'people': [dict(line, replace=True)]}).json()
+    assert done['filled'][0]['fields'] == ['birth_date', 'note']
+    kept = next(p for p in client.get(f'/api/books/{bid}').json()['persons'] if p['id'] == pid)
+    assert (kept['birth_date'], kept['note']) == ('1967-08-02', '初名 純哲(순철)')
+
+
 def test_a_parent_stands_above_the_child(client):
     account(client)
     bid = book(client)

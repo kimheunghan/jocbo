@@ -1942,6 +1942,8 @@ function paintScanMatch(row){
  // it is, unless 업데이트 was chosen.
  if(isNamesake(row,found)){
   row.dataset.matchId=String(found.id);
+  row.dataset.replace='';
+  row.dataset.shownId='';
   // Filed with the page, a line with other characters is a new person; one
   // with the very characters of a record is that record.
   const same=scanRowFields(row)('hanja_name').value.trim()===found.hanja_name;
@@ -1960,17 +1962,31 @@ function paintScanMatch(row){
  row.dataset.matchId=String(found.id);
  row.dataset.fillId=String(found.id);
  row.classList.add('filling');
- // The line shows the note as an update would leave it: what the book already
- // holds first, then whatever the reading found that it does not say yet — so
- // the two can be compared in one place, and nothing is said twice.
- const noteBox=scanRowFields(row)('note');
- if(found.note)noteBox.value=mergedNote(found.note,noteBox.value);
+ // The line shows the record as 업데이트 will leave it, and 업데이트 keeps it
+ // as the line shows it, corrections and all. Once, when the line first
+ // meets the record: what the book already holds stands in each field, the
+ // reading fills what it lacks, and the note has the book's items first and
+ // the reading's new ones under them. After that the line is the reader's to
+ // correct, and nothing puts back what was taken out.
+ const get=scanRowFields(row);
+ if(row.dataset.shownId!==String(found.id)){
+  row.dataset.shownId=String(found.id);
+  for(const [name,blank] of SCAN_FILLABLE){
+   if(name==='note'||!found[name]||found[name]===blank)continue;
+   get(name).value=found[name];
+  }
+  get('generation').value=found.generation;
+  if(found.note)get('note').value=mergedNote(found.note,get('note').value);
+  paintDateBoxes(row);
+ }
+ row.dataset.replace='1';
+ const noteBox=get('note');
  noteBox.rows=Math.min(6,Math.max(2,noteBox.value.split('\n').length));
  const blanks=SCAN_FILLABLE.filter(([name,blank])=>found[name]===blank).map(([,,label])=>label);
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
   +(blanks.length?`빈칸 ${esc(blanks.join('·'))}`:'빈칸 없음')+'</span>'
-  +'<button type="button" class="scan-new scan-update" data-save-row title="이 줄만 지금 반영 · 기존 인물의 빈칸·미상만 채움">업데이트</button>';
+  +'<button type="button" class="scan-new scan-update" data-save-row title="이 줄만 지금 반영 · 줄에 보이는 그대로 기존 인물에 저장">업데이트</button>';
  note.querySelector('[data-save-row]').onclick=()=>saveScanRow(row);
 }
 function scanLines(){
@@ -2159,6 +2175,7 @@ function scanLineRecord(line,label){
   gender:get('gender').value,birth_date:get('birth_date').value,
   death_date:get('death_date').value,note:get('note').value.trim(),
   ...(fillId?{id:fillId}:{}),
+  ...(fillId&&line.row.dataset.replace==='1'&&line.row.dataset.shownId===String(fillId)?{replace:true}:{}),
   family:line.row.dataset.family==='1'?1:0,
   key:line.row.dataset.key,spouse:line.row.dataset.spouse
  };
@@ -2182,7 +2199,7 @@ async function saveScanRow(row){
   const done=await busy(button,'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people:[record]}));
   await refresh();
   const fields=(done.filled||[])[0]?.fields||[];
-  const labels=Object.fromEntries(SCAN_FILLABLE.map(([name,,label])=>[name,label]));
+  const labels={korean_name:'한글명',generation:'세대',...Object.fromEntries(SCAN_FILLABLE.map(([name,,label])=>[name,label]))};
   row.classList.add('saved');
   paintScanMatch(row);
   const said=updating

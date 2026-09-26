@@ -130,6 +130,9 @@ class PersonLine(Person):
     # Set when the line is a clearer reading of someone already in the book
     # rather than a new person.
     id: int | None = None
+    # Set when the line shows the record as it is to be kept, corrections and
+    # all: it is written as it stands, not only into what was blank.
+    replace: bool = False
 
 class PersonBatch(Input):
     people: list[PersonLine] = Field(min_length=1, max_length=200)
@@ -293,13 +296,19 @@ def add_people(bid: int, data: PersonBatch, uid=Depends(auth)):
     with engine.begin() as c:
         own_book(c, bid, uid)
         for line in data.people:
-            values = line.model_dump(exclude={'id'})
+            values = line.model_dump(exclude={'id', 'replace'})
             if line.id is None:
                 added.append(c.execute(persons.insert().values(book_id=bid, **values)).inserted_primary_key[0])
                 continue
             row = c.execute(select(persons).where(persons.c.id == line.id, persons.c.book_id == bid)).mappings().first()
             if not row:
                 raise HTTPException(404, '고쳐 쓸 인물을 이 족보에서 찾을 수 없습니다.')
+            if line.replace:
+                fill = {name: value for name, value in values.items() if value != row[name]}
+                if fill:
+                    c.execute(persons.update().where(persons.c.id == line.id).values(**fill))
+                filled.append({'id': line.id, 'fields': sorted(fill)})
+                continue
             # 세대 and 한글명 are what the line was matched on, so a reading never
             # moves them; everything else is filled only where nothing was known.
             fill = {name: values[name] for name, blank in BLANK.items()
