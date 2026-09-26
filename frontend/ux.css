@@ -1744,8 +1744,8 @@ body.view-full .zoom-bar .zoom-script {
   }
 }
 
-/* The view's controls in the row of its tabs: flat, on one line, with the
-   hint about dragging and Ctrl+wheel kept to the bar's tooltip. */
+/* The view's controls in the row of its tabs: flat, on one line, the hint
+   about dragging and Ctrl+wheel short and small at its end. */
 .view-tools {
   display: flex;
   flex: 1 1 auto;
@@ -1759,6 +1759,33 @@ body.view-full .zoom-bar .zoom-script {
   box-shadow: none;
 }
 
+.view-tools .zoom-bar {
+  gap: 6px;
+}
+
+.view-tools .zoom-bar button {
+  padding: 4px 8px;
+}
+
+.view-tools .zoom-level {
+  min-width: 40px;
+}
+
+/* Two short lines: 끌어서 이동 / Ctrl+휠 확대·축소. */
 .view-tools .zoom-bar small {
+  max-width: 96px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.view-tools .zoom-bar small .long {
   display: none;
+}
+
+.zoom-bar small .short {
+  display: none;
+}
+
+.view-tools .zoom-bar small .short {
+  display: inline;
 }
