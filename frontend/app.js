@@ -950,7 +950,7 @@ function bindZoom(key){
   const middle=event.button===1;
   if(!middle&&event.button!==0)return;
   if(!middle&&event.target.closest(KEEPS_ITS_OWN_DRAG))return;
-  pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
+  pan={x:event.clientX,y:event.clientY,left:scroll.scrollLeft,top:scroll.scrollTop,page:window.scrollY};
   dragged=false;
  });
  scroll.addEventListener('pointermove',event=>{
@@ -967,7 +967,12 @@ function bindZoom(key){
   }
   event.preventDefault();
   scroll.scrollLeft=pan.left-dx;
-  scroll.scrollTop=pan.top-dy;
+  const want=pan.top-dy;
+  scroll.scrollTop=want;
+  // Past the top or foot of the frame the drag carries on with the page, so
+  // the forebears at the top of the tree come down into view even when the
+  // page itself was scrolled past them.
+  if(!document.body.classList.contains('view-full'))window.scrollTo(window.scrollX,pan.page+want-scroll.scrollTop);
  });
  const endPan=()=>{pan=null;scroll.classList.remove('panning');};
  scroll.addEventListener('pointerup',endPan);
