@@ -133,6 +133,31 @@ if not exist "jocbo.db" (
   )
 )
 
+rem -- 새 족보 받기 -----------------------------
+rem 다른 컴퓨터에서 올린 족보(db\initial.db)와 사진이 갱신으로 함께 옵니다.
+rem db\initial.version 이 이 컴퓨터가 받은 판과 다르면, 이 컴퓨터의 족보를
+rem backups\ 에 남긴 뒤 새 족보로 바꿉니다. 같으면 건드리지 않습니다.
+if exist "db\initial.version" if exist "db\initial.db" (
+  set "SHIPPED="
+  set /p SHIPPED=<"db\initial.version"
+  set "MINE="
+  if exist "jocbo.db.version" set /p MINE=<"jocbo.db.version"
+  if not "!SHIPPED!"=="!MINE!" (
+    echo   새 족보 받는 중... ^(!SHIPPED!^)
+    if exist "jocbo.db" (
+      if not exist "backups" mkdir "backups"
+      copy /y "jocbo.db" "backups\jocbo-before-!SHIPPED!.db" >nul
+      echo   이 컴퓨터의 족보는 backups\jocbo-before-!SHIPPED!.db 에 남겼습니다.
+    )
+    copy /y "db\initial.db" "jocbo.db" >nul
+    if errorlevel 1 (
+      echo   새 족보로 바꾸지 못했습니다 - 프로그램이 이미 열려 있으면 닫고 다시 실행하세요.
+    ) else (
+      copy /y "db\initial.version" "jocbo.db.version" >nul
+    )
+  )
+)
+
 rem -- 브라우저 ---------------------------------
 rem 크롬이 있으면 크롬으로, 없으면 기본 브라우저로 엽니다.
 rem %ProgramFiles(x86)% 의 괄호가 for ( ) 블록을 깨뜨리므로 한 줄씩 확인합니다.

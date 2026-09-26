@@ -27,7 +27,7 @@
 
 **최신으로 갱신할 때는 `install.bat`을 다시 누릅니다.** 서버를 멈추고, 폴더를 GitHub 최신과 똑같이 맞추고, 늘어난 꾸러미를 설치한 뒤 다시 띄웁니다.
 
-- **족보 DB(`jocbo.db`)와 그 컴퓨터에서 올린 사진은 갱신하지 않습니다.** 컴퓨터마다 따로 두는 기록이라 갱신은 프로그램만 바꿉니다. DB를 git으로 나르던 옛 판에서 넘어올 때도 `jocbo.db`는 그대로 남습니다.
+- **갱신하면 족보 DB와 사진도 함께 받습니다.** 올린 컴퓨터의 족보가 `db/initial.db`로, 사진·판독 사진이 `uploads/`로 함께 올라갑니다. `start.bat`은 `db/initial.version`이 그 컴퓨터가 받은 판(`jocbo.db.version`)과 다르면 그 컴퓨터의 `jocbo.db`를 `backups\jocbo-before-판.db`에 남긴 뒤 새 족보로 바꿉니다. 판이 같으면 건드리지 않습니다. 프로그램이 이미 열려 있어 바꾸지 못하면 알리고, 다음 실행 때 다시 시도합니다.
 - 프로그램 파일 중 이 컴퓨터에서 바뀌었거나 git이 모르는 파일이 있으면, 덮어쓰기 전에 폴더를 `jocbo-backup-날짜-시각`으로 통째로 복사해 둡니다.
 - 압축파일로 받았던 폴더도 git이 있으면 그 자리에서 git으로 이어 받습니다. git이 없으면 최신 압축파일로 덮어씁니다.
 - 받기에 실패하면 옛 판으로 넘어가지 않고 멈춰서 알립니다.
@@ -217,7 +217,7 @@ db/seed.sql            가상 데이터
 db/seed.py             선택적 seed 실행기
 db/seed_reference_page.py  淸道金氏大同譜 卷之九 116·618쪽 판독 기록 (실제 인물)
 db/migrations/         번호순 SQL 변경 파일
-uploads/               비공개 첨부파일 (Git 제외)
+uploads/               사진·판독 사진 (DB와 함께 Git에 올림)
 tests/test_api.py      API 통합 테스트
 tests/test_readscan.py 판독 지면 문법 테스트 (판독기 없이도 실행)
 start.bat              설치·실행 한꺼번에 (Windows)
@@ -235,9 +235,9 @@ compose.yaml           PostgreSQL + 앱 실행
 .\.venv\Scripts\python -m db.seed_reference_page
 ```
 
-`start.bat` 은 `jocbo.db` 가 없을 때(처음 설치)만 족보를 넣습니다. `db/initial.db` 가 있으면 그것을 복사하고, 없으면 이 스크립트를 실행합니다. 이미 기록이 있는 설치는 건드리지 않습니다.
+`start.bat` 은 `jocbo.db` 가 없으면(처음 설치) `db/initial.db` 를 복사하고, 없으면 이 스크립트를 실행합니다. 이미 기록이 있는 설치는 `db/initial.version` 이 바뀌었을 때만 새 족보로 바꾸며, 바꾸기 전 DB는 `backups\` 에 남깁니다.
 
-`db/initial.db` 는 처음 설치하는 컴퓨터가 시작할 족보입니다(2026-09-25 기준 60명). 새 설치가 더 늘어난 족보로 시작하게 하려면 쓰고 있는 `jocbo.db` 를 `db/initial.db` 로 복사해 커밋합니다. 이미 설치된 컴퓨터의 DB는 바뀌지 않습니다.
+`db/initial.db` 는 모든 컴퓨터가 받는 족보입니다(2026-09-26 기준 59명, 사진 6장, 판독 사진 37장). 다른 컴퓨터에 지금 족보를 보내려면 쓰고 있는 `jocbo.db` 를 `db/initial.db` 로 복사하고(로그인 세션은 지웁니다), `db/initial.version` 을 새 값(예: `20260926-0931`)으로 바꾸고, `uploads/` 의 사진과 함께 커밋해 올립니다. 다른 컴퓨터는 `start.bat` 을 실행할 때 받습니다.
 
 - **족보 주인**: 이미 계정이 있는 설치면 그 계정에, 없으면 `hung6789@naver.com` 을 만들어 그 계정에 붙입니다. 다른 이메일을 쓰려면 `JOCBO_EMAIL` 환경변수로 지정합니다.
 - 계정을 새로 만든 경우 첫 비밀번호는 `Jocbo2026!` 이며, 로그인 후 바꾸는 것을 권합니다.
@@ -265,4 +265,4 @@ python -m pytest -q
 
 기본 테스트는 임시 SQLite DB를 사용합니다. `tests/test_readscan.py`는 판독기를 설치하지 않아도 실행되며, 지면 문법과 간지 검산만 확인합니다. `TEST_DATABASE_URL`을 **테스트용 PostgreSQL DB**로 지정하면 같은 API 시나리오를 PostgreSQL에서 실행합니다. 테스트 데이터가 삽입되므로 운영 DB를 지정하지 마세요. GitHub Actions는 PostgreSQL DDL·seed 두 번 실행·SQLite/PostgreSQL API 테스트를 수행합니다.
 
-수동 확인: 회원가입 → 로그인 → 샘플 추가 → 인물 등록/수정/삭제 → 관계 등록 → 검색 → 가계도 → 족보책 → 인쇄/PDF. `jocbo.db`와 새로 올린 사진은 컴퓨터마다 따로 두고 저장소에 올리지 않습니다. 다만 `db/initial.db`·`db/seed_reference_page.py`와 이미 올라간 사진 두 장에는 실존 인물의 이름과 생년월일이 들어 있으므로, 공개 저장소에 두는 것이 맞는지 확인하고 쓰세요.
+수동 확인: 회원가입 → 로그인 → 샘플 추가 → 인물 등록/수정/삭제 → 관계 등록 → 검색 → 가계도 → 족보책 → 인쇄/PDF. `db/initial.db`·`db/seed_reference_page.py`와 `uploads/`의 사진·판독 사진에는 실존 인물의 이름·생년월일·얼굴이 들어 있고, `db/initial.db`에는 로그인 계정(이메일과 비밀번호 해시)도 들어 있습니다. 공개 저장소에 두는 것이 맞는지 확인하고 쓰세요.

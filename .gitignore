@@ -3,11 +3,12 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.db
-# 족보 DB(jocbo.db)는 컴퓨터마다 따로 둡니다. 갱신은 프로그램만 바꿉니다.
-# 처음 설치하는 곳은 db/initial.db 를 복사해 같은 족보로 시작합니다.
+# 족보 DB(jocbo.db)는 컴퓨터마다 둡니다. 올릴 때는 db/initial.db 로 복사해
+# 올리고, 다른 컴퓨터의 start.bat 이 db/initial.version 이 바뀐 것을 보면
+# 그 컴퓨터의 DB를 backups\ 에 남긴 뒤 새 족보로 바꿉니다.
 !db/initial.db
-# 각 설치에서 올린 사진도 그 컴퓨터의 DB와 짝이므로 올리지 않습니다.
-uploads/*
-!uploads/.gitkeep
+jocbo.db.version
+backups/
+# 사진·판독 사진(uploads)은 DB와 짝이므로 함께 올립니다.
 .env
 test-results/
