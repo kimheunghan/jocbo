@@ -28,10 +28,10 @@ body {
   font-family: var(--sans);
 }
 
-/* 한지 바탕 위에 수묵 산수(포스터의 산과 소나무)가 옅게 번집니다. */
+/* 한지 바탕 위에, 창 아래쪽으로 수묵 산수가 번집니다. */
 body {
   background:
-    url("landscape.png") right 4% bottom 6% / min(900px, 62vw) auto no-repeat fixed,
+    url("landscape.svg") center bottom / 100% auto no-repeat fixed,
     radial-gradient(ellipse at 20% 0%, #fbf8f0 0%, transparent 60%),
     radial-gradient(ellipse at 90% 10%, #efe6d2 0%, transparent 55%),
     var(--paper);
@@ -168,35 +168,37 @@ footer {
 
 /* ── 첫 화면: 소개와 로그인 ──────────────────── */
 .welcome.intro {
-  grid-template-columns: minmax(0, 1fr) minmax(440px, 1fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
   grid-template-areas:
     "copy side"
     "tiles tiles"
     "quote quote";
-  gap: 28px 40px;
+  gap: 36px 56px;
   align-items: start;
   max-width: 1200px;
-  margin: 28px auto 28px;
+  margin: 44px auto 28px;
 }
 
 .intro-copy {
   grid-area: copy;
 }
 
-/* The poster's hanok corner, its eaves and pine and the hanging plaque
-   (百代之計 始於一家), fills the right column; the sign-in card sits over the
-   pine under the eaves, leaving the plaque in view. */
 .intro-side {
   grid-area: side;
-  position: relative;
-  padding-bottom: 8px;
-  background: url("hero-hanok.png") right top / 100% auto no-repeat;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 18px;
+}
+
+.intro-side .intro-scroll {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .intro-side .panel {
-  position: relative;
-  width: 55%;
-  margin-top: 44%;
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .intro-lead {
@@ -251,6 +253,33 @@ footer {
 
 .intro-side .panel h2 {
   color: var(--navy);
+}
+
+/* 족자: 百代之計 始於一家 */
+.intro-scroll {
+  display: flex;
+  /* Written downward, so the block runs right to left: 百代之計, then 始於一家. */
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 24px 14px;
+  width: max-content;
+  border: 1px solid #c9b88f;
+  border-top: 10px solid #5b4630;
+  border-bottom: 10px solid #5b4630;
+  background: linear-gradient(90deg, #efe6cf, #f8f2e2 50%, #efe6cf);
+  box-shadow: 0 8px 20px #0000001f;
+  writing-mode: vertical-rl;
+  color: #1c1a16;
+  font: 700 26px/1.3 var(--serif);
+  letter-spacing: 6px;
+}
+
+.intro-scroll small {
+  margin-top: 18px;
+  color: #6b5b40;
+  font: 13px/1.4 var(--serif);
+  letter-spacing: 3px;
 }
 
 .intro-tiles {
@@ -321,15 +350,8 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .intro-side {
-    aspect-ratio: auto;
-    padding-top: 60%;
-    background-size: 100% auto;
-  }
-
-  .intro-side .panel {
-    width: auto;
-    margin-top: 0;
+  .intro-scroll {
+    display: none;
   }
 }
 
