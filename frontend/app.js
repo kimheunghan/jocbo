@@ -375,7 +375,7 @@ function hanjaNumber(value){const n=Number(value);if(!Number.isInteger(n)||n<0||
 // A child stands a generation below its parent, and husband and wife in one:
 // someone who married in, entered at 1, takes the generation of the one married.
 function normalizeBookGenerations(){const byId=new Map(book.persons.map(p=>[p.id,p])),parents=book.relations.filter(r=>r.kind==='parent'),spouses=book.relations.filter(r=>r.kind==='spouse');for(let pass=0;pass<book.persons.length;pass++){let changed=false;for(const r of parents){const parent=byId.get(r.source_id),child=byId.get(r.target_id);if(parent&&child&&child.generation<parent.generation+1){child.generation=parent.generation+1;changed=true;}}for(const r of spouses){const one=byId.get(r.source_id),other=byId.get(r.target_id);if(one&&other&&one.generation!==other.generation){one.generation=other.generation=Math.max(one.generation,other.generation);changed=true;}}if(!changed)break;}}
-function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));searchNotice.hidden=true;if(!book){$('#view').innerHTML='<p class="empty">족보 없음 — 왼쪽에서 새 족보 또는 예제 추가</p>';return;}
+function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#viewTools').replaceChildren();searchNotice.hidden=true;if(!book){$('#view').innerHTML='<p class="empty">족보 없음 — 왼쪽에서 새 족보 또는 예제 추가</p>';return;}
  const q=$('#search').value.toLowerCase().trim();const people=book.persons.filter(p=>searchMatches(p,q));
  // A search narrows the list. The tree and the book are drawings of the whole
  // family, so they keep everyone and move to the person who was found instead.
@@ -823,7 +823,7 @@ function orderMembers(host,mates){
 // back to see its shape and pushed in to read a card without losing your place.
 const ZOOM_MIN=0.25,ZOOM_MAX=3;
 function wrapZoom(inner,trailing=''){
- return '<div class="zoom-bar">'
+ return '<div class="zoom-bar" title="끌어서 이동 · Ctrl + 휠로 확대·축소">'
   +'<button type="button" class="secondary" data-zoom="out" aria-label="축소">−</button>'
   +'<span class="zoom-level">100%</span>'
   +'<button type="button" class="secondary" data-zoom="in" aria-label="확대">+</button>'
@@ -854,6 +854,10 @@ function applyFrameHeight(px){
 }
 function setViewFull(on){
  document.body.classList.toggle('view-full',on);
+ // In 전체 화면 the bar floats over the whole window, which it cannot do from
+ // inside the sticky row of tabs; it goes back there after.
+ const bar=$('.zoom-bar');
+ if(bar)(on?document.body:$('#viewTools')).append(bar);
  const button=$('[data-zoom="full"]');
  if(button){button.textContent=on?'전체 화면 닫기':'전체 화면';button.setAttribute('aria-pressed',String(on));}
 }
@@ -896,6 +900,10 @@ const zoomScrollAt=new Map();
 function bindZoom(key){
  const scroll=$('.zoom-scroll'),sizer=$('.zoom-sizer'),body=$('.zoom-body'),level=$('.zoom-level');
  if(!scroll)return;
+ // The controls sit in the row of the view tabs, where there is room, rather
+ // than on a line of their own above the drawing.
+ const bar=$('#view .zoom-bar');
+ if(bar)$('#viewTools').append(bar);
  bindFrame();
  const wasAt=zoomScrollAt.get(key);
  body.style.transform='none';

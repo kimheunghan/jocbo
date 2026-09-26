@@ -1743,3 +1743,22 @@ body.view-full .zoom-bar .zoom-script {
     background: #fffdf4;
   }
 }
+
+/* The view's controls in the row of its tabs: flat, on one line, with the
+   hint about dragging and Ctrl+wheel kept to the bar's tooltip. */
+.view-tools {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.view-tools .zoom-bar {
+  position: static;
+  margin: 0;
+  padding: 4px 8px;
+  box-shadow: none;
+}
+
+.view-tools .zoom-bar small {
+  display: none;
+}
