@@ -1846,3 +1846,180 @@ dialog .dialog-close {
   z-index: 21;
   margin: -18px -18px 0 0;
 }
+
+/* The row of tabs, controls and 한글/한자 never breaks onto a second line: as
+   the room narrows (a 14-inch screen, a wide sidebar) the hint goes first,
+   then the buttons tighten and their type gets smaller. */
+.view-bar {
+  flex-wrap: nowrap;
+  container-type: inline-size;
+}
+
+.view-bar nav {
+  flex: none;
+}
+
+@container (max-width: 1060px) {
+  .view-tools .zoom-bar small {
+    display: none;
+  }
+}
+
+@container (max-width: 940px) {
+  .view-bar nav button {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+
+  .view-tools .zoom-bar {
+    gap: 4px;
+    padding: 3px 6px;
+  }
+
+  .view-tools .zoom-bar button {
+    min-width: 28px;
+    padding: 3px 7px;
+    font-size: 12px;
+  }
+
+  .view-tools .zoom-level {
+    min-width: 34px;
+    font-size: 12px;
+  }
+}
+
+@container (max-width: 800px) {
+  .view-bar nav button {
+    padding: 6px 9px;
+    font-size: 12px;
+  }
+
+  /* 100% is also a click on the level itself away; the button goes. */
+  .view-tools .zoom-bar [data-zoom="reset"] {
+    display: none;
+  }
+
+  .view-bar > button {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+}
+
+/* ── 좁은 화면: 줄바꿈 없이 줄어들기 ───────────────── */
+/* A button's words never break inside it. */
+button {
+  white-space: nowrap;
+}
+
+/* The page's width is what is left beside the sidebar, which the reader can
+   widen, so the title row and the tab row answer to that width. */
+.content {
+  container-type: inline-size;
+  container-name: content;
+}
+
+.page-title h1 {
+  white-space: nowrap;
+}
+
+.page-actions {
+  flex-wrap: nowrap;
+}
+
+@container content (max-width: 1060px) {
+  .page-title h1 {
+    font-size: 28px;
+  }
+
+  .page-actions {
+    gap: 6px;
+  }
+
+  .page-actions button {
+    padding: 8px 11px;
+    font-size: 13px;
+  }
+}
+
+@container content (max-width: 900px) {
+  .page-title h1 {
+    font-size: 24px;
+  }
+
+  .page-actions button {
+    padding: 6px 9px;
+    font-size: 12px;
+  }
+}
+
+@container content (max-width: 760px) {
+  .page-title {
+    flex-wrap: wrap;
+  }
+}
+
+/* The tab row, at its narrowest: smaller still, the level shown only while
+   there is room for it. */
+@container (max-width: 700px) {
+  .view-bar nav button {
+    padding: 5px 7px;
+    font-size: 11.5px;
+  }
+
+  .view-tools .zoom-bar {
+    gap: 3px;
+    padding: 2px 4px;
+  }
+
+  .view-tools .zoom-bar button {
+    min-width: 24px;
+    padding: 3px 5px;
+    font-size: 11px;
+  }
+
+  .view-tools .zoom-level {
+    display: none;
+  }
+}
+
+/* The first screen's sign-in card: its title and buttons stay on one line. */
+.intro-side .panel h2 {
+  white-space: nowrap;
+  font-size: clamp(17px, 1.6vw, 20px);
+}
+
+.intro-side .panel .actions {
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .welcome.intro {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, .9fr);
+    gap: 28px 32px;
+  }
+
+  .intro-scroll {
+    font-size: 24px;
+    letter-spacing: 4px;
+    padding: 18px 10px;
+  }
+}
+
+/* The tree's 표시 항목 row tightens before it wraps. */
+@container content (max-width: 960px) {
+  .tree-options {
+    gap: 4px 10px;
+    font-size: 12px;
+  }
+
+  .tree-options label {
+    gap: 4px;
+  }
+}
+
+@container content (max-width: 760px) {
+  .tree-options {
+    gap: 4px 8px;
+    font-size: 11px;
+  }
+}
