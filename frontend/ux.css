@@ -1807,3 +1807,35 @@ body.view-full .zoom-bar .zoom-script {
 .zoom-scroll.panning .traditional-book * {
   cursor: grabbing;
 }
+
+/* A window's title, with its 한글/한자 switch just after it, stays in view
+   while the window scrolls, and so does the close button. */
+dialog .dialog-head {
+  position: sticky;
+  /* The window's own 28px padding is above the head; it sticks at the edge. */
+  top: -28px;
+  z-index: 20;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 14px;
+  margin: -28px -28px 18px !important;
+  padding: 24px 68px 14px 28px !important;
+  /* Its paper reaches out to the window's sides and top whatever the
+     window's padding, so nothing scrolls past beside it; the foot is
+     left clear with a hairline. */
+  box-shadow: 0 0 0 80px var(--paper-raised), 0 1px 0 var(--line-soft);
+  clip-path: inset(-80px -80px -1px -80px);
+  background: var(--paper-raised);
+}
+
+dialog .dialog-head [data-script-toggle] {
+  margin-top: 6px;
+}
+
+dialog .dialog-close {
+  position: sticky;
+  top: -18px;
+  float: right;
+  z-index: 21;
+  margin: -18px -18px 0 0;
+}
