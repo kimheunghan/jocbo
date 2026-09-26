@@ -573,7 +573,7 @@ def front_page():
     """
     front = ROOT / 'frontend'
     page = (front / 'index.html').read_text(encoding='utf-8')
-    for name in ('app.js', 'style.css', 'ux.css'):
+    for name in ('app.js', 'style.css', 'ux.css', 'theme.css'):
         stamp = int((front / name).stat().st_mtime)
         page = page.replace(f'"{name}"', f'"{name}?v={stamp}"')
     return Response(page, media_type='text/html; charset=utf-8', headers={'Cache-Control': 'no-cache'})
