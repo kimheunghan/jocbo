@@ -1048,7 +1048,14 @@ body.view-full .zoom-bar .zoom-script {
 
 .scan-pane {
   position: sticky;
-  top: 0;
+  /* Just under the window's fixed head, and short enough to stand whole
+     between it and the buttons at the foot: the scan, its source and its
+     zoom never move while the lines beside them scroll. */
+  top: 63px;
+}
+
+#scanDialog .scan-frame {
+  height: max(240px, calc(90vh - 368px));
 }
 
 .scan-source {
