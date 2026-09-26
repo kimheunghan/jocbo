@@ -2092,6 +2092,7 @@ function paintScanList(keep){
  showScan(chosen);
 }
 async function openScanDialog(){
+ $('#claudeKeyBox').hidden=true;
  if(!book){message('족보 선택 필요','error');return;}
  scanError();
  $('#scanFile').value='';

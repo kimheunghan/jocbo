@@ -1337,6 +1337,12 @@ body.view-full .zoom-bar .zoom-script {
   background: #f2f6fb;
 }
 
+/* Shown only once 'Claude로 판독' finds no key; display:flex above would
+   otherwise override the hidden attribute. */
+.claude-key[hidden] {
+  display: none;
+}
+
 .claude-key label {
   flex: 1 1 260px;
 }
