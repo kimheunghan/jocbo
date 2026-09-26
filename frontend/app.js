@@ -585,7 +585,7 @@ function personCard(person){
  const tone=person.gender==='남'?' male':person.gender==='여'?' female':'';
  const dates=[person.birth_date?shownDate(person.birth_date):'출생일 미상',person.death_date?'— '+shownDate(person.death_date):''].filter(Boolean).join(' ');
  return `<button type="button" class="person-card${tone}" data-person="${person.id}">`
-  +`<span class="person-portrait">${photo?`<img src="/api/files/${photo.id}" alt="">`:esc(person.korean_name.slice(0,1))}</span>`
+  +`<span class="person-portrait">${photo?`<img src="/api/files/${photo.id}?size=240" alt="">`:esc(person.korean_name.slice(0,1))}</span>`
   +'<span class="person-body">'
   +`<strong>${esc(displayName(person).primary)}</strong>`
   +`<span class="person-hanja">${esc(displayName(person).other||'한자명 미등록')}</span>`
@@ -1153,7 +1153,7 @@ function renderTree(people){
    +(outside.has(p.id)?' outside':'');
   return `<div class="tree-node" style="left:${at.x}px;top:${at.y}px;width:${nodeW}px;height:${nodeH}px">`
    +`<div class="tree-card${tone}" data-tree-person="${p.id}" role="button" tabindex="0">`
-   +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}" alt="">`:''}</span>`:'')
+   +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}?size=240" alt="">`:''}</span>`:'')
    +`<strong>${esc(displayName(p).primary)}</strong>`
    +treeDetails(p,outside.has(p.id)).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
    +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
@@ -1717,7 +1717,14 @@ function treeBranches(limit){
   kidsOf(id).forEach(kid=>line(kid,into));
   return into;
  };
- const width=ids=>{renderTree(book.persons.filter(p=>ids.has(p.id)));const canvas=$('.tree-canvas');return canvas?canvas.offsetWidth:0;};
+ // Drawing the tree to measure it is the slow part, so each set of people is
+ // drawn once.
+ const widths=new Map();
+ const width=ids=>{
+  const key=[...ids].sort((a,b)=>a-b).join(',');
+  if(!widths.has(key)){renderTree(book.persons.filter(p=>ids.has(p.id)));const canvas=$('.tree-canvas');widths.set(key,canvas?canvas.offsetWidth:0);}
+  return widths.get(key);
+ };
  const sheets=[];
  // The families under one head, shared out over as few sheets as they fill,
  // each sheet with the head and the forebears above it.

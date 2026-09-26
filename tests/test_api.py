@@ -164,6 +164,20 @@ def test_a_corrected_line_is_kept_as_it_stands(client):
     assert (kept['birth_date'], kept['note']) == ('1967-08-02', '初名 純哲(순철)')
 
 
+def test_a_photo_comes_small_for_a_card(client):
+    import io
+    from PIL import Image
+    account(client)
+    pid = person(client, book(client))
+    big = io.BytesIO()
+    Image.new('RGB', (1600, 1200), (120, 90, 60)).save(big, 'PNG')
+    fid = client.post(f'/api/persons/{pid}/files', files={'file': ('face.png', big.getvalue(), 'image/png')}).json()['id']
+    small = client.get(f'/api/files/{fid}?size=240')
+    assert small.status_code == 200 and small.headers['content-type'] == 'image/jpeg'
+    assert max(Image.open(io.BytesIO(small.content)).size) == 240
+    assert client.get(f'/api/files/{fid}').content == big.getvalue()
+
+
 def test_a_parent_stands_above_the_child(client):
     account(client)
     bid = book(client)

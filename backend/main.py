@@ -529,13 +529,44 @@ async def upload(pid: int, file: UploadFile, uid=Depends(auth)):
     return {'id': fid}
 
 @app.get('/api/files/{fid}')
-def download(fid: int, uid=Depends(auth)):
+def download(fid: int, size: int = Query(0, ge=0, le=1200), uid=Depends(auth)):
     with engine.connect() as c:
         row = c.execute(select(files).where(files.c.id == fid)).mappings().first()
         if not row:
             raise HTTPException(404, '파일이 없습니다.')
         own_person(c, row['person_id'], uid)
+    if size:
+        small = thumbnail(row['storage_key'], size)
+        if small:
+            return FileResponse(small, media_type='image/jpeg',
+                                headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400'})
     return served(row)
+
+
+def thumbnail(key, size):
+    """A photo made small for a card, kept beside the uploads once it is made.
+
+    A card shows a photo a few dozen pixels wide; sent whole, a phone's 4MB
+    picture has the list, the tree and above all the print preview decode it
+    at full size for every card it appears on. None when it cannot be made
+    (not a picture, or Pillow missing), and the original is sent instead.
+    """
+    source = UPLOADS / key
+    if source.suffix.lower() not in ('.png', '.jpg', '.jpeg') or not source.exists():
+        return None
+    small = UPLOADS / 'thumbs' / f'{source.stem}-{size}.jpg'
+    if small.exists() and small.stat().st_mtime >= source.stat().st_mtime:
+        return small
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(source) as picture:
+            picture = ImageOps.exif_transpose(picture).convert('RGB')
+            picture.thumbnail((size, size))
+            small.parent.mkdir(parents=True, exist_ok=True)
+            picture.save(small, 'JPEG', quality=85)
+    except Exception:
+        return None
+    return small
 
 @app.delete('/api/files/{fid}')
 def remove_file(fid: int, uid=Depends(auth)):
