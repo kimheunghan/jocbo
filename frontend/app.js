@@ -1831,7 +1831,7 @@ window.addEventListener('afterprint',()=>{
  document.body.classList.remove('print-tree');
  document.querySelector('.tree-print-pages')?.remove();
 });
-$('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books','POST',{title:'가상 가족의 기록 (샘플)',clan_name:'예시 김씨',description:'실존 인물과 무관한 예제입니다.'});const people=[{korean_name:'김예시',hanja_name:'金例示',generation:1,birth_date:'1940-01-01',gender:'남'},{korean_name:'이샘플',hanja_name:'李樣本',generation:1,birth_date:'1942-02-02',gender:'여'},{korean_name:'김가상',hanja_name:'金假想',generation:2,birth_date:'1970-03-03',gender:'남'},{korean_name:'김미래',hanja_name:'金未來',generation:3,birth_date:'2000-04-04',gender:'미상'}];const ids=[];for(const p of people)ids.push((await api('/books/'+b.id+'/persons','POST',{...p,note:'실제 개인정보가 아닌 가상 인물입니다.'})).id);for(const [s,t,kind] of [[0,1,'spouse'],[0,2,'parent'],[1,2,'parent'],[2,3,'parent']])await api('/relations','POST',{source_id:ids[s],target_id:ids[t],kind});await loadBooks(b.id);message('예제 족보 추가 완료');}finally{button.disabled=false;}});
+$('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books/sample','POST');await loadBooks(b.id);message('예제 족보 추가 완료 — 金海金氏族譜 (가상 인물 20명)');}finally{button.disabled=false;}});
 enter().catch(()=>{});
 
 // ── 스캔 보고 옮겨 적기 ────────────────────────

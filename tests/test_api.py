@@ -178,6 +178,15 @@ def test_a_photo_comes_small_for_a_card(client):
     assert client.get(f'/api/files/{fid}').content == big.getvalue()
 
 
+def test_the_sample_book_is_whole(client):
+    account(client)
+    bid = client.post('/api/books/sample').json()['id']
+    got = client.get(f'/api/books/{bid}').json()
+    assert (got['title'], got['bon_gwan'], got['founder']) == ('金海金氏族譜', '金海', '首露王')
+    assert len(got['persons']) == 20 and all(p['bon_gwan'] for p in got['persons'])
+    assert len(got['relations']) == 30
+
+
 def test_a_parent_stands_above_the_child(client):
     account(client)
     bid = book(client)

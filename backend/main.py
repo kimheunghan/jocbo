@@ -213,6 +213,13 @@ def create_book(data: Book, uid=Depends(auth)):
         values['volume'] = values['volume'] or '1'
         return {'id': c.execute(books.insert().values(user_id=uid, **values)).inserted_primary_key[0]}
 
+@app.post('/api/books/sample', status_code=201)
+def add_sample_book(uid=Depends(auth)):
+    """A fictional 金海金氏 book of twenty people, every field in use."""
+    from backend.sample import create_sample
+    with engine.begin() as c:
+        return {'id': create_sample(c, uid, books, persons, relations)}
+
 @app.put('/api/books/{bid}')
 def edit_book(bid: int, data: Book, uid=Depends(auth)):
     with engine.begin() as c:
