@@ -415,6 +415,12 @@ function markFound(person,selector){
  const spot=node.getBoundingClientRect(),within=frame.getBoundingClientRect();
  frame.scrollLeft+=spot.left-within.left-(within.width-spot.width)/2;
  frame.scrollTop+=spot.top-within.top-(within.height-spot.height)/2;
+ // The frame may be taller than the window, or the page scrolled elsewhere:
+ // then the page moves too, until the card stands in the middle of the window.
+ const seen=node.getBoundingClientRect(),bar=document.querySelector('.view-bar');
+ const top=bar?bar.getBoundingClientRect().bottom:0;
+ if(seen.top<top||seen.bottom>window.innerHeight)
+  window.scrollBy(0,seen.top+seen.height/2-(top+window.innerHeight)/2);
 }
 const HANJA_DIGITS='○一二三四五六七八九';
 const HANJA_STEMS='甲乙丙丁戊己庚辛壬癸';
