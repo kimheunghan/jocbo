@@ -590,7 +590,9 @@ body.view-full .zoom-bar .zoom-script {
    prints — same columns, same type, same line breaks. */
 .traditional-book {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px 72px;
+  /* The book's name at the far right is as narrow as the column the later
+     sheets carry at their left. */
+  grid-template-columns: minmax(0, 1fr) 44px 46px;
   grid-template-rows: 1fr;
   width: 680px;
   height: 945px;
@@ -682,17 +684,6 @@ body.view-full .zoom-bar .zoom-script {
 
 .traditional-book.margin-left .genealogy-body {
   grid-column: 2;
-}
-
-/* The first sheet: the same column at the right. */
-.traditional-book.margin-right {
-  grid-template-columns: minmax(0, 1fr) 46px;
-}
-
-.traditional-book.margin-right .genealogy-margin {
-  grid-column: 2;
-  border-right: 0;
-  border-left: 1px solid #77796a;
 }
 
 .genealogy-margin {
