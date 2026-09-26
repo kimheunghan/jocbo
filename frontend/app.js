@@ -1910,11 +1910,14 @@ function isNamesake(row,found){
 // The same rule the server keeps when it updates a note: an item is said
 // already when, readings in brackets and spacing aside, the old note holds it.
 // A second 父 or 字 is a misreading of the one on record, not news.
-const NOTE_ONE_OF=new Set(['父','夫','字','初名','一名','號','諱']);
+// A grave is one place too: the one on record, perhaps set right by hand, is
+// kept over another reading of it.
+const NOTE_ONE_OF=new Set(['父','夫','字','初名','一名','號','諱','墓','墓는']);
 function mergedNote(old,fresh){
  const bare=text=>text.replace(/[\s·]|[(（][^)）]*[)）]/g,'');
  const held=bare(old);
- const head=item=>item.split(/\s+/)[0];
+ // 墓는 and 墓 are the one label.
+ const head=item=>item.split(/\s+/)[0].replace(/는$/,'');
  const said=new Set(old.split(/\s*·\s*|\n/).map(item=>head(item.trim())).filter(Boolean));
  const extra=fresh.split(/\s*·\s*|\n/).map(item=>item.trim())
   .filter(item=>item&&bare(item)&&!held.includes(bare(item))
@@ -1940,7 +1943,11 @@ function paintScanMatch(row){
  // altogether, so the line offers both: update the one on record, or enter a
  // new person. Filing the page takes it as the new person the characters say
  // it is, unless 업데이트 was chosen.
- if(isNamesake(row,found)){
+ // The very characters of a record are that record, even with a 동명이인 in
+ // the book; only other characters make the line a question of who it is.
+ const sameHanja=scanRowFields(row)('hanja_name').value.trim()===found.hanja_name;
+ const namesakes=book.persons.filter(person=>person.korean_name===found.korean_name).length>1;
+ if(isNamesake(row,found)&&!sameHanja){
   row.dataset.matchId=String(found.id);
   row.dataset.replace='';
   row.dataset.shownId='';
@@ -1986,8 +1993,11 @@ function paintScanMatch(row){
  note.hidden=false;
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
   +(blanks.length?`빈칸 ${esc(blanks.join('·'))}`:'빈칸 없음')+'</span>'
-  +'<button type="button" class="scan-new scan-update" data-save-row title="이 줄만 지금 반영 · 줄에 보이는 그대로 기존 인물에 저장">업데이트</button>';
- note.querySelector('[data-save-row]').onclick=()=>saveScanRow(row);
+  +'<button type="button" class="scan-new scan-update" data-save-row title="이 줄만 지금 반영 · 줄에 보이는 그대로 기존 인물에 저장">업데이트</button>'
+  +(namesakes?'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 새로 등록">신규 등록</button>':'');
+ note.querySelector('[data-save-row]').onclick=()=>{row.dataset.fillId=String(found.id);saveScanRow(row);};
+ const apart=note.querySelector('[data-namesake="apart"]');
+ if(apart)apart.onclick=()=>{row.dataset.fillId='';saveScanRow(row);};
 }
 function scanLines(){
  return [...document.querySelectorAll('.scan-row')].map(row=>{
@@ -2194,7 +2204,7 @@ async function saveScanRow(row){
  if(!record)return;
  const updating=Boolean(record.id);
  delete record.family;delete record.key;delete record.spouse;
- const button=row.querySelector('[data-save-row]')||row.querySelector(updating?'[data-namesake="update"]':'[data-namesake="apart"]');
+ const button=row.querySelector(updating?'[data-save-row],[data-namesake="update"]':'[data-namesake="apart"],[data-save-row]');
  try{
   const done=await busy(button,'반영 중…',()=>api('/books/'+book.id+'/persons/bulk','POST',{people:[record]}));
   await refresh();

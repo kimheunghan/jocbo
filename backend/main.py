@@ -267,7 +267,9 @@ BLANK = {'hanja_name': '', 'bon_gwan': '', 'birth_date': '', 'death_date': '', '
 
 # The words a note item begins with, of which a person has one: a second 父 is a
 # misreading of the first, not news.
-NOTE_LABELS = {'父', '夫', '字', '初名', '一名', '號', '諱'}
+# A grave is one place too: the one on record, perhaps set right by hand, is
+# kept over another reading of it.
+NOTE_LABELS = {'父', '夫', '字', '初名', '一名', '號', '諱', '墓', '墓는'}
 
 def merged_note(old, new):
     """The note on record with the items of a new reading it lacks added on.
@@ -281,7 +283,8 @@ def merged_note(old, new):
     held = bare(old)
     # A reading's 父 or 字 where the note already names one is another reading
     # of the same thing, and more likely the misread one: it is not added.
-    head = lambda item: item.split()[0] if item.split() else ''
+    # 墓는 and 墓 are the one label.
+    head = lambda item: item.split()[0].removesuffix('는') if item.split() else ''
     said = {head(item.strip()) for item in re.split(r'\s*·\s*|\n', old)}
     extra = [item.strip() for item in re.split(r'\s*·\s*|\n', new)
              if item.strip() and bare(item) and bare(item) not in held
