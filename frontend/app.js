@@ -736,7 +736,14 @@ function bookHTML(people){
    }
    if(!any&&sheet>0)continue;
    sheetTops.push({top,first:sheet===0});
-   pages.push(`<article class="book-page traditional-book"><aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${esc(scriptText(book.branch_name||book.bon_gwan||''))}</aside><div class="genealogy-body">${rows.join('')}</div></article>`);
+   // The first sheet carries the book's name and its 파 at the right, as the
+   // book opens; every sheet after it carries them at the left in one column,
+   // the name above the 파, and keeps only the 世 at its right.
+   const branch=esc(scriptText(book.branch_name||book.bon_gwan||''));
+   const margin=pages.length
+    ?`<aside class="genealogy-margin"><strong>${esc(scriptText(book.title))}</strong>${branch?`<b>${branch}</b>`:''}${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside>`
+    :`<aside class="genealogy-side"><strong>${esc(scriptText(book.title))}</strong>${volume?`<span>${esc(volume)}</span>`:''}${origin?`<small>${esc(origin)}</small>`:''}</aside><aside class="genealogy-branch">${branch}</aside>`;
+   pages.push(`<article class="book-page traditional-book${pages.length?' margin-left':''}">${margin}<div class="genealogy-body">${rows.join('')}</div></article>`);
   }
  }
  // Each sheet is printed on paper of its own, headed with the page of the

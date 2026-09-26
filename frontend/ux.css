@@ -673,6 +673,52 @@ body.view-full .zoom-bar .zoom-script {
   font-synthesis: none;
 }
 
+/* Every sheet after the first has the book's name and 파 at its left, in one
+   column as wide as the two at the first sheet's right, so the entries stand
+   where they would. */
+.traditional-book.margin-left {
+  grid-template-columns: 116px minmax(0, 1fr);
+}
+
+.traditional-book.margin-left .genealogy-body {
+  grid-column: 2;
+}
+
+.genealogy-margin {
+  grid-column: 1;
+  grid-row: 1;
+  writing-mode: vertical-rl;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 7px;
+  border-right: 1px solid #77796a;
+  letter-spacing: 2px;
+  font-family: "HCR Batang", "KoPubWorld바탕체", "KoPub바탕체", "Nanum Myeongjo", "Batang", serif;
+}
+
+.genealogy-margin strong {
+  font-size: 21px;
+  font-weight: 700;
+  font-synthesis: none;
+}
+
+.genealogy-margin b {
+  font-size: 18px;
+  font-weight: 700;
+  font-synthesis: none;
+}
+
+.genealogy-margin span {
+  font-size: 14px;
+}
+
+.genealogy-margin small {
+  color: #5f655f;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
 .genealogy-body {
   grid-column: 1;
   grid-row: 1;
