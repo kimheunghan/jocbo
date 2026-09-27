@@ -870,8 +870,7 @@ function setViewFull(on){
  // inside the sticky row of tabs; it goes back there after.
  const bar=$('.zoom-bar');
  if(bar)(on?document.body:$('#viewTools')).append(bar);
- const button=$('[data-zoom="full"]');
- if(button){button.textContent=on?'전체 화면 닫기':'전체 화면';button.setAttribute('aria-pressed',String(on));}
+ document.querySelectorAll('[data-zoom="full"]').forEach(button=>{button.textContent=on?'전체 화면 닫기':'전체 화면';button.setAttribute('aria-pressed',String(on));});
 }
 document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&document.body.classList.contains('view-full')&&!document.querySelector('dialog[open]'))setViewFull(false);
@@ -915,6 +914,9 @@ function bindZoom(key){
  // The controls sit in the row of the view tabs, where there is room, rather
  // than on a line of their own above the drawing.
  const bar=$('#view .zoom-bar');
+ // A bar left floating over the window from before this drawing goes; only
+ // the new one stays.
+ document.querySelectorAll('body > .zoom-bar').forEach(old=>old.remove());
  if(bar)$('#viewTools').append(bar);
  bindFrame();
  const wasAt=zoomScrollAt.get(key);
