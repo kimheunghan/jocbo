@@ -148,12 +148,28 @@ rem -- GitHub 최신을 압축파일로 받아 %TEMP%\jocbo-main 에 풉니다 ----
 :fetchzip
 set "ZIP=%TEMP%\jocbo-main.zip"
 if exist "%TEMP%\jocbo-main" rmdir /s /q "%TEMP%\jocbo-main"
-powershell -NoProfile -Command ^
-  "$ErrorActionPreference='Stop';" ^
-  "Invoke-WebRequest -Uri '%REPO%/archive/refs/heads/main.zip' -OutFile '%ZIP%' -UseBasicParsing;" ^
-  "Expand-Archive -Path '%ZIP%' -DestinationPath $env:TEMP -Force;" ^
-  "Remove-Item '%ZIP%' -Force"
-exit /b %errorlevel%
+if exist "%ZIP%" del "%ZIP%"
+echo   내려받는 중... ^(사진 포함 약 100MB - 몇 분 걸릴 수 있습니다^)
+rem 윈도우 10·11 에 들어 있는 curl 과 tar 가 빠릅니다. PowerShell 의
+rem Invoke-WebRequest 는 진행 막대를 그리느라 100MB 에 수십 분이 걸려
+rem 멈춘 것처럼 보였습니다. 없을 때만 PowerShell 로, 진행 막대 없이 받습니다.
+where curl.exe >nul 2>&1
+if not errorlevel 1 (
+  curl.exe -L --fail --retry 3 -o "%ZIP%" "%REPO%/archive/refs/heads/main.zip"
+) else (
+  powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; Invoke-WebRequest -Uri '%REPO%/archive/refs/heads/main.zip' -OutFile '%ZIP%' -UseBasicParsing"
+)
+if not exist "%ZIP%" exit /b 1
+echo   압축 푸는 중...
+where tar.exe >nul 2>&1
+if not errorlevel 1 (
+  tar.exe -xf "%ZIP%" -C "%TEMP%"
+) else (
+  powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Expand-Archive -Path '%ZIP%' -DestinationPath $env:TEMP -Force"
+)
+del "%ZIP%" >nul 2>&1
+if not exist "%TEMP%\jocbo-main\start.bat" exit /b 1
+exit /b 0
 
 :failed
 echo.

@@ -42,7 +42,7 @@ rem 없어 설치가 실패합니다. 그때는 GitHub 에서 install.bat 을 받아 이 폴더에
 rem 프로그램 전체를 내려받게 합니다. 끝나면 install.bat 이 이 파일을 다시 엽니다.
 if exist "requirements.txt" if exist "backend\main.py" goto files_ok
 echo   프로그램 파일이 없습니다 - GitHub 에서 전체를 내려받습니다.
-powershell -NoProfile -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kimheunghan/jocbo/main/install.bat' -OutFile \"$env:TEMP\jocbo-install-new.bat\" -UseBasicParsing"
+powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kimheunghan/jocbo/main/install.bat' -OutFile \"$env:TEMP\jocbo-install-new.bat\" -UseBasicParsing"
 if errorlevel 1 (
   echo   내려받기 실패 - 인터넷 연결을 확인하거나 install.bat 을 받아 실행하세요.
   echo   https://github.com/kimheunghan/jocbo
