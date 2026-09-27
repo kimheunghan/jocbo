@@ -109,7 +109,7 @@ rmdir /s /q "%TEMP%\jocbo-main"
 rem 새 판에서 꾸러미가 늘었으면 여기서 맞춥니다. start.bat 은 처음 한 번만 설치합니다.
 :packages
 if exist "%TARGET%\.venv\Scripts\python.exe" (
-  echo   꾸러미 맞추는 중...
+  echo   꾸러미 맞추는 중... ^(몇 분 걸릴 수 있습니다 - 창을 닫지 마세요^)
   "%TARGET%\.venv\Scripts\python.exe" -m pip install --quiet -r "%TARGET%\requirements.txt"
 )
 

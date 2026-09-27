@@ -87,9 +87,9 @@ set "VENV=.venv\Scripts\python.exe"
 rem -- 꾸러미 -----------------------------------
 "%VENV%" -c "import fastapi, uvicorn, sqlalchemy, multipart, anthropic, PIL" >nul 2>&1
 if errorlevel 1 (
-  echo   꾸러미 설치 중... ^(처음 한 번만^)
+  echo   꾸러미 설치 중... ^(몇 분 걸릴 수 있습니다 - 창을 닫지 마세요^)
   "%VENV%" -m pip install --quiet --upgrade pip
-  "%VENV%" -m pip install --quiet -r requirements.txt
+  "%VENV%" -m pip install --quiet --progress-bar on -r requirements.txt
   if errorlevel 1 goto failed
 )
 echo   꾸러미 준비됨
@@ -157,11 +157,13 @@ echo   창을 닫거나 Ctrl+C 를 누르면 종료됩니다.
 echo   ----------------------------------------
 echo.
 
-rem 서버가 자리를 잡을 때까지 잠시 기다렸다가 엽니다.
+rem 서버가 실제로 대답할 때까지(최대 2분) 기다렸다가 엽니다. 갱신 직후 첫 실행은
+rem 서버가 늦게 떠서, 몇 초 만에 열면 "연결할 수 없음" 화면에 멈춰 보였습니다.
+set "WAITOPEN=$u='http://127.0.0.1:8000'; for($i=0;$i -lt 120;$i++){ try { Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep -Seconds 1 } }"
 if defined CHROME (
-  start "" /b powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process -FilePath '%CHROME%' -ArgumentList 'http://127.0.0.1:8000'"
+  start "" /b powershell -NoProfile -WindowStyle Hidden -Command "%WAITOPEN%; Start-Process -FilePath '%CHROME%' -ArgumentList 'http://127.0.0.1:8000'"
 ) else (
-  start "" /b powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process 'http://127.0.0.1:8000'"
+  start "" /b powershell -NoProfile -WindowStyle Hidden -Command "%WAITOPEN%; Start-Process 'http://127.0.0.1:8000'"
 )
 
 "%VENV%" -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
