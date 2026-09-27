@@ -19,7 +19,11 @@ rem 이 폴더에만 있는 커밋이 있으면(고치는 컴퓨터) 건드리지 않습니다.
 if not exist ".git" goto checked
 where git >nul 2>&1 || goto checked
 echo   새 판 확인 중...
-git fetch -q origin main >nul 2>&1 || goto checked
+rem 비공개 저장소라 로그인이 필요하면 묻지 않고 지금 판으로 엽니다. 로그인 창이
+rem 뒤에 숨어 기다리면 아무 일도 없는 것처럼 멈추기 때문입니다.
+set "GIT_TERMINAL_PROMPT=0"
+set "GCM_INTERACTIVE=never"
+git -c credential.interactive=never fetch -q origin main >nul 2>&1 || goto checked
 set "HERE="
 set "LATEST="
 for /f %%H in ('git rev-parse HEAD 2^>nul') do set "HERE=%%H"
