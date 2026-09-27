@@ -924,6 +924,10 @@ function fitFrame(){
  frame.style.maxHeight=Math.max(240,window.innerHeight-underTabs()-14)+'px';
 }
 window.addEventListener('resize',()=>fitFrame());
+// How many turns of the wheel rest at the foot of the drawing before the
+// page goes on below it, and the count of those taken so far.
+const FOOT_REST_TURNS=2;
+const footRest={count:0,last:0};
 function bindZoom(key){
  const scroll=$('.zoom-scroll'),sizer=$('.zoom-sizer'),body=$('.zoom-body'),level=$('.zoom-level');
  if(!scroll)return;
@@ -983,7 +987,20 @@ function bindZoom(key){
     }
    }
    const atTop=scroll.scrollTop<=0,atFoot=scroll.scrollTop+scroll.clientHeight>=scroll.scrollHeight-1;
-   if(event.deltaY<0?atTop:atFoot){
+   // At the foot of the drawing the page waits: two more turns rest there,
+   // so the end of the tree or the book is seen whole, and the third goes
+   // on down to 가족 관계 below it.
+   if(step>0&&atFoot){
+    event.preventDefault();
+    const now=Date.now();
+    if(now-footRest.last>1500)footRest.count=0;
+    footRest.last=now;
+    if(++footRest.count<=FOOT_REST_TURNS)return;
+    window.scrollBy(0,step);
+    return;
+   }
+   footRest.count=0;
+   if(step<0&&atTop){
     event.preventDefault();
     window.scrollBy(0,step);
    }
