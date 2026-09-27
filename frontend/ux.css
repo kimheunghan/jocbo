@@ -2024,39 +2024,54 @@ button {
   }
 }
 
-/* The page's 한글/한자 switch leads the title row's buttons, set apart from
-   them and shaped as a switch, not a command: a gold-edged pill. */
+/* The page's 한글/한자 switch leads the title row's buttons, set apart and
+   unlike them: a two-part switch, 한글 | 漢字, the side in view filled in
+   red, so which is showing reads at a glance. */
 .page-actions .title-script {
-  margin-right: 18px;
-  padding: 8px 16px;
-  border: 1.5px solid var(--gold);
+  display: inline-flex;
+  align-items: stretch;
+  margin-right: 20px;
+  padding: 3px;
+  border: 2px solid var(--accent);
   border-radius: 999px;
-  background: #fbf3df;
-  color: #7a5a1e;
-  font-weight: 700;
+  background: #fff;
+  box-shadow: 0 2px 8px #b3372a33;
 }
 
-.page-actions .title-script::before {
-  content: "韓 ⇄ 漢";
-  margin-right: 8px;
-  font: 700 12px/1 var(--serif);
-  letter-spacing: 1px;
-  opacity: .75;
+.page-actions .title-script span {
+  padding: 6px 14px;
+  border-radius: 999px;
+  color: var(--accent);
+  font: 800 14px/1.2 var(--sans);
+  letter-spacing: .5px;
+  transition: background .15s, color .15s;
+}
+
+.page-actions .title-script span:last-child {
+  font-family: var(--serif);
+}
+
+.page-actions .title-script span.on {
+  background: var(--accent);
+  color: #fff;
 }
 
 .page-actions .title-script:hover {
-  border-color: #8a6420;
-  background: #f5e6c0;
-  color: #5c3f10;
+  border-color: #8f2a1f;
+  background: #fff5f2;
+}
+
+.page-actions .title-script:hover span.on {
+  background: #8f2a1f;
 }
 
 @container content (max-width: 1060px) {
   .page-actions .title-script {
-    margin-right: 10px;
-    padding: 7px 12px;
+    margin-right: 12px;
   }
 
-  .page-actions .title-script::before {
-    display: none;
+  .page-actions .title-script span {
+    padding: 5px 10px;
+    font-size: 13px;
   }
 }

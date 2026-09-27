@@ -211,7 +211,13 @@ function paintBookFacts(){
 function paintScriptToggle(){
  document.querySelectorAll('[data-script-toggle]').forEach(button=>{
   const mode=SCRIPT_SWITCHES[button.dataset.scriptToggle||'page'].get();
-  button.textContent=mode==='hangul'?'한자로 보기':'한글로 보기';
+  // The page's own switch shows both sides, the one in view filled, so the
+  // mode reads at a glance; the others say what a press will do.
+  if(button.classList.contains('title-script')){
+   button.innerHTML=`<span class="${mode==='hangul'?'on':''}">한글</span><span class="${mode==='hangul'?'':'on'}">漢字</span>`;
+   button.title=mode==='hangul'?'한자로 보기':'한글로 보기';
+   button.setAttribute('aria-label',`표기 전환 — 지금 ${mode==='hangul'?'한글':'한자'}`);
+  }else button.textContent=mode==='hangul'?'한자로 보기':'한글로 보기';
   button.setAttribute('aria-pressed',String(mode==='hangul'));
  });
 }
