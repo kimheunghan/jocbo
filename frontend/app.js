@@ -863,6 +863,7 @@ function applyFrameHeight(px){
  const scroll=$('.zoom-scroll');
  if(scroll){scroll.style.height=frameHeight?frameHeight+'px':'';scroll.style.maxHeight=frameHeight?'none':'';}
  try{frameHeight?localStorage.setItem('jocbo.frameHeight',String(frameHeight)):localStorage.removeItem('jocbo.frameHeight');}catch{}
+ if(!frameHeight)fitFrame();
 }
 function setViewFull(on){
  document.body.classList.toggle('view-full',on);
@@ -870,6 +871,7 @@ function setViewFull(on){
  // inside the sticky row of tabs; it goes back there after.
  const bar=$('.zoom-bar');
  if(bar)(on?document.body:$('#viewTools')).append(bar);
+ if(!on)fitFrame();
  document.querySelectorAll('[data-zoom="full"]').forEach(button=>{button.textContent=on?'전체 화면 닫기':'전체 화면';button.setAttribute('aria-pressed',String(on));});
 }
 document.addEventListener('keydown',event=>{
@@ -908,6 +910,15 @@ function bindFrame(){
 // Switching script or a display option redraws the whole view, so where the
 // reader had scrolled to is kept and put back rather than snapping to the corner.
 const zoomScrollAt=new Map();
+// Unless the reader has set the frame's height, it takes what is left of the
+// window under the search box and the tabs once the page has come up to them.
+function fitFrame(){
+ const frame=$('.zoom-scroll'),search=document.querySelector('.toolbar');
+ if(!frame||!search||frameHeight||document.body.classList.contains('view-full'))return;
+ const above=frame.getBoundingClientRect().top-search.getBoundingClientRect().top+8;
+ frame.style.maxHeight=Math.max(240,window.innerHeight-above-18)+'px';
+}
+window.addEventListener('resize',()=>fitFrame());
 function bindZoom(key){
  const scroll=$('.zoom-scroll'),sizer=$('.zoom-sizer'),body=$('.zoom-body'),level=$('.zoom-level');
  if(!scroll)return;
@@ -940,6 +951,7 @@ function bindZoom(key){
   try{localStorage.setItem('jocbo.zoom.'+key,String(zoom));}catch{}
  };
  apply(zoom);
+ fitFrame();
  if(wasAt){scroll.scrollLeft=wasAt.left;scroll.scrollTop=wasAt.top;}
  scroll.addEventListener('scroll',()=>zoomScrollAt.set(key,{left:scroll.scrollLeft,top:scroll.scrollTop}));
  // Dragging the canvas beats reaching for the scrollbar once the tree is wider
@@ -952,10 +964,24 @@ function bindZoom(key){
    // it after it has reached its end, and the page stands still until the
    // wheel rests.
    if(document.body.classList.contains('view-full')||!event.deltaY)return;
+   const step=event.deltaY*(event.deltaMode===1?40:event.deltaMode===2?window.innerHeight:1);
+   // Going down, the page comes first: it scrolls until the search box
+   // stands at the top of the window, the tabs and the frame under it
+   // filling the rest, and only then does the drawing inside it move.
+   if(step>0){
+    const search=document.querySelector('.toolbar');
+    const gap=search?search.getBoundingClientRect().top-8:0;
+    const room=document.documentElement.scrollHeight-window.innerHeight-window.scrollY;
+    if(gap>1&&room>1){
+     event.preventDefault();
+     window.scrollBy(0,Math.min(step,gap,room));
+     return;
+    }
+   }
    const atTop=scroll.scrollTop<=0,atFoot=scroll.scrollTop+scroll.clientHeight>=scroll.scrollHeight-1;
    if(event.deltaY<0?atTop:atFoot){
     event.preventDefault();
-    window.scrollBy(0,event.deltaY*(event.deltaMode===1?40:event.deltaMode===2?window.innerHeight:1));
+    window.scrollBy(0,step);
    }
    return;
   }

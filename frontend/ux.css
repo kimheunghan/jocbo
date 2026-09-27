@@ -236,7 +236,8 @@ button.busy {
 
 .zoom-scroll {
   overflow: auto;
-  /* A bounded window is what makes dragging mean anything. */
+  /* A bounded window is what makes dragging mean anything; fitFrame sizes it
+     to the window under the search box and the tabs. */
   max-height: 74vh;
   border: 1px solid var(--line);
   border-radius: var(--radius);
