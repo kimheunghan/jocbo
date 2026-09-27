@@ -2024,22 +2024,39 @@ button {
   }
 }
 
-/* The page's 한글/한자 switch stands beside the book's title, where the eye
-   already is, rather than at the far end of the tab row. */
-.title-line {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
+/* The page's 한글/한자 switch leads the title row's buttons, set apart from
+   them and shaped as a switch, not a command: a gold-edged pill. */
+.page-actions .title-script {
+  margin-right: 18px;
+  padding: 8px 16px;
+  border: 1.5px solid var(--gold);
+  border-radius: 999px;
+  background: #fbf3df;
+  color: #7a5a1e;
+  font-weight: 700;
 }
 
-.title-line h1 {
-  margin-bottom: 0;
+.page-actions .title-script::before {
+  content: "韓 ⇄ 漢";
+  margin-right: 8px;
+  font: 700 12px/1 var(--serif);
+  letter-spacing: 1px;
+  opacity: .75;
 }
 
-.title-script {
-  flex: none;
-  margin-top: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
+.page-actions .title-script:hover {
+  border-color: #8a6420;
+  background: #f5e6c0;
+  color: #5c3f10;
+}
+
+@container content (max-width: 1060px) {
+  .page-actions .title-script {
+    margin-right: 10px;
+    padding: 7px 12px;
+  }
+
+  .page-actions .title-script::before {
+    display: none;
+  }
 }
