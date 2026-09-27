@@ -910,13 +910,18 @@ function bindFrame(){
 // Switching script or a display option redraws the whole view, so where the
 // reader had scrolled to is kept and put back rather than snapping to the corner.
 const zoomScrollAt=new Map();
+// Where the frame's top stands once the row of tabs has stuck at the top of
+// the window: just under that row.
+function underTabs(){
+ const bar=document.querySelector('.view-bar');
+ return bar?(parseFloat(getComputedStyle(bar).top)||0)+bar.getBoundingClientRect().height+8:0;
+}
 // Unless the reader has set the frame's height, it takes what is left of the
-// window under the search box and the tabs once the page has come up to them.
+// window under the row of tabs.
 function fitFrame(){
- const frame=$('.zoom-scroll'),search=document.querySelector('.toolbar');
- if(!frame||!search||frameHeight||document.body.classList.contains('view-full'))return;
- const above=frame.getBoundingClientRect().top-search.getBoundingClientRect().top+8;
- frame.style.maxHeight=Math.max(240,window.innerHeight-above-18)+'px';
+ const frame=$('.zoom-scroll');
+ if(!frame||frameHeight||document.body.classList.contains('view-full'))return;
+ frame.style.maxHeight=Math.max(240,window.innerHeight-underTabs()-14)+'px';
 }
 window.addEventListener('resize',()=>fitFrame());
 function bindZoom(key){
@@ -965,12 +970,11 @@ function bindZoom(key){
    // wheel rests.
    if(document.body.classList.contains('view-full')||!event.deltaY)return;
    const step=event.deltaY*(event.deltaMode===1?40:event.deltaMode===2?window.innerHeight:1);
-   // Going down, the page comes first: it scrolls until the search box
-   // stands at the top of the window, the tabs and the frame under it
-   // filling the rest, and only then does the drawing inside it move.
+   // Going down, the page comes first: it scrolls until the row of tabs
+   // sticks at the top of the window and the frame fills the rest under it,
+   // and only then does the drawing inside it move.
    if(step>0){
-    const search=document.querySelector('.toolbar');
-    const gap=search?search.getBoundingClientRect().top-8:0;
+    const gap=scroll.getBoundingClientRect().top-underTabs();
     const room=document.documentElement.scrollHeight-window.innerHeight-window.scrollY;
     if(gap>1&&room>1){
      event.preventDefault();
