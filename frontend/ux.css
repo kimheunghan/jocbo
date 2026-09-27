@@ -2023,3 +2023,23 @@ button {
     font-size: 11px;
   }
 }
+
+/* The page's 한글/한자 switch stands beside the book's title, where the eye
+   already is, rather than at the far end of the tab row. */
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.title-line h1 {
+  margin-bottom: 0;
+}
+
+.title-script {
+  flex: none;
+  margin-top: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
