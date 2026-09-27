@@ -1861,7 +1861,8 @@ dialog .dialog-close {
 
 @container (max-width: 1060px) {
   .view-tools .zoom-bar small {
-    display: none;
+    max-width: 78px;
+    font-size: 10px;
   }
 }
 
@@ -1892,11 +1893,6 @@ dialog .dialog-close {
   .view-bar nav button {
     padding: 6px 9px;
     font-size: 12px;
-  }
-
-  /* 100% is also a click on the level itself away; the button goes. */
-  .view-tools .zoom-bar [data-zoom="reset"] {
-    display: none;
   }
 
   .view-bar > button {
@@ -1978,7 +1974,13 @@ button {
   }
 
   .view-tools .zoom-level {
-    display: none;
+    min-width: 30px;
+    font-size: 11px;
+  }
+
+  .view-tools .zoom-bar small {
+    max-width: 64px;
+    font-size: 9.5px;
   }
 }
 
@@ -2074,4 +2076,70 @@ button {
     padding: 5px 10px;
     font-size: 13px;
   }
+}
+
+/* The bar itself never wraps; its hint keeps two short lines, the second
+   shortened where room is least. */
+.view-tools .zoom-bar {
+  flex-wrap: nowrap;
+}
+
+.view-tools .zoom-bar small {
+  white-space: nowrap;
+  max-width: none;
+}
+
+@container (max-width: 780px) {
+  .view-tools .zoom-bar small {
+    font-size: 9px;
+    letter-spacing: -0.3px;
+  }
+
+  .view-tools .zoom-bar button {
+    padding: 3px 4px;
+  }
+}
+
+/* At its narrowest the whole row takes the smallest type, so nothing is
+   hidden and nothing overlaps. */
+@container (max-width: 780px) {
+  .view-bar {
+    gap: 6px;
+  }
+
+  .view-bar nav button {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .view-tools .zoom-bar {
+    gap: 2px;
+    padding: 2px 4px;
+  }
+
+  .view-tools .zoom-bar button {
+    min-width: 20px;
+    padding: 2px 4px;
+    font-size: 10.5px;
+  }
+
+  .view-tools .zoom-level {
+    min-width: 28px;
+    font-size: 10.5px;
+  }
+
+  .view-bar > button {
+    padding: 4px 6px;
+    font-size: 10.5px;
+  }
+}
+
+/* Buttons never squeeze into one another: the bar takes the room its
+   controls need, and the type above shrinks to make that room. */
+.view-tools {
+  flex: 0 1 auto;
+}
+
+.view-tools .zoom-bar > * {
+  flex: none;
 }

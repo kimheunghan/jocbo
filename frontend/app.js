@@ -847,7 +847,7 @@ function wrapZoom(inner,trailing=''){
   // The view tabs' own 한글/한자 switch is covered in 전체 화면, so it rides
   // along on this bar there.
   +'<button type="button" class="secondary zoom-script" data-script-toggle="page">한글로 보기</button>'
-  +'<small><span class="long">끌어서 이동 · Ctrl + 휠로 확대·축소</span><span class="short">끌어서 이동<br>Ctrl+휠 확대·축소</span></small>'+trailing+'</div>'
+  +'<small><span class="long">끌어서 이동 · Ctrl + 휠로 확대·축소</span><span class="short">끌어서 이동<br>Ctrl+휠 확대</span></small>'+trailing+'</div>'
   +`<div class="zoom-scroll"><div class="zoom-sizer"><div class="zoom-body">${inner}</div></div></div>`
   +'<div class="frame-resizer" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="보기 높이 조절" title="끌어서 높이 조절 · 두 번 누르면 기본 높이"></div>';
 }
