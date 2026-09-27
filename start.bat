@@ -36,6 +36,22 @@ git show origin/main:install.bat > "%TEMP%\jocbo-install-new.bat" 2>nul || copy 
 "%TEMP%\jocbo-install-new.bat" "%~dp0."
 :checked
 
+rem -- 프로그램 파일 확인 ------------------------
+rem start.bat 만 옮겨 온 폴더라면(requirements.txt, backend 가 없음) 프로그램이
+rem 없어 설치가 실패합니다. 그때는 GitHub 에서 install.bat 을 받아 이 폴더에
+rem 프로그램 전체를 내려받게 합니다. 끝나면 install.bat 이 이 파일을 다시 엽니다.
+if exist "requirements.txt" if exist "backend\main.py" goto files_ok
+echo   프로그램 파일이 없습니다 - GitHub 에서 전체를 내려받습니다.
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kimheunghan/jocbo/main/install.bat' -OutFile \"$env:TEMP\jocbo-install-new.bat\" -UseBasicParsing"
+if errorlevel 1 (
+  echo   내려받기 실패 - 인터넷 연결을 확인하거나 install.bat 을 받아 실행하세요.
+  echo   https://github.com/kimheunghan/jocbo
+  pause
+  exit /b 1
+)
+"%TEMP%\jocbo-install-new.bat" "%~dp0."
+:files_ok
+
 rem -- 파이썬 찾기 ------------------------------
 set "PY="
 for %%V in (3.13 3.12 3.11) do (
