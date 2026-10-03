@@ -40,6 +40,17 @@ $('#sideResizer').onkeydown=event=>{
  if(event.key==='ArrowLeft'){applySideWidth(sideWidth-step);event.preventDefault();}
  if(event.key==='ArrowRight'){applySideWidth(sideWidth+step);event.preventDefault();}
 };
+// 가려진 칸(비밀번호, API 키) 오른쪽의 눈 단추로 적은 것을 보거나 다시 가립니다.
+const EYE='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8"/></svg>';
+for(const field of document.querySelectorAll('input[type="password"]')){
+ const wrap=document.createElement('span');wrap.className='reveal';
+ field.replaceWith(wrap);wrap.append(field);
+ const eye=document.createElement('button');
+ eye.type='button';eye.className='reveal-eye';eye.innerHTML=EYE;eye.title='보이기';eye.setAttribute('aria-label','보이기');
+ eye.onclick=()=>{const shown=field.type==='text';field.type=shown?'password':'text';eye.innerHTML=shown?EYE:EYE_OFF;eye.title=eye.ariaLabel=shown?'보이기':'가리기';field.focus();};
+ wrap.append(eye);
+}
 const searchNotice=document.createElement('p');
 searchNotice.id='searchNotice';searchNotice.className='search-notice';searchNotice.hidden=true;
 $('#view').before(searchNotice);

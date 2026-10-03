@@ -2235,3 +2235,41 @@ button {
   border-color: #e0a19a;
   color: #ffd2cc;
 }
+
+/* 가려진 칸의 눈 단추 */
+.reveal {
+  position: relative;
+  display: block;
+}
+
+.reveal input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+/* 엣지가 따로 그리는 눈은 겹치지 않게 감춥니다. */
+.reveal input::-ms-reveal {
+  display: none;
+}
+
+.reveal-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.reveal-eye:hover {
+  color: var(--ink);
+  background: transparent;
+}
