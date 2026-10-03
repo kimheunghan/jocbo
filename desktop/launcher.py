@@ -65,12 +65,14 @@ def answering():
 
 
 def browser():
-    """앱 창을 열 엣지나 크롬. 윈도 10·11에는 엣지가 기본으로 깔려 있습니다."""
-    places = []
-    for base in (os.environ.get('ProgramFiles(x86)'), os.environ.get('ProgramFiles'), os.environ.get('LOCALAPPDATA')):
-        if base:
-            places.append(Path(base) / 'Microsoft' / 'Edge' / 'Application' / 'msedge.exe')
-            places.append(Path(base) / 'Google' / 'Chrome' / 'Application' / 'chrome.exe')
+    """앱 창을 열 크롬, 없으면 엣지. 윈도 10·11에는 엣지가 기본으로 깔려 있습니다.
+
+    크롬이 먼저입니다. 엣지는 회사·학교 계정의 로그인이 끝나면 그 로그인 창을
+    앱 창 위에 띄우는데, 그 창이 닫힐 때까지 앱 창을 누를 수도 끌 수도 없습니다.
+    """
+    bases = [os.environ.get(name) for name in ('ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA')]
+    places = [Path(base) / 'Google' / 'Chrome' / 'Application' / 'chrome.exe' for base in bases if base]
+    places += [Path(base) / 'Microsoft' / 'Edge' / 'Application' / 'msedge.exe' for base in bases if base]
     return next((str(p) for p in places if p.exists()), None)
 
 
