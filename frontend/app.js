@@ -16,59 +16,25 @@ function applySideWidth(px){
 applySideWidth(sideWidth);
 $('#sideResizer').setAttribute('aria-valuemin',String(SIDE_MIN));
 $('#sideResizer').setAttribute('aria-valuemax',String(SIDE_MAX));
-// The edge is dragged, or clicked once to follow the pointer and clicked again
-// to set it there. The click is for a remote session (TeamViewer from a phone)
-// that delivers taps and pointer moves but no press-and-drag.
-let sideFollow=null;
-function endSideFollow(){
- if(!sideFollow)return;
- window.removeEventListener('pointermove',sideFollow.move);
- window.removeEventListener('pointerdown',sideFollow.end,true);
- window.removeEventListener('keydown',sideFollow.key,true);
- document.body.classList.remove('resizing');
- sideFollow=null;
-}
-function startSideFollow(){
- const left=$('#workspace').getBoundingClientRect().left,before=sideWidth;
- const move=moved=>applySideWidth(moved.clientX-left);
- // The click that sets the width goes no further, so it does not also press
- // whatever lies under it.
- const end=pressed=>{
-  pressed.preventDefault();pressed.stopPropagation();applySideWidth(pressed.clientX-left);endSideFollow();
-  const swallow=clicked=>{clicked.preventDefault();clicked.stopPropagation();};
-  window.addEventListener('click',swallow,{capture:true,once:true});
-  setTimeout(()=>window.removeEventListener('click',swallow,{capture:true}),600);
- };
- const key=pressed=>{if(pressed.key==='Escape'||pressed.key==='Enter'){if(pressed.key==='Escape')applySideWidth(before);pressed.preventDefault();endSideFollow();}};
- sideFollow={move,end,key};
- document.body.classList.add('resizing');
- window.addEventListener('pointermove',move);
- // Added a moment later, or the click that started it would end it at once.
- setTimeout(()=>{if(sideFollow){window.addEventListener('pointerdown',end,true);window.addEventListener('keydown',key,true);}},0);
-}
 $('#sideResizer').onpointerdown=event=>{
  event.preventDefault();
- if(sideFollow)return;
  const handle=$('#sideResizer'),left=$('#workspace').getBoundingClientRect().left;
- const startX=event.clientX,startAt=Date.now();let travelled=0;
  // Capture keeps the drag alive over the page; the window listeners keep it alive
  // even where capture is refused.
  try{handle.setPointerCapture(event.pointerId);}catch{}
  document.body.classList.add('resizing');
- const move=moved=>{travelled=Math.max(travelled,Math.abs(moved.clientX-startX));if(travelled>3)applySideWidth(moved.clientX-left);};
- const stop=ended=>{
+ const move=moved=>applySideWidth(moved.clientX-left);
+ const stop=()=>{
   window.removeEventListener('pointermove',move);
   window.removeEventListener('pointerup',stop);
   window.removeEventListener('pointercancel',stop);
   document.body.classList.remove('resizing');
-  // A press that hardly moved is a click: the edge then follows until the next one.
-  if(ended.type==='pointerup'&&travelled<=3&&Date.now()-startAt<600)startSideFollow();
  };
  window.addEventListener('pointermove',move);
  window.addEventListener('pointerup',stop);
  window.addEventListener('pointercancel',stop);
 };
-$('#sideResizer').ondblclick=()=>{endSideFollow();applySideWidth(286);};
+$('#sideResizer').ondblclick=()=>applySideWidth(286);
 $('#sideResizer').onkeydown=event=>{
  const step=event.shiftKey?48:16;
  if(event.key==='ArrowLeft'){applySideWidth(sideWidth-step);event.preventDefault();}
