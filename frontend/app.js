@@ -382,18 +382,18 @@ async function paintShare(){
  try{state=await api(`/books/${bid}/share`);}catch(err){body.innerHTML=`<p class="muted">${esc(err.message)}</p>`;return;}
  if(!book||book.id!==bid)return;
  if(!state.shared){
-  body.innerHTML='<p class="muted">링크와 비밀번호로 가족이 가계도를 봅니다.</p>'
-   +'<form id="shareStart"><label>공유 비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password" placeholder="4자 이상"></label><button>웹 공유 시작</button></form>';
+  body.innerHTML='<p class="muted">가족과 가계도 공유</p>'
+   +'<form id="shareStart"><label>비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password" placeholder="4자 이상"></label><button>공유 시작</button></form>';
   $('#shareStart').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'올리는 중…',()=>api(`/books/${bid}/share`,'POST',formData(e.target)));await paintShare();message('웹 공유 시작 · 링크를 가족에게 보내 주십시오');});
   return;
  }
- const status=state.error?`<p class="share-status error">올리지 못함 · ${esc(state.error)}<br>잠시 뒤 다시 올립니다.</p>`
+ const status=state.error?`<p class="share-status error">올리지 못함 · 잠시 뒤 다시 시도<br>${esc(state.error)}</p>`
   :state.pending?'<p class="share-status">올리는 중…</p>'
-  :`<p class="share-status">자동으로 올라감 · 마지막 ${esc(shareTime(state.synced_at))}</p>`;
- body.innerHTML=`<label>공유 링크<input id="shareLink" readonly value="${esc(state.link)}"></label>`
+  :`<p class="share-status">자동 반영 · ${esc(shareTime(state.synced_at))}</p>`;
+ body.innerHTML=`<label>링크<input id="shareLink" readonly value="${esc(state.link)}"></label>`
   +'<div class="share-actions"><button type="button" id="shareCopy">링크 복사</button><button type="button" id="shareOpen" class="secondary">열어 보기</button></div>'+status
-  +'<details class="share-more"><summary>비밀번호 바꾸기 · 공유 끝내기</summary>'
-  +'<form id="sharePassword"><label>새 비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password"></label><button class="secondary">비밀번호 바꾸기</button></form>'
+  +'<details class="share-more"><summary>설정</summary>'
+  +'<form id="sharePassword"><label>새 비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password"></label><button class="secondary">비밀번호 변경</button></form>'
   +'<button type="button" id="shareStop" class="danger">공유 끝내기</button></details>';
  $('#shareLink').onclick=e=>e.target.select();
  $('#shareCopy').onclick=run(async()=>{try{await navigator.clipboard.writeText(state.link);}catch{$('#shareLink').select();document.execCommand('copy');}message('공유 링크 복사됨 · 비밀번호와 함께 보내 주십시오');});

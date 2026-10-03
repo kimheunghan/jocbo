@@ -2147,8 +2147,9 @@ button {
 
 /* 웹 공유 칸 (왼쪽, 족보 선택 바로 아래). 족보 정보처럼 남색 서가 안의 종이 카드입니다. */
 #workspace > aside .share-panel {
-  margin: 20px 0;
-  padding: 18px 16px;
+  margin: 16px 0;
+  padding: 14px 14px;
+  font-size: 13px;
   border: 1px solid #ffffff22;
   border-radius: var(--radius);
   background: var(--paper-raised);
@@ -2157,8 +2158,9 @@ button {
 }
 
 .share-panel h3 {
-  margin: 0 0 10px;
-  padding-bottom: 10px;
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+  font-size: 15px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--green-deep);
 }
@@ -2175,6 +2177,28 @@ button {
 .share-panel form > button,
 .share-actions button {
   width: 100%;
+}
+
+/* 작은 칸이라 글자와 단추를 한 단계 줄입니다. */
+.share-panel .muted,
+.share-panel label {
+  margin: 0;
+  font-size: 12px;
+}
+
+.share-panel input {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.share-panel button {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.share-status,
+.share-more {
+  font-size: 12px;
 }
 
 .share-actions {
