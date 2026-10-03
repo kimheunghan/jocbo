@@ -2273,3 +2273,40 @@ button {
   color: var(--ink);
   background: transparent;
 }
+
+/* 웹 공유 제목 옆의 족보 이름 */
+.share-panel h3 small {
+  margin-left: 6px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 선택한 족보 정보: 제목 옆에 한글/한자 전환 */
+#workspace > aside form .form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+#workspace > aside form .form-head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#workspace > aside form .form-head button {
+  flex: none;
+  width: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* 무료 인원 안내가 웹 공유 아래로 오면서 족보 선택과 띄웁니다. */
+#workspace > aside .plan-note {
+  margin-bottom: 14px;
+}

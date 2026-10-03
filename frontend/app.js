@@ -412,6 +412,8 @@ async function paintShare(){
  clearTimeout(shareTimer);
  const panel=$('#sharePanel'),body=$('#shareBody');panel.hidden=!book;if(!book)return;
  const bid=book.id;let state;
+ // 웹 공유는 족보 선택보다 위에 있으므로, 어느 족보를 공유하는지 제목 옆에 적습니다.
+ $('#shareBook').textContent=sideScriptText(book.title);
  try{state=await api(`/books/${bid}/share`);}catch(err){body.innerHTML=`<p class="muted">${esc(err.message)}</p>`;return;}
  if(!book||book.id!==bid)return;
  if(!state.shared){
