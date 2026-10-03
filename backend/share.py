@@ -15,7 +15,7 @@ import urllib.error
 import urllib.request
 
 # The share site. Set JOCBO_SHARE_SERVER to try another (netlify dev: http://localhost:8888).
-SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo-share.netlify.app').rstrip('/')
+SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo.netlify.app').rstrip('/')
 # A file larger than this is not sent; a share function takes a few MB at most.
 LARGEST = 4 * 1024 * 1024
 
