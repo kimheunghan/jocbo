@@ -348,7 +348,7 @@ main {
   top: 0;
   z-index: 8;
   height: 100vh;
-  background: var(--line);
+  background: transparent;
   cursor: col-resize;
 }
 
@@ -357,22 +357,7 @@ main {
 .side-resizer::before {
   content: "";
   position: absolute;
-  inset: 0 -10px 0 -2px;
-}
-
-/* A handle in the middle of the rule, so there is something to see and take hold of. */
-.side-grip {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 1;
-  width: 10px;
-  height: 48px;
-  border: 1px solid #0f1f3f;
-  border-radius: 5px;
-  background: repeating-linear-gradient(180deg, #d8bf85 0 2px, #b89a5a 2px 5px);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
+  inset: 0 -14px 0 -2px;
 }
 
 .side-resizer::after {
@@ -389,7 +374,7 @@ main {
   outline: 0;
 }
 
-.side-resizer:hover::after,
+/* Nothing shows at the edge until it is being dragged; the cursor alone says it can be. */
 .side-resizer:focus-visible::after,
 body.resizing .side-resizer::after {
   opacity: 1;
@@ -409,6 +394,8 @@ body.resizing {
   top: 0;
   max-height: 100vh;
   overflow-y: auto;
+  /* The wheel still scrolls it; the bar itself stays out of sight. */
+  scrollbar-width: none;
   padding: 26px 22px 34px;
   background: var(--paper-sunk);
 }

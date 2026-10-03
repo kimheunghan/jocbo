@@ -2230,3 +2230,9 @@ button {
 .share-more .danger {
   margin-top: 10px;
 }
+
+/* 공유 비밀번호는 로그인 암호가 아니므로 브라우저가 저장·자동 채우기를 하지 않게
+   글자 칸으로 두고 점으로만 가립니다. */
+input.masked {
+  -webkit-text-security: disc;
+}
