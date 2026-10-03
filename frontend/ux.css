@@ -2220,5 +2220,18 @@ button {
   color: #b42318;
 }
 
+/* 무료 인원 안내 (왼쪽, 족보 선택 아래) */
+#workspace > aside .plan-note {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border: 1px solid #ffffff2e;
+  border-radius: 6px;
+  color: #e9d6aa;
+  font-size: 12px;
+  line-height: 1.5;
+}
 
-
+#workspace > aside .plan-note.full {
+  border-color: #e0a19a;
+  color: #ffd2cc;
+}

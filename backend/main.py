@@ -14,7 +14,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query, Request, Response, U
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from sqlalchemy import (create_engine, MetaData, Table, Column, Integer, String, Text,
+from sqlalchemy import (create_engine, MetaData, Table, Column, Integer, String, Text, func,
                         ForeignKey, UniqueConstraint, CheckConstraint, select, event, delete,
                         inspect, text)
 from sqlalchemy.exc import IntegrityError
@@ -29,7 +29,10 @@ if engine.dialect.name == 'sqlite':
     def foreign_keys(conn, _):
         conn.execute('PRAGMA foreign_keys=ON')
 meta = MetaData()
-users = Table('users', meta, Column('id', Integer, primary_key=True), Column('email', String(255), nullable=False, unique=True), Column('password_hash', String(255), nullable=False))
+# A free account holds up to FREE_PERSONS people across its books; adding past
+# that asks for the paid plan. An account from before this ('' plan) has no limit.
+FREE_PERSONS = 20
+users = Table('users', meta, Column('id', Integer, primary_key=True), Column('email', String(255), nullable=False, unique=True), Column('password_hash', String(255), nullable=False), Column('plan', String(10), nullable=False, server_default='free'))
 sessions = Table('sessions', meta, Column('token_hash', String(64), primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('expires', Integer, nullable=False))
 books = Table('family_books', meta, Column('id', Integer, primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('title', String(200), nullable=False), Column('clan_name', String(200), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('branch_name', String(200), nullable=False, server_default=''), Column('volume', String(50), nullable=False, server_default=''), Column('founder', String(200), nullable=False, server_default=''), Column('page', String(50), nullable=False, server_default=''), Column('lineage', String(200), nullable=False, server_default=''), Column('page_breaks', String(200), nullable=False, server_default=''), Column('description', Text, nullable=False))
 persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('korean_name', String(100), nullable=False), Column('hanja_name', String(100), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('generation', Integer, nullable=False), Column('gender', String(10), nullable=False), Column('birth_date', String(10), nullable=False), Column('death_date', String(10), nullable=False), Column('note', Text, nullable=False), CheckConstraint('generation > 0'))
@@ -47,6 +50,8 @@ async def lifespan(app):
         'family_books': {'bon_gwan': 'VARCHAR(200)', 'branch_name': 'VARCHAR(200)', 'volume': 'VARCHAR(50)', 'founder': 'VARCHAR(200)',
                          'page': 'VARCHAR(50)', 'lineage': 'VARCHAR(200)', 'page_breaks': 'VARCHAR(200)'},
         'persons': {'bon_gwan': 'VARCHAR(200)'},
+        # Accounts already here take '' — no limit — since they began before it.
+        'users': {'plan': 'VARCHAR(10)'},
     }
     with engine.begin() as connection:
         for table, columns in additions.items():
@@ -189,7 +194,7 @@ def own_person(c, pid, uid):
 def register(data: Credentials):
     try:
         with engine.begin() as c:
-            c.execute(users.insert().values(email=data.email.lower(), password_hash=password_hash(data.password)))
+            c.execute(users.insert().values(email=data.email.lower(), password_hash=password_hash(data.password), plan='free'))
     except IntegrityError:
         raise HTTPException(409, '이미 등록된 이메일입니다.')
     return {'message': '가입되었습니다. 로그인해 주세요.'}
@@ -213,10 +218,23 @@ def logout(request: Request, response: Response):
     response.delete_cookie('session')
     return {'ok': True}
 
+def people_count(c, uid):
+    return c.execute(select(func.count()).select_from(persons.join(books, persons.c.book_id == books.c.id))
+                     .where(books.c.user_id == uid)).scalar()
+
+def room_for(c, uid, adding):
+    """Refuse, with 402, people beyond what a free account holds."""
+    if adding <= 0 or c.execute(select(users.c.plan).where(users.c.id == uid)).scalar() != 'free':
+        return
+    if people_count(c, uid) + adding > FREE_PERSONS:
+        raise HTTPException(402, f'무료 이용은 인물 {FREE_PERSONS}명까지입니다. 더 등록하려면 유료로 전환해 주십시오.')
+
 @app.get('/api/me')
 def me(uid=Depends(auth)):
     with engine.connect() as c:
-        return {'email': c.execute(select(users.c.email).where(users.c.id == uid)).scalar()}
+        user = c.execute(select(users.c.email, users.c.plan).where(users.c.id == uid)).mappings().first()
+        return {'email': user['email'], 'plan': user['plan'] or 'paid', 'people': people_count(c, uid),
+                'free_people': FREE_PERSONS}
 
 @app.get('/api/books')
 def list_books(uid=Depends(auth)):
@@ -233,8 +251,9 @@ def create_book(data: Book, uid=Depends(auth)):
 @app.post('/api/books/sample', status_code=201)
 def add_sample_book(uid=Depends(auth)):
     """A fictional 金海金氏 book of twenty people, every field in use."""
-    from backend.sample import create_sample
+    from backend.sample import create_sample, PEOPLE
     with engine.begin() as c:
+        room_for(c, uid, len(PEOPLE))
         return {'id': create_sample(c, uid, books, persons, relations)}
 
 @app.put('/api/books/{bid}')
@@ -342,6 +361,7 @@ def stop_share(bid: int, uid=Depends(auth)):
 def add_person(bid: int, data: Person, uid=Depends(auth)):
     with engine.begin() as c:
         own_book(c, bid, uid)
+        room_for(c, uid, 1)
         return {'id': c.execute(persons.insert().values(book_id=bid, **data.model_dump())).inserted_primary_key[0]}
 
 # What counts as nothing on record yet, per column. A clearer reading of a page
@@ -381,6 +401,7 @@ def add_people(bid: int, data: PersonBatch, uid=Depends(auth)):
     added, filled = [], []
     with engine.begin() as c:
         own_book(c, bid, uid)
+        room_for(c, uid, sum(line.id is None for line in data.people))
         for line in data.people:
             values = line.model_dump(exclude={'id', 'replace'})
             if line.id is None:

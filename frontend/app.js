@@ -294,10 +294,32 @@ async function api(path, method='GET', data) {
   if (data instanceof FormData) options.body=data;
   else if (data !== undefined) {options.body=JSON.stringify(data);options.headers={'Content-Type':'application/json'};}
   const r=await fetch('/api'+path,options);let result={};try{result=await r.json();}catch{}
+  // Past the free number of people the server answers 402; the window says so, and
+  // the error is kept quiet so the same words do not show twice.
+  if(r.status===402){const text=errorText(result.detail);paywall(text);throw Object.assign(Error(text),{quiet:true});}
   if(!r.ok) throw Error(errorText(result.detail));
   return result;
 }
-function run(fn){return async e=>{try{message('');await fn(e);}catch(err){message(err.message,'error');}};}
+// 결제는 아직 연결 전이라, 무료 인원을 넘었다는 것과 유료 전환 안내만 띄웁니다.
+function paywall(text){
+ $('#confirmHeading').textContent='유료 결제로 전환';
+ ask(`${text}
+유료로 전환하면 인원 제한 없이 등록할 수 있습니다.`,'유료 전환')
+  .then(ok=>{$('#confirmHeading').textContent='확인';if(ok)message('유료 결제는 준비 중입니다. 열리면 바로 알려 드리겠습니다.');});
+}
+// 왼쪽 칸에 무료 인원과 지금 인원을 늘 보여 줍니다. 유료나 예전 계정이면 감춥니다.
+async function paintPlan(){
+ let me;try{me=await api('/me');}catch{return;}
+ const note=$('#planNote');
+ note.hidden=me.plan!=='free';
+ if(note.hidden)return;
+ const full=me.people>=me.free_people;
+ note.classList.toggle('full',full);
+ note.textContent=full
+  ?`무료 인원(${me.free_people}명)을 다 썼습니다 · 더 등록하려면 유료 전환`
+  :`무료 이용 · 인물 ${me.people}/${me.free_people}명 · ${me.free_people}명을 넘으면 유료`;
+}
+function run(fn){return async e=>{try{message('');await fn(e);}catch(err){if(!err.quiet)message(err.message,'error');}};}
 function formData(form){return Object.fromEntries(new FormData(form));}
 async function busy(button, label, task){const original=button.textContent;button.disabled=true;button.classList.add('busy');button.textContent=label;try{return await task();}finally{button.disabled=false;button.classList.remove('busy');button.textContent=original;}}
 function dialogError(text='', field){const el=$('#personError');el.classList.remove('success');el.textContent=text;el.hidden=!text;$('#personForm').querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));if(field){field.setAttribute('aria-invalid','true');field.focus();}}
@@ -366,7 +388,7 @@ function validDate(value){
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();paintShare();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();paintShare();paintPlan();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
