@@ -283,9 +283,6 @@ def book_detail(c, bid, uid):
         person['generation'] = generations[person['id']]
     return book
 
-class SharePassword(Input):
-    password: str = Field(min_length=4, max_length=128)
-
 def share_row(c, bid):
     return c.execute(select(shares).where(shares.c.book_id == bid)).mappings().first()
 
@@ -312,33 +309,19 @@ def get_share(bid: int, uid=Depends(auth)):
         return share_status(share_row(c, bid))
 
 @app.post('/api/books/{bid}/share', status_code=201)
-def start_share(bid: int, data: SharePassword, uid=Depends(auth)):
+def start_share(bid: int, uid=Depends(auth)):
     with engine.begin() as c:
         own_book(c, bid, uid)
         if share_row(c, bid):
             raise HTTPException(409, '이미 공유 중인 족보입니다.')
         try:
-            made = web_share.create(data.password)
+            made = web_share.create()
         except web_share.ShareError as error:
             raise HTTPException(502, str(error))
         c.execute(shares.insert().values(book_id=bid, server=web_share.SERVER, share_id=made['id'], token=made['token']))
         row, book = dict(share_row(c, bid)), book_detail(c, bid, uid)
     # The first copy goes up straight away so the link opens at once.
     return share_sent(bid, lambda: web_share.push(row, book))
-
-@app.put('/api/books/{bid}/share')
-def change_share_password(bid: int, data: SharePassword, uid=Depends(auth)):
-    with engine.connect() as c:
-        own_book(c, bid, uid)
-        row = share_row(c, bid)
-        if not row:
-            raise HTTPException(404, '공유 중인 족보가 아닙니다.')
-        row, book = dict(row), book_detail(c, bid, uid)
-    try:
-        fingerprint = web_share.push(row, book, password=data.password)
-    except web_share.ShareError as error:
-        raise HTTPException(502, str(error))
-    return share_sent(bid, lambda: fingerprint)
 
 @app.delete('/api/books/{bid}/share')
 def stop_share(bid: int, uid=Depends(auth)):

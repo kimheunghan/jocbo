@@ -55,6 +55,7 @@ def program():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
     shutil.copy2(ROOT / 'desktop' / 'launcher.py', OUT / 'launcher.py')
+    shutil.copy2(ROOT / 'desktop' / 'loading.html', OUT / 'loading.html')
     shutil.copy2(ROOT / 'desktop' / 'jocbo.ico', OUT / 'jocbo.ico')
     (OUT / 'db' / 'jocbo.db').unlink(missing_ok=True)
 

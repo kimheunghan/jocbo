@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -76,17 +77,22 @@ def browser():
     return next((str(p) for p in places if p.exists()), None)
 
 
-def open_window(path):
+def open_window(path, url=URL):
     """평소 쓰는 브라우저 프로필로 앱 창을 엽니다.
 
     전용 프로필을 따로 만들면 엣지가 윈도 계정으로 저절로 로그인하며 동기화
     안내를 띄우므로, 프로필은 그대로 두고 창만 앱 창으로 엽니다.
     """
-    subprocess.Popen([path, f'--app={URL}', '--window-size=1280,860'])
+    subprocess.Popen([path, f'--app={url}', '--window-size=1280,860'])
 
 
-def windows_open():
-    """제목이 화면 제목과 똑같은 창의 수. 앱 창은 페이지 제목을 그대로 창 제목으로
+def splash():
+    """서버보다 먼저 띄우는 "여는 중" 화면. 서버가 답하면 스스로 족보 화면으로 넘어갑니다."""
+    return (APP / 'loading.html').as_uri() + '?to=' + urllib.parse.quote(URL + '/', safe='')
+
+
+def windows():
+    """제목이 화면 제목과 똑같은 창들. 앱 창은 페이지 제목을 그대로 창 제목으로
     씁니다. 보통 탭이면 뒤에 브라우저 이름이 붙어 세지 않습니다."""
     user32 = ctypes.windll.user32
     found = []
@@ -101,20 +107,47 @@ def windows_open():
         return True
 
     user32.EnumWindows(each, None)
-    return len(found)
+    return found
+
+
+def windows_open():
+    return len(windows())
+
+
+def bring_forward():
+    """이미 떠 있는 창을 앞으로 가져옵니다. 최소화돼 있으면 되살립니다."""
+    user32 = ctypes.windll.user32
+    for handle in windows():
+        if user32.IsIconic(handle):
+            user32.ShowWindow(handle, 9)
+        user32.SetForegroundWindow(handle)
+
+
+# 이 실행기가 떠 있는 동안 잡고 있는 표시. 두 번째로 눌린 실행기는 이것을 보고 물러납니다.
+_running = None
+
+
+def already_running():
+    global _running
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    _running = kernel32.CreateMutexW(None, False, r'Local\jocbo-launcher')
+    return ctypes.get_last_error() == 183  # ERROR_ALREADY_EXISTS
 
 
 def main():
+    # 느리게 뜬다고 여러 번 눌러도 하나만 뜹니다. 이미 실행 중이면 그 창을 앞으로 가져옵니다.
+    if already_running():
+        bring_forward()
+        return
+    path = browser()
+    # 누르자마자 창부터 띄웁니다. 서버가 준비되면 그 창이 족보 화면으로 넘어갑니다.
+    if path:
+        open_window(path, splash())
+
     prepare_data()
     os.environ['DATABASE_URL'] = 'sqlite:///' + str(DATA / 'jocbo.db')
     os.environ['UPLOAD_DIR'] = str(DATA / 'uploads')
     os.environ['JOCBO_ENV_FILE'] = str(DATA / '.env')
-    path = browser()
-
-    # 이미 떠 있으면 창만 하나 더 엽니다. 서버는 먼저 띄운 쪽이 맡습니다.
-    if answering():
-        open_window(path) if path else webbrowser.open(URL)
-        return
 
     sys.path.insert(0, str(APP))
     import uvicorn
@@ -131,7 +164,6 @@ def main():
         return
 
     if path:
-        open_window(path)
         # 창이 뜨기를 기다렸다가, 모두 닫히면 끝냅니다. 잠깐 사라지는 순간(새로
         # 고침 등)에 끝나지 않도록 몇 번 연달아 없을 때만 닫힌 것으로 봅니다.
         for _ in range(60):

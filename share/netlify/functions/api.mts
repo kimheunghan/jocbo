@@ -1,31 +1,32 @@
 // 우리의 족보 - 웹 공유 서버.
 //
 // PC 프로그램은 족보를 고칠 때마다 그 사본과 사진을 여기 올리고, 가족은 공유
-// 링크와 비밀번호로 그 사본을 봅니다. 화면(frontend)은 PC 와 같은 것을 쓰므로
+// 링크로 그 사본을 봅니다. 링크의 아이디(무작위 12자)가 곧 열쇠입니다. 화면(frontend)은 PC 와 같은 것을 쓰므로
 // 화면이 부르는 /api 중 보기에 필요한 것만 사본으로 답하고, 고치는 요청은
 // 모두 거절합니다.
 //
 //   PC 프로그램 (Authorization: Bearer 올리기 열쇠)
 //     POST   /api/share                     공유 만들기 -> { id, token }
-//     PUT    /api/share/:id                 족보 사본 올리기 (비밀번호 바꾸기 포함)
+//     PUT    /api/share/:id                 족보 사본 올리기
 //     PUT    /api/share/:id/files/:fid      사진 올리기 (?size=thumb 이면 카드용 작은 사진)
 //     DELETE /api/share/:id                 공유 끝내기
 //   가족 (쿠키)
-//     GET    /api/share/:id/info            비밀번호 화면에 쓸 족보 이름
-//     POST   /api/share/:id/open            비밀번호 확인 -> 쿠키
+//     GET    /api/share/:id/info            여는 화면에 쓸 족보 이름
+//     POST   /api/share/:id/open            쿠키 받기 (사진도 이 쿠키로 엽니다)
 //     GET    /api/me, /api/books, /api/books/:bid, /api/files/:fid
 //
 // 저장은 Netlify Blobs 의 jocbo-share 저장소에 공유 아이디별로 둡니다.
 // 쿠키 서명에 SHARE_SECRET 환경 변수를 씁니다(Netlify 사이트 설정에서 넣습니다).
+// 예전에 비밀번호를 정해 만든 공유도 이제 비밀번호 없이 열립니다.
 import { getStore } from '@netlify/blobs';
-import { createHmac, randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 import type { Config, Context } from '@netlify/functions';
 
 const COOKIE = 'jocbo_share';
 const DAYS = 30;
 const READ_ONLY = '공유된 족보는 볼 수만 있습니다. 고치는 것은 족보 주인의 PC 프로그램에서 합니다.';
 
-type Meta = { token: string; salt: string; password: string; created: number };
+type Meta = { token: string; created: number };
 
 const store = () => getStore({ name: 'jocbo-share', consistency: 'strong' });
 
@@ -38,7 +39,6 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 
 const fail = (status: number, detail: string) => json({ detail }, status);
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
-const hashPassword = (password: string, salt: string) => scryptSync(password, salt, 32).toString('hex');
 
 function same(a: string, b: string) {
   const x = Buffer.from(a), y = Buffer.from(b);
@@ -76,10 +76,6 @@ async function owner(req: Request, id: string) {
   return found && token && same(sha(token), found.token) ? found : null;
 }
 
-function goodPassword(password: unknown): password is string {
-  return typeof password === 'string' && password.length >= 4 && password.length <= 128;
-}
-
 export default async (req: Request, context: Context) => {
   const url = new URL(req.url);
   const parts = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
@@ -91,12 +87,9 @@ export default async (req: Request, context: Context) => {
     const id = parts[1] || '';
 
     if (method === 'POST' && parts.length === 1) {
-      const { password } = await req.json().catch(() => ({}));
-      if (!goodPassword(password)) return fail(400, '비밀번호는 4자 이상이어야 합니다.');
       const newId = randomBytes(9).toString('base64url').toLowerCase().replace(/[^a-z0-9]/g, '').padEnd(12, '0').slice(0, 12);
       const token = randomBytes(32).toString('hex');
-      const salt = randomBytes(16).toString('hex');
-      await blobs.setJSON(`${newId}/meta`, { token: sha(token), salt, password: hashPassword(password, salt), created: Date.now() });
+      await blobs.setJSON(`${newId}/meta`, { token: sha(token), created: Date.now() });
       return json({ id: newId, token }, 201);
     }
 
@@ -105,12 +98,6 @@ export default async (req: Request, context: Context) => {
       if (!found) return fail(403, '공유 열쇠가 맞지 않습니다.');
       const body = await req.json().catch(() => null);
       if (!body || typeof body.book !== 'object') return fail(400, '족보 사본이 없습니다.');
-      if (body.password !== undefined) {
-        if (!goodPassword(body.password)) return fail(400, '비밀번호는 4자 이상이어야 합니다.');
-        found.salt = randomBytes(16).toString('hex');
-        found.password = hashPassword(body.password, found.salt);
-        await blobs.setJSON(`${id}/meta`, found);
-      }
       await blobs.setJSON(`${id}/book`, body.book);
       return json({ ok: true, files: (await blobs.list({ prefix: `${id}/files/` })).blobs.map(b => b.key.split('/').pop()) });
     }
@@ -138,11 +125,7 @@ export default async (req: Request, context: Context) => {
     }
 
     if (method === 'POST' && parts[2] === 'open') {
-      const found = await meta(id);
-      if (!found) return fail(404, '공유가 끝났거나 없는 주소입니다.');
-      const { password } = await req.json().catch(() => ({}));
-      if (typeof password !== 'string' || !same(hashPassword(password, found.salt), found.password))
-        return fail(401, '비밀번호가 맞지 않습니다.');
+      if (!(await meta(id)) || !(await blobs.get(`${id}/book`))) return fail(404, '공유가 끝났거나 없는 주소입니다.');
       const until = Date.now() + DAYS * 86400000;
       const cookie = `${COOKIE}=${id}.${until}.${sign(id, until)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DAYS * 86400}`
         + (url.protocol === 'https:' ? '; Secure' : '');
@@ -156,7 +139,7 @@ export default async (req: Request, context: Context) => {
   const id = viewer(req);
   // 화면은 지금 연 공유의 아이디를 붙여 보냅니다. 다른 공유를 열었던 쿠키면 다시 묻습니다.
   const asked = req.headers.get('x-share');
-  if (!id || (asked && asked !== id)) return fail(401, '비밀번호를 입력해 주세요.');
+  if (!id || (asked && asked !== id)) return fail(401, '공유 링크로 다시 들어와 주십시오.');
   const book = (await blobs.get(`${id}/book`, { type: 'json' })) as Record<string, any> | null;
   if (!book) return fail(404, '공유가 끝났습니다.');
 

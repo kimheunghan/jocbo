@@ -43,8 +43,8 @@ def call(method, url, token='', body=None, content_type='application/json'):
         raise ShareError('공유 사이트에 연결하지 못했습니다. 인터넷 연결을 확인해 주십시오.')
 
 
-def create(password):
-    return call('POST', SERVER + '/api/share', body={'password': password})
+def create():
+    return call('POST', SERVER + '/api/share', body={})
 
 
 def remove(row):
@@ -63,7 +63,7 @@ def snapshot(book):
     return book
 
 
-def push(row, book, password=None):
+def push(row, book):
     """Send the book up if it changed since the last time, then any photo the site lacks.
 
     Gives back the fingerprint of what was sent.
@@ -71,13 +71,10 @@ def push(row, book, password=None):
     from backend import main
     copy = snapshot(book)
     fingerprint = hashlib.sha256(json.dumps(copy, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-    if fingerprint == row['synced'] and password is None:
+    if fingerprint == row['synced']:
         return fingerprint
     base = f"{row['server']}/api/share/{row['share_id']}"
-    body = {'book': copy}
-    if password is not None:
-        body['password'] = password
-    there = set(call('PUT', base, row['token'], body).get('files', []))
+    there = set(call('PUT', base, row['token'], {'book': copy}).get('files', []))
     for file in copy['files']:
         if str(file['id']) in there:
             continue

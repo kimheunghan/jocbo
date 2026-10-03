@@ -372,7 +372,7 @@ $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
 $('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',bookFormValues(e.target));e.target.reset();e.target.elements.volume.value='1';paintNewBookFields();$('#bookDialog').close();await loadBooks(r.id);message('새 족보 생성 완료');});
 $('#bookInfoForm').oninput=paintReadings;
-// 웹 공유: 가족이 링크와 비밀번호로 가계도를 봅니다. 고친 내용은 서버가 알아서 올립니다.
+// 웹 공유: 가족이 링크로 가계도를 봅니다. 고친 내용은 서버가 알아서 올립니다.
 let shareTimer=null;
 function shareTime(seconds){if(!seconds)return '';const d=new Date(seconds*1000);return `${d.getMonth()+1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 async function paintShare(){
@@ -382,9 +382,8 @@ async function paintShare(){
  try{state=await api(`/books/${bid}/share`);}catch(err){body.innerHTML=`<p class="muted">${esc(err.message)}</p>`;return;}
  if(!book||book.id!==bid)return;
  if(!state.shared){
-  body.innerHTML='<p class="muted">가족과 가계도 공유</p>'
-   +'<form id="shareStart"><label>비밀번호<input name="password" type="text" class="masked" required minlength="4" maxlength="128" autocomplete="off" spellcheck="false" placeholder="4자 이상"></label><button>공유 시작</button></form>';
-  $('#shareStart').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'올리는 중…',()=>api(`/books/${bid}/share`,'POST',formData(e.target)));await paintShare();message('웹 공유 시작 · 링크를 가족에게 보내 주십시오');});
+  body.innerHTML='<p class="muted">링크로 가족과 가계도 공유</p><button type="button" id="shareStart">공유 시작</button>';
+  $('#shareStart').onclick=run(async()=>{await busy($('#shareStart'),'올리는 중…',()=>api(`/books/${bid}/share`,'POST'));await paintShare();message('웹 공유 시작 · 링크를 가족에게 보내 주십시오');});
   return;
  }
  const status=state.error?`<p class="share-status error">올리지 못함 · 잠시 뒤 다시 시도<br>${esc(state.error)}</p>`
@@ -392,13 +391,10 @@ async function paintShare(){
   :`<p class="share-status">자동 반영 · ${esc(shareTime(state.synced_at))}</p>`;
  body.innerHTML=`<label>링크<input id="shareLink" readonly value="${esc(state.link)}"></label>`
   +'<div class="share-actions"><button type="button" id="shareCopy">링크 복사</button><button type="button" id="shareOpen" class="secondary">열어 보기</button></div>'+status
-  +'<details class="share-more"><summary>설정</summary>'
-  +'<form id="sharePassword"><label>새 비밀번호<input name="password" type="text" class="masked" required minlength="4" maxlength="128" autocomplete="off" spellcheck="false"></label><button class="secondary">비밀번호 변경</button></form>'
-  +'<button type="button" id="shareStop" class="danger">공유 끝내기</button></details>';
+  +'<button type="button" id="shareStop" class="danger share-stop">공유 끝내기</button>';
  $('#shareLink').onclick=e=>e.target.select();
- $('#shareCopy').onclick=run(async()=>{try{await navigator.clipboard.writeText(state.link);}catch{$('#shareLink').select();document.execCommand('copy');}message('공유 링크 복사됨 · 비밀번호와 함께 보내 주십시오');});
+ $('#shareCopy').onclick=run(async()=>{try{await navigator.clipboard.writeText(state.link);}catch{$('#shareLink').select();document.execCommand('copy');}message('공유 링크 복사됨');});
  $('#shareOpen').onclick=()=>window.open(state.link,'_blank');
- $('#sharePassword').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'바꾸는 중…',()=>api(`/books/${bid}/share`,'PUT',formData(e.target)));e.target.reset();message('공유 비밀번호 변경 완료');await paintShare();});
  $('#shareStop').onclick=run(async()=>{if(!await ask('웹 공유 끝내기\n\n공유 사이트의 사본을 지웁니다. 보내 둔 링크는 더 열리지 않습니다.','공유 끝내기'))return;await busy($('#shareStop'),'끝내는 중…',()=>api(`/books/${bid}/share`,'DELETE'));await paintShare();message('웹 공유 끝남');});
  // 올리는 중이거나 실패했으면 곧 다시, 아니면 가끔 상태를 새로 봅니다.
  shareTimer=setTimeout(()=>{if(!$('#sharePanel').contains(document.activeElement))paintShare();},state.pending||state.error?5000:30000);

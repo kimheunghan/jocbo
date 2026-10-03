@@ -1,13 +1,13 @@
 // 우리의 족보 - 공유 화면.
-// PC 와 같은 화면(app.js)을 그대로 띄우되, 처음에는 족보 주인이 정한 비밀번호를
-// 묻고, 들어온 뒤에는 고치는 단추를 감추고 가계도부터 보여 줍니다.
+// PC 와 같은 화면(app.js)을 그대로 띄우되, 링크로 들어오면 바로 열고, 고치는
+// 단추를 감추고 가계도부터 보여 줍니다.
 // app.js 보다 먼저 실행되어야 하므로 build.mjs 가 app.js 앞에 넣습니다.
 (() => {
   const id = (location.pathname.match(/^\/s\/([a-z0-9]{12})\/?$/) || [])[1] || '';
   document.documentElement.classList.add('share-mode');
 
   // 화면이 부르는 /api 에 지금 연 공유의 아이디를 붙입니다. 서버는 쿠키가 연 공유와
-  // 다르면 비밀번호를 다시 묻습니다.
+  // 다르면 거절하고, 이 화면이 지금 공유를 새로 엽니다.
   const fetchOriginal = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -53,59 +53,37 @@
     }).observe(workspace, { attributes: true, attributeFilter: ['hidden'] });
   }
 
-  async function passwordForm() {
+  // 링크로 들어오면 묻는 것 없이 바로 엽니다. 쿠키를 받아 두어야 사진(<img>)도 열립니다.
+  async function openShare() {
     const form = document.getElementById('authForm');
     const title = document.querySelector('.intro-title');
     const lead = document.querySelector('.intro-lead');
     const text = document.querySelector('.intro-text');
     if (lead) lead.innerHTML = '가족이 함께 보는<br>우리 집안의 기록';
-    if (text) text.textContent = '족보 주인이 공유한 가계도입니다. 비밀번호를 넣으면 볼 수 있습니다.';
+    if (text) text.textContent = '족보 주인이 공유한 가계도입니다.';
     form.classList.add('share-ready');
+    form.onsubmit = event => event.preventDefault();
     if (!id) {
       form.innerHTML = '<h2>공유 주소가 아닙니다</h2><p class="muted">족보 주인에게 받은 공유 링크로 들어와 주십시오.</p>';
       return;
     }
-    let name = '';
+    form.innerHTML = '<h2>족보 여는 중…</h2>';
     try {
-      const response = await fetch(`/api/share/${id}/info`);
-      const info = await response.json();
-      if (!response.ok) throw Error(info.detail);
-      name = info.title;
+      const info = await fetch(`/api/share/${id}/info`).then(async r => ({ ok: r.ok, body: await r.json() }));
+      if (!info.ok) throw Error(info.body.detail);
+      if (title && info.body.title) title.innerHTML = `<em>${esc(info.body.title)}</em>`;
+      const opened = await fetch(`/api/share/${id}/open`, { method: 'POST' });
+      if (!opened.ok) throw Error((await opened.json().catch(() => ({}))).detail);
+      await enter(); // app.js
     } catch (err) {
       form.innerHTML = `<h2>열 수 없는 공유입니다</h2><p class="muted">${esc(err.message || '공유가 끝났거나 없는 주소입니다.')}</p>`;
-      return;
     }
-    if (title && name) title.innerHTML = `<em>${esc(name)}</em>`;
-    form.innerHTML = `<h2>공유된 족보 열기</h2>`
-      + `<label>비밀번호<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label>`
-      + `<div class="actions"><button type="submit">열기</button></div>`
-      + `<p class="muted share-error" role="alert"></p>`;
-    form.onsubmit = async event => {
-      event.preventDefault();
-      const error = form.querySelector('.share-error');
-      const button = form.querySelector('button');
-      error.textContent = '';
-      button.disabled = true;
-      try {
-        const response = await fetch(`/api/share/${id}/open`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: form.elements.password.value }),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw Error(result.detail || '열지 못했습니다.');
-        await enter(); // app.js
-      } catch (err) {
-        error.textContent = err.message;
-      } finally {
-        button.disabled = false;
-      }
-    };
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     const header = document.querySelector('header > div');
     if (header) header.insertAdjacentHTML('beforeend', '<span class="share-badge">가족 공유 · 보기 전용</span>');
     treeFirst();
-    passwordForm();
+    openShare();
   });
 })();

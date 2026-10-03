@@ -2174,9 +2174,13 @@ button {
   box-shadow: none;
 }
 
-.share-panel form > button,
+.share-panel > div > button,
 .share-actions button {
   width: 100%;
+}
+
+.share-panel .share-stop {
+  margin-top: 10px;
 }
 
 /* 작은 칸이라 글자와 단추를 한 단계 줄입니다. */
@@ -2196,8 +2200,7 @@ button {
   font-size: 13px;
 }
 
-.share-status,
-.share-more {
+.share-status {
   font-size: 12px;
 }
 
@@ -2217,22 +2220,5 @@ button {
   color: #b42318;
 }
 
-.share-more {
-  margin-top: 10px;
-  font-size: 13px;
-}
 
-.share-more summary {
-  cursor: pointer;
-  color: #5b6470;
-}
 
-.share-more .danger {
-  margin-top: 10px;
-}
-
-/* 공유 비밀번호는 로그인 암호가 아니므로 브라우저가 저장·자동 채우기를 하지 않게
-   글자 칸으로 두고 점으로만 가립니다. */
-input.masked {
-  -webkit-text-security: disc;
-}
