@@ -350,6 +350,9 @@ main {
   height: 100vh;
   background: transparent;
   cursor: col-resize;
+  /* A finger's drag must move the edge, not scroll the page: without this the
+     browser takes a touch drag for panning and cancels the resize at once. */
+  touch-action: none;
 }
 
 /* The grab area reaches out mostly to the right: the sidebar's scrollbar sits
@@ -357,7 +360,7 @@ main {
 .side-resizer::before {
   content: "";
   position: absolute;
-  inset: 0 -14px 0 -2px;
+  inset: 0 -20px 0 -8px;
 }
 
 .side-resizer::after {
