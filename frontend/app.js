@@ -382,7 +382,7 @@ async function paintShare(){
  try{state=await api(`/books/${bid}/share`);}catch(err){body.innerHTML=`<p class="muted">${esc(err.message)}</p>`;return;}
  if(!book||book.id!==bid)return;
  if(!state.shared){
-  body.innerHTML='<p class="muted">가족에게 링크를 보내 가계도를 보여 줍니다. 볼 때 넣을 비밀번호를 정해 주십시오. 고친 내용은 자동으로 올라갑니다.</p>'
+  body.innerHTML='<p class="muted">링크와 비밀번호로 가족이 가계도를 봅니다.</p>'
    +'<form id="shareStart"><label>공유 비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password" placeholder="4자 이상"></label><button>웹 공유 시작</button></form>';
   $('#shareStart').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'올리는 중…',()=>api(`/books/${bid}/share`,'POST',formData(e.target)));await paintShare();message('웹 공유 시작 · 링크를 가족에게 보내 주십시오');});
   return;

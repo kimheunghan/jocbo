@@ -346,15 +346,33 @@ main {
 .side-resizer {
   position: sticky;
   top: 0;
+  z-index: 8;
   height: 100vh;
   background: var(--line);
   cursor: col-resize;
 }
 
+/* The grab area reaches out mostly to the right: the sidebar's scrollbar sits
+   right against the rule on the left and must stay usable. */
 .side-resizer::before {
   content: "";
   position: absolute;
-  inset: 0 -4px;
+  inset: 0 -10px 0 -2px;
+}
+
+/* A handle in the middle of the rule, so there is something to see and take hold of. */
+.side-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: 10px;
+  height: 48px;
+  border: 1px solid #0f1f3f;
+  border-radius: 5px;
+  background: repeating-linear-gradient(180deg, #d8bf85 0 2px, #b89a5a 2px 5px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .side-resizer::after {
