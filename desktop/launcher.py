@@ -1,0 +1,163 @@
+"""우리의 족보 - 설치판을 띄웁니다.
+
+서버를 이 프로세스 안에서 돌리고, 엣지나 크롬의 앱 창(주소창·탭 없는 창)으로
+화면을 엽니다. 그 창을 닫으면 서버도 함께 멈춥니다.
+
+족보 DB·사진·API 키는 프로그램 폴더가 아니라 %LocalAppData%\\jocbo 에 둡니다.
+새 판을 설치하거나 프로그램을 지워도 족보는 남습니다.
+"""
+import ctypes
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+import webbrowser
+from pathlib import Path
+
+APP = Path(__file__).resolve().parent
+DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'jocbo'
+# start.bat 판(8000)과 같이 켜 두어도 서로의 DB 를 열지 않도록 따로 둡니다.
+PORT = 8770
+URL = f'http://127.0.0.1:{PORT}'
+TITLE = '우리의 족보'
+# frontend/index.html 의 <title>. 앱 창이 떠 있는지 이 제목으로 찾습니다.
+PAGE_TITLE = '우리의 족보 · 가족의 기록'
+# 앱 창을 찾지 못하면 이 안내의 [확인]이 종료 단추를 대신합니다.
+RUNNING = '우리의 족보가 실행 중입니다.\n\n다 쓰셨으면 [확인]을 누르십시오. 프로그램이 종료됩니다.'
+
+
+def message(text, buttons=0x40):
+    return ctypes.windll.user32.MessageBoxW(None, text, TITLE, buttons)
+
+
+def prepare_data():
+    """처음 실행이면 족보를 마련합니다.
+
+    start.bat 으로 쓰던 족보(문서\\jocbo)가 있으면 그것을 가져오고, 없으면 설치에
+    들어 있는 샘플 족보로 시작합니다. 이미 있는 족보는 건드리지 않습니다.
+    """
+    DATA.mkdir(parents=True, exist_ok=True)
+    if (DATA / 'jocbo.db').exists():
+        return
+    old = Path.home() / 'Documents' / 'jocbo'
+    source = old if (old / 'jocbo.db').exists() else None
+    if source:
+        shutil.copy2(source / 'jocbo.db', DATA / 'jocbo.db')
+        if (source / '.env').exists() and not (DATA / '.env').exists():
+            shutil.copy2(source / '.env', DATA / '.env')
+    else:
+        shutil.copy2(APP / 'db' / 'initial.db', DATA / 'jocbo.db')
+    for folder in [APP / 'uploads'] + ([source / 'uploads'] if source else []):
+        if folder.is_dir():
+            shutil.copytree(folder, DATA / 'uploads', dirs_exist_ok=True)
+    (DATA / 'uploads').mkdir(exist_ok=True)
+
+
+def answering():
+    try:
+        with urllib.request.urlopen(URL, timeout=2) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def browser():
+    """앱 창을 열 엣지나 크롬. 윈도 10·11에는 엣지가 기본으로 깔려 있습니다."""
+    places = []
+    for base in (os.environ.get('ProgramFiles(x86)'), os.environ.get('ProgramFiles'), os.environ.get('LOCALAPPDATA')):
+        if base:
+            places.append(Path(base) / 'Microsoft' / 'Edge' / 'Application' / 'msedge.exe')
+            places.append(Path(base) / 'Google' / 'Chrome' / 'Application' / 'chrome.exe')
+    return next((str(p) for p in places if p.exists()), None)
+
+
+def open_window(path):
+    """평소 쓰는 브라우저 프로필로 앱 창을 엽니다.
+
+    전용 프로필을 따로 만들면 엣지가 윈도 계정으로 저절로 로그인하며 동기화
+    안내를 띄우므로, 프로필은 그대로 두고 창만 앱 창으로 엽니다.
+    """
+    subprocess.Popen([path, f'--app={URL}', '--window-size=1280,860'])
+
+
+def windows_open():
+    """제목이 화면 제목과 똑같은 창의 수. 앱 창은 페이지 제목을 그대로 창 제목으로
+    씁니다. 보통 탭이면 뒤에 브라우저 이름이 붙어 세지 않습니다."""
+    user32 = ctypes.windll.user32
+    found = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def each(handle, _):
+        if user32.IsWindowVisible(handle):
+            buffer = ctypes.create_unicode_buffer(256)
+            user32.GetWindowTextW(handle, buffer, 256)
+            if buffer.value == PAGE_TITLE:
+                found.append(handle)
+        return True
+
+    user32.EnumWindows(each, None)
+    return len(found)
+
+
+def main():
+    prepare_data()
+    os.environ['DATABASE_URL'] = 'sqlite:///' + str(DATA / 'jocbo.db')
+    os.environ['UPLOAD_DIR'] = str(DATA / 'uploads')
+    os.environ['JOCBO_ENV_FILE'] = str(DATA / '.env')
+    path = browser()
+
+    # 이미 떠 있으면 창만 하나 더 엽니다. 서버는 먼저 띄운 쪽이 맡습니다.
+    if answering():
+        open_window(path) if path else webbrowser.open(URL)
+        return
+
+    sys.path.insert(0, str(APP))
+    import uvicorn
+    server = uvicorn.Server(uvicorn.Config('backend.main:app', host='127.0.0.1', port=PORT,
+                                           log_level='warning', log_config=None))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(240):
+        if answering() or not thread.is_alive():
+            break
+        time.sleep(0.5)
+    if not answering():
+        message(f'서버를 띄우지 못했습니다.\n\n자세한 내용: {DATA / "jocbo.log"}', 0x10)
+        return
+
+    if path:
+        open_window(path)
+        # 창이 뜨기를 기다렸다가, 모두 닫히면 끝냅니다. 잠깐 사라지는 순간(새로
+        # 고침 등)에 끝나지 않도록 몇 번 연달아 없을 때만 닫힌 것으로 봅니다.
+        for _ in range(60):
+            if windows_open():
+                break
+            time.sleep(0.5)
+        else:
+            message(RUNNING)
+        missing = 0
+        while missing < 3:
+            missing = 0 if windows_open() else missing + 1
+            time.sleep(1)
+    else:
+        webbrowser.open(URL)
+        message(RUNNING)
+    server.should_exit = True
+    thread.join(10)
+
+
+if __name__ == '__main__':
+    DATA.mkdir(parents=True, exist_ok=True)
+    # pythonw 로 뜨면 출력할 곳이 없으므로 기록 파일로 보냅니다.
+    log = open(DATA / 'jocbo.log', 'a', encoding='utf-8', buffering=1)
+    sys.stdout = sys.stderr = log
+    print(time.strftime('\n%Y-%m-%d %H:%M:%S 시작'))
+    try:
+        main()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        message(f'오류로 멈췄습니다.\n\n자세한 내용: {DATA / "jocbo.log"}', 0x10)

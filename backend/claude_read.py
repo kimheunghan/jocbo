@@ -18,7 +18,8 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENV_FILE = ROOT / '.env'
+# The installed program keeps it with the 족보 data, outside the program folder.
+ENV_FILE = Path(os.getenv('JOCBO_ENV_FILE', str(ROOT / '.env')))
 MODEL = 'claude-opus-5'
 # Claude reads an image up to this long edge at full detail; beyond it the
 # picture is scaled down, so each page is cut out and sent on its own.

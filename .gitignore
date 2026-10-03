@@ -17,3 +17,5 @@ uploads/*
 test-results/
 # 카드용으로 줄인 사진은 각 컴퓨터가 처음 볼 때 만듭니다.
 uploads/thumbs/
+# 설치 파일을 만들 때 생기는 폴더입니다.
+build/

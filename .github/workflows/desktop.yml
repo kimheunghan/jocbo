@@ -1,0 +1,41 @@
+name: Desktop installer
+# v 로 시작하는 태그(v2026.10.3 등)를 올리면 jocbo-setup.exe 를 만들어 Releases 에 올립니다.
+# Actions 화면에서 직접 돌리면 만들기만 하고 결과물(artifact)로 남깁니다.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Program folder
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python desktop/build.py
+      - name: Installer
+        shell: pwsh
+        run: |
+          $inno = "${env:ProgramFiles(x86)}\Inno Setup 6"
+          if (-not (Test-Path "$inno\ISCC.exe")) { choco install innosetup -y --no-progress }
+          if (-not (Test-Path "$inno\Languages\Korean.isl")) {
+            Invoke-WebRequest https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Korean.isl -OutFile "$inno\Languages\Korean.isl"
+          }
+          $env:JOCBO_VERSION = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { Get-Date -Format 'yyyy.M.d' }
+          & "$inno\ISCC.exe" desktop\jocbo.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jocbo-setup
+          path: build/jocbo-setup.exe
+      - name: Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" build/jocbo-setup.exe --title "우리의 족보 ${{ github.ref_name }}" --notes "jocbo-setup.exe 를 내려받아 실행하면 설치됩니다. 파이썬 등 따로 설치할 것은 없습니다."
