@@ -2145,19 +2145,36 @@ button {
   flex: none;
 }
 
-/* 웹 공유 칸 (왼쪽) */
-.share-panel {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid #d5d9d3;
+/* 웹 공유 칸 (왼쪽, 족보 선택 바로 아래). 족보 정보처럼 남색 서가 안의 종이 카드입니다. */
+#workspace > aside .share-panel {
+  margin: 20px 0;
+  padding: 18px 16px;
+  border: 1px solid #ffffff22;
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: 0 6px 20px #0000003a;
 }
 
 .share-panel h3 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--green-deep);
 }
 
-.share-panel form {
+/* 안의 입력 칸은 카드 속 카드가 되지 않게 둡니다. */
+#workspace > aside .share-panel form {
   margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.share-panel form > button,
+.share-actions button {
+  width: 100%;
 }
 
 .share-actions {
