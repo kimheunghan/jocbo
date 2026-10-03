@@ -1,0 +1,55 @@
+/* 우리의 족보 - 공유 화면. 고치는 단추를 감춥니다. 서버도 고치는 요청은 모두 거절합니다. */
+.share-mode #logout,
+.share-mode #newBook,
+.share-mode #sample,
+.share-mode #newPerson,
+.share-mode #openScan,
+.share-mode #relationsPanel,
+.share-mode #bookInfoForm,
+.share-mode #sharePanel,
+.share-mode aside > .muted,
+.share-mode .intro-tiles,
+.share-mode .tree-add,
+.share-mode [data-remove-file],
+.share-mode [data-hanja-field],
+.share-mode #savePerson,
+.share-mode #deletePerson,
+.share-mode #addFamily,
+.share-mode #upload,
+.share-mode #fileInput,
+.share-mode #convertHanja,
+.share-mode #relativeBanner,
+.share-mode #workspace > aside,
+.share-mode #sideResizer,
+.share-mode [data-clear-date],
+.share-mode #attachments > label {
+  display: none !important;
+}
+
+/* 족보가 하나뿐이라 왼쪽 칸(족보 선택)을 빼고 가계도를 넓게 씁니다. */
+.share-mode main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 비밀번호 칸으로 바뀌기 전의 로그인 칸은 보이지 않게 둡니다. */
+.share-mode #authForm:not(.share-ready) > * {
+  visibility: hidden;
+}
+
+.share-badge {
+  margin-left: 14px;
+  padding: 3px 10px;
+  border: 1px solid rgba(214, 178, 110, .6);
+  border-radius: 999px;
+  color: #e9d6aa;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.share-error:empty {
+  display: none;
+}
+
+.share-error {
+  color: #b42318;
+}

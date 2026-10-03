@@ -1,0 +1,13 @@
+{
+  "name": "jocbo-share",
+  "private": true,
+  "type": "module",
+  "description": "우리의 족보 - 웹 공유 (Netlify)",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npx netlify-cli dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.3"
+  }
+}

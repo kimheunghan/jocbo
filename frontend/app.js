@@ -366,12 +366,43 @@ function validDate(value){
 async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
-async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();}
+async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();paintShare();}
 $('#authForm').onsubmit=run(async e=>{e.preventDefault();await api('/login','POST',formData(e.target));await enter();});
 $('#register').onclick=run(async()=>{if(!$('#authForm').reportValidity())return;const r=await api('/register','POST',formData($('#authForm')));message(r.message);});
 $('#logout').onclick=run(async()=>{await api('/logout','POST');location.reload();});
 $('#bookForm').onsubmit=run(async e=>{e.preventDefault();const r=await api('/books','POST',bookFormValues(e.target));e.target.reset();e.target.elements.volume.value='1';paintNewBookFields();$('#bookDialog').close();await loadBooks(r.id);message('새 족보 생성 완료');});
 $('#bookInfoForm').oninput=paintReadings;
+// 웹 공유: 가족이 링크와 비밀번호로 가계도를 봅니다. 고친 내용은 서버가 알아서 올립니다.
+let shareTimer=null;
+function shareTime(seconds){if(!seconds)return '';const d=new Date(seconds*1000);return `${d.getMonth()+1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+async function paintShare(){
+ clearTimeout(shareTimer);
+ const panel=$('#sharePanel'),body=$('#shareBody');panel.hidden=!book;if(!book)return;
+ const bid=book.id;let state;
+ try{state=await api(`/books/${bid}/share`);}catch(err){body.innerHTML=`<p class="muted">${esc(err.message)}</p>`;return;}
+ if(!book||book.id!==bid)return;
+ if(!state.shared){
+  body.innerHTML='<p class="muted">가족에게 링크를 보내 가계도를 보여 줍니다. 볼 때 넣을 비밀번호를 정해 주십시오. 고친 내용은 자동으로 올라갑니다.</p>'
+   +'<form id="shareStart"><label>공유 비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password" placeholder="4자 이상"></label><button>웹 공유 시작</button></form>';
+  $('#shareStart').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'올리는 중…',()=>api(`/books/${bid}/share`,'POST',formData(e.target)));await paintShare();message('웹 공유 시작 · 링크를 가족에게 보내 주십시오');});
+  return;
+ }
+ const status=state.error?`<p class="share-status error">올리지 못함 · ${esc(state.error)}<br>잠시 뒤 다시 올립니다.</p>`
+  :state.pending?'<p class="share-status">올리는 중…</p>'
+  :`<p class="share-status">자동으로 올라감 · 마지막 ${esc(shareTime(state.synced_at))}</p>`;
+ body.innerHTML=`<label>공유 링크<input id="shareLink" readonly value="${esc(state.link)}"></label>`
+  +'<div class="share-actions"><button type="button" id="shareCopy">링크 복사</button><button type="button" id="shareOpen" class="secondary">열어 보기</button></div>'+status
+  +'<details class="share-more"><summary>비밀번호 바꾸기 · 공유 끝내기</summary>'
+  +'<form id="sharePassword"><label>새 비밀번호<input name="password" type="password" required minlength="4" maxlength="128" autocomplete="new-password"></label><button class="secondary">비밀번호 바꾸기</button></form>'
+  +'<button type="button" id="shareStop" class="danger">공유 끝내기</button></details>';
+ $('#shareLink').onclick=e=>e.target.select();
+ $('#shareCopy').onclick=run(async()=>{try{await navigator.clipboard.writeText(state.link);}catch{$('#shareLink').select();document.execCommand('copy');}message('공유 링크 복사됨 · 비밀번호와 함께 보내 주십시오');});
+ $('#shareOpen').onclick=()=>window.open(state.link,'_blank');
+ $('#sharePassword').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'바꾸는 중…',()=>api(`/books/${bid}/share`,'PUT',formData(e.target)));e.target.reset();message('공유 비밀번호 변경 완료');await paintShare();});
+ $('#shareStop').onclick=run(async()=>{if(!await ask('웹 공유 끝내기\n\n공유 사이트의 사본을 지웁니다. 보내 둔 링크는 더 열리지 않습니다.','공유 끝내기'))return;await busy($('#shareStop'),'끝내는 중…',()=>api(`/books/${bid}/share`,'DELETE'));await paintShare();message('웹 공유 끝남');});
+ // 올리는 중이거나 실패했으면 곧 다시, 아니면 가끔 상태를 새로 봅니다.
+ shareTimer=setTimeout(()=>{if(!$('#sharePanel').contains(document.activeElement))paintShare();},state.pending||state.error?5000:30000);
+}
 $('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',bookFormValues(e.target)));await loadBooks(book.id);message('족보 기본정보 저장 완료');});
 $('#bookSelect').onchange=run(refresh);
 $('#search').oninput=()=>{render();renderRelations();};

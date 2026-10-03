@@ -1,0 +1,13 @@
+# 우리의 족보 - 웹 공유 사이트. PC 프로그램이 올린 족보를 가족이 링크로 봅니다.
+# 서버 코드는 share/ 에 있고, 화면은 frontend/ 를 그대로 가져다 씁니다.
+[build]
+  base = "share"
+  command = "node build.mjs"
+  publish = "dist"
+  functions = "netlify/functions"
+
+# 공유 링크(/s/아이디)는 모두 같은 화면을 엽니다. share.js 가 주소에서 아이디를 읽습니다.
+[[redirects]]
+  from = "/s/*"
+  to = "/index.html"
+  status = 200

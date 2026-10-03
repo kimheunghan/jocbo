@@ -1,0 +1,111 @@
+// 우리의 족보 - 공유 화면.
+// PC 와 같은 화면(app.js)을 그대로 띄우되, 처음에는 족보 주인이 정한 비밀번호를
+// 묻고, 들어온 뒤에는 고치는 단추를 감추고 가계도부터 보여 줍니다.
+// app.js 보다 먼저 실행되어야 하므로 build.mjs 가 app.js 앞에 넣습니다.
+(() => {
+  const id = (location.pathname.match(/^\/s\/([a-z0-9]{12})\/?$/) || [])[1] || '';
+  document.documentElement.classList.add('share-mode');
+
+  // 화면이 부르는 /api 에 지금 연 공유의 아이디를 붙입니다. 서버는 쿠키가 연 공유와
+  // 다르면 비밀번호를 다시 묻습니다.
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (url.startsWith('/api')) {
+      const headers = new Headers(init.headers || {});
+      headers.set('X-Share', id);
+      init = { ...init, headers };
+    }
+    return fetchOriginal(input, init);
+  };
+
+  // 인물 창은 보기 전용으로 엽니다. 칸은 읽기만 되고 저장·삭제 단추는 감춥니다.
+  const showModal = HTMLDialogElement.prototype.showModal;
+  HTMLDialogElement.prototype.showModal = function () {
+    showModal.call(this);
+    if (this.id === 'personDialog') {
+      // app.js 는 창을 연 다음에 제목을 적으므로 그 뒤에 바꿉니다.
+      setTimeout(() => {
+        const heading = this.querySelector('#personHeading');
+        if (heading) heading.textContent = '인물 정보';
+      });
+      this.querySelectorAll('input, select, textarea').forEach(field => {
+        if (field.type === 'file') return;
+        field.readOnly = true;
+        if (field.tagName === 'SELECT' || field.type === 'checkbox' || field.type === 'radio') field.disabled = true;
+      });
+      const cancel = this.querySelector('#cancelPerson');
+      if (cancel) cancel.textContent = '닫기';
+    }
+  };
+
+  const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+  // 들어오면 가계도부터 보여 줍니다.
+  function treeFirst() {
+    const workspace = document.getElementById('workspace');
+    let shown = false;
+    new MutationObserver(() => {
+      if (!workspace.hidden && !shown) {
+        shown = true;
+        document.querySelector('[data-view="tree"]')?.click();
+      }
+    }).observe(workspace, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  async function passwordForm() {
+    const form = document.getElementById('authForm');
+    const title = document.querySelector('.intro-title');
+    const lead = document.querySelector('.intro-lead');
+    const text = document.querySelector('.intro-text');
+    if (lead) lead.innerHTML = '가족이 함께 보는<br>우리 집안의 기록';
+    if (text) text.textContent = '족보 주인이 공유한 가계도입니다. 비밀번호를 넣으면 볼 수 있습니다.';
+    form.classList.add('share-ready');
+    if (!id) {
+      form.innerHTML = '<h2>공유 주소가 아닙니다</h2><p class="muted">족보 주인에게 받은 공유 링크로 들어와 주십시오.</p>';
+      return;
+    }
+    let name = '';
+    try {
+      const response = await fetch(`/api/share/${id}/info`);
+      const info = await response.json();
+      if (!response.ok) throw Error(info.detail);
+      name = info.title;
+    } catch (err) {
+      form.innerHTML = `<h2>열 수 없는 공유입니다</h2><p class="muted">${esc(err.message || '공유가 끝났거나 없는 주소입니다.')}</p>`;
+      return;
+    }
+    if (title && name) title.innerHTML = `<em>${esc(name)}</em>`;
+    form.innerHTML = `<h2>공유된 족보 열기</h2>`
+      + `<label>비밀번호<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label>`
+      + `<div class="actions"><button type="submit">열기</button></div>`
+      + `<p class="muted share-error" role="alert"></p>`;
+    form.onsubmit = async event => {
+      event.preventDefault();
+      const error = form.querySelector('.share-error');
+      const button = form.querySelector('button');
+      error.textContent = '';
+      button.disabled = true;
+      try {
+        const response = await fetch(`/api/share/${id}/open`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: form.elements.password.value }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(result.detail || '열지 못했습니다.');
+        await enter(); // app.js
+      } catch (err) {
+        error.textContent = err.message;
+      } finally {
+        button.disabled = false;
+      }
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const header = document.querySelector('header > div');
+    if (header) header.insertAdjacentHTML('beforeend', '<span class="share-badge">가족 공유 · 보기 전용</span>');
+    treeFirst();
+    passwordForm();
+  });
+})();

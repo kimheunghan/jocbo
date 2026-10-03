@@ -19,6 +19,8 @@ from sqlalchemy import (create_engine, MetaData, Table, Column, Integer, String,
                         inspect, text)
 from sqlalchemy.exc import IntegrityError
 
+from backend import share as web_share
+
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.getenv('UPLOAD_DIR', str(ROOT / 'uploads')))
 engine = create_engine(os.getenv('DATABASE_URL', 'sqlite:///' + str(ROOT / 'jocbo.db')))
@@ -34,6 +36,9 @@ persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column
 relations = Table('relations', meta, Column('id', Integer, primary_key=True), Column('source_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('target_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('kind', String(20), nullable=False), UniqueConstraint('source_id', 'target_id', 'kind'), CheckConstraint('source_id <> target_id'), CheckConstraint("kind IN ('parent', 'spouse')"))
 scans = Table('scans', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
 files = Table('files', meta, Column('id', Integer, primary_key=True), Column('person_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
+# A book shown on the share site: where it went, the key to send to it, and
+# what was last sent.
+shares = Table('shares', meta, Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), primary_key=True), Column('server', String(255), nullable=False), Column('share_id', String(40), nullable=False), Column('token', String(128), nullable=False), Column('synced', String(64), nullable=False, server_default=''), Column('error', Text, nullable=False, server_default=''), Column('synced_at', Integer, nullable=False, server_default='0'))
 
 @asynccontextmanager
 async def lifespan(app):
@@ -50,9 +55,21 @@ async def lifespan(app):
                 if name not in existing:
                     connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {column_type} NOT NULL DEFAULT ''"))
     UPLOADS.mkdir(parents=True, exist_ok=True)
+    # Shared books go up on their own; anything changed while offline goes now.
+    web_share.worker.start()
+    web_share.worker.changed()
     yield
+    web_share.worker.stop()
 
 app = FastAPI(title='우리의 족보', lifespan=lifespan)
+
+@app.middleware('http')
+async def send_changes_up(request: Request, call_next):
+    """Any change that went through has the shared books sent up again."""
+    response = await call_next(request)
+    if request.method != 'GET' and request.url.path.startswith('/api/') and response.status_code < 400:
+        web_share.worker.changed()
+    return response
 
 class Input(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
@@ -230,37 +247,113 @@ def edit_book(bid: int, data: Book, uid=Depends(auth)):
 @app.get('/api/books/{bid}')
 def get_book(bid: int, uid=Depends(auth)):
     with engine.connect() as c:
-        book = dict(own_book(c, bid, uid))
-        book['persons'] = [dict(row) for row in c.execute(select(persons).where(persons.c.book_id == bid).order_by(persons.c.generation, persons.c.id)).mappings()]
-        ids = [p['id'] for p in book['persons']]
-        book['relations'] = list(c.execute(select(relations).where(relations.c.source_id.in_(ids))).mappings())
-        book['files'] = list(c.execute(select(files.c.id, files.c.person_id, files.c.name).where(files.c.person_id.in_(ids))).mappings())
-        book['scans'] = list(c.execute(select(scans.c.id, scans.c.name).where(scans.c.book_id == bid).order_by(scans.c.id)).mappings())
-        # Legacy records may still have the default generation (1).  Derive the
-        # displayed generation from parent-child relationships so every view is
-        # consistent even before the record is edited again.
-        generations = {p['id']: p['generation'] for p in book['persons']}
-        parent_relations = [r for r in book['relations'] if r['kind'] == 'parent']
-        # Husband and wife stand in one generation, so someone who married in,
-        # entered at the default 1, takes the generation of the one married.
-        spouse_relations = [r for r in book['relations'] if r['kind'] == 'spouse']
-        for _ in range(len(book['persons'])):
-            changed = False
-            for relation in parent_relations:
-                expected = generations[relation['source_id']] + 1
-                if generations[relation['target_id']] < expected:
-                    generations[relation['target_id']] = expected
-                    changed = True
-            for relation in spouse_relations:
-                one, other = relation['source_id'], relation['target_id']
-                if one in generations and other in generations and generations[one] != generations[other]:
-                    generations[one] = generations[other] = max(generations[one], generations[other])
-                    changed = True
-            if not changed:
-                break
-        for person in book['persons']:
-            person['generation'] = generations[person['id']]
-        return book
+        return book_detail(c, bid, uid)
+
+def book_detail(c, bid, uid):
+    """The book with everyone in it, as the page and the share site show it."""
+    book = dict(own_book(c, bid, uid))
+    book['persons'] = [dict(row) for row in c.execute(select(persons).where(persons.c.book_id == bid).order_by(persons.c.generation, persons.c.id)).mappings()]
+    ids = [p['id'] for p in book['persons']]
+    book['relations'] = list(c.execute(select(relations).where(relations.c.source_id.in_(ids))).mappings())
+    book['files'] = list(c.execute(select(files.c.id, files.c.person_id, files.c.name).where(files.c.person_id.in_(ids))).mappings())
+    book['scans'] = list(c.execute(select(scans.c.id, scans.c.name).where(scans.c.book_id == bid).order_by(scans.c.id)).mappings())
+    # Legacy records may still have the default generation (1).  Derive the
+    # displayed generation from parent-child relationships so every view is
+    # consistent even before the record is edited again.
+    generations = {p['id']: p['generation'] for p in book['persons']}
+    parent_relations = [r for r in book['relations'] if r['kind'] == 'parent']
+    # Husband and wife stand in one generation, so someone who married in,
+    # entered at the default 1, takes the generation of the one married.
+    spouse_relations = [r for r in book['relations'] if r['kind'] == 'spouse']
+    for _ in range(len(book['persons'])):
+        changed = False
+        for relation in parent_relations:
+            expected = generations[relation['source_id']] + 1
+            if generations[relation['target_id']] < expected:
+                generations[relation['target_id']] = expected
+                changed = True
+        for relation in spouse_relations:
+            one, other = relation['source_id'], relation['target_id']
+            if one in generations and other in generations and generations[one] != generations[other]:
+                generations[one] = generations[other] = max(generations[one], generations[other])
+                changed = True
+        if not changed:
+            break
+    for person in book['persons']:
+        person['generation'] = generations[person['id']]
+    return book
+
+class SharePassword(Input):
+    password: str = Field(min_length=4, max_length=128)
+
+def share_row(c, bid):
+    return c.execute(select(shares).where(shares.c.book_id == bid)).mappings().first()
+
+def share_status(row):
+    if not row:
+        return {'shared': False}
+    return {'shared': True, 'link': web_share.link(row), 'synced_at': row['synced_at'],
+            'error': row['error'], 'pending': not row['synced']}
+
+def share_sent(bid, sending):
+    """Send now and note how it went; the error is kept for the page to show."""
+    try:
+        values = {'synced': sending(), 'error': '', 'synced_at': int(time.time())}
+    except web_share.ShareError as error:
+        values = {'error': str(error)}
+    with engine.begin() as c:
+        c.execute(shares.update().where(shares.c.book_id == bid).values(**values))
+        return share_status(share_row(c, bid))
+
+@app.get('/api/books/{bid}/share')
+def get_share(bid: int, uid=Depends(auth)):
+    with engine.connect() as c:
+        own_book(c, bid, uid)
+        return share_status(share_row(c, bid))
+
+@app.post('/api/books/{bid}/share', status_code=201)
+def start_share(bid: int, data: SharePassword, uid=Depends(auth)):
+    with engine.begin() as c:
+        own_book(c, bid, uid)
+        if share_row(c, bid):
+            raise HTTPException(409, '이미 공유 중인 족보입니다.')
+        try:
+            made = web_share.create(data.password)
+        except web_share.ShareError as error:
+            raise HTTPException(502, str(error))
+        c.execute(shares.insert().values(book_id=bid, server=web_share.SERVER, share_id=made['id'], token=made['token']))
+        row, book = dict(share_row(c, bid)), book_detail(c, bid, uid)
+    # The first copy goes up straight away so the link opens at once.
+    return share_sent(bid, lambda: web_share.push(row, book))
+
+@app.put('/api/books/{bid}/share')
+def change_share_password(bid: int, data: SharePassword, uid=Depends(auth)):
+    with engine.connect() as c:
+        own_book(c, bid, uid)
+        row = share_row(c, bid)
+        if not row:
+            raise HTTPException(404, '공유 중인 족보가 아닙니다.')
+        row, book = dict(row), book_detail(c, bid, uid)
+    try:
+        fingerprint = web_share.push(row, book, password=data.password)
+    except web_share.ShareError as error:
+        raise HTTPException(502, str(error))
+    return share_sent(bid, lambda: fingerprint)
+
+@app.delete('/api/books/{bid}/share')
+def stop_share(bid: int, uid=Depends(auth)):
+    with engine.connect() as c:
+        own_book(c, bid, uid)
+        row = share_row(c, bid)
+    if row:
+        # The copy on the site goes first; a share left there would stay open.
+        try:
+            web_share.remove(row)
+        except web_share.ShareError as error:
+            raise HTTPException(502, f'공유를 끝내지 못했습니다. {error}')
+        with engine.begin() as c:
+            c.execute(delete(shares).where(shares.c.book_id == bid))
+    return {'shared': False}
 
 @app.post('/api/books/{bid}/persons', status_code=201)
 def add_person(bid: int, data: Person, uid=Depends(auth)):

@@ -19,3 +19,6 @@ test-results/
 uploads/thumbs/
 # 설치 파일을 만들 때 생기는 폴더입니다.
 build/
+
+# Local Netlify folder
+.netlify

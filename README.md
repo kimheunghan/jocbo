@@ -21,6 +21,21 @@
 
 설치 파일은 GitHub Actions(`.github/workflows/desktop.yml`)가 만듭니다. `v` 로 시작하는 태그(`v2026.10.3` 등)를 올리면 Releases 에 올라갑니다. 손으로 만들 때는 `py -3.12 desktop\build.py` 로 `build\app` 을 만든 뒤 Inno Setup 6 으로 `ISCC desktop\jocbo.iss` 를 실행합니다.
 
+## 웹 공유 (가족이 링크로 보기)
+
+PC 프로그램의 왼쪽 칸 **웹 공유**에서 비밀번호를 정하고 [웹 공유 시작]을 누르면 링크가 생깁니다. 가족은 그 링크와 비밀번호로 휴대폰이나 다른 PC의 브라우저에서 가계도를 봅니다. 프로그램을 설치할 필요가 없습니다.
+
+- 족보를 고치면 몇 초 뒤 자동으로 올라갑니다. 인터넷이 끊겨 있으면 기다렸다가 연결되면 올립니다. 올리지 못한 이유는 웹 공유 칸에 나옵니다.
+- 공유 화면은 PC 화면과 같고 보기만 됩니다. 처음에 가계도가 열리며, 인물을 누르면 정보를 볼 수 있습니다. 고치는 단추는 없고, 서버도 고치는 요청을 모두 거절합니다.
+- 올라가는 것은 족보 기본정보, 인물, 관계, 인물 사진입니다. 족보 원본 사진(판독용)은 올라가지 않습니다.
+- [공유 끝내기]를 누르면 공유 사이트의 사본을 지웁니다. 보내 둔 링크는 더 열리지 않습니다.
+
+공유 사이트는 Netlify에서 돕니다(`share/`, `netlify.toml`). 화면은 `frontend/`를 그대로 쓰고, `share/web/share.js`가 비밀번호 화면과 보기 전용을 맡습니다. 서버는 `share/netlify/functions/api.mts` 하나이고, 족보 사본과 사진은 Netlify Blobs에 둡니다.
+
+- Netlify 사이트 설정의 환경 변수 `SHARE_SECRET`에 긴 무작위 문자열을 넣어야 합니다. 비밀번호를 확인한 뒤 주는 쿠키를 서명하는 데 씁니다.
+- PC 프로그램이 올리는 곳은 `backend/share.py`의 `SERVER`이며, 환경 변수 `JOCBO_SHARE_SERVER`로 바꿀 수 있습니다.
+- 이 PC에서 시험할 때는 `share` 폴더에서 `npm install` 후 `npx netlify-cli dev`(http://localhost:8888)를 띄우고, `JOCBO_SHARE_SERVER=http://localhost:8888`로 PC 프로그램을 실행합니다. `share/.env`에 `SHARE_SECRET=아무값`을 적어 둡니다.
+
 ## 한 번에 설치하고 실행 (Windows)
 
 `install.bat` 한 파일만 내려받아 두 번 누르면 프로그램을 받고, 파이썬과 꾸러미를 설치하고, 브라우저까지 엽니다. GitHub 계정이나 로그인은 필요 없습니다. 저장소가 공개라서 받기만 하는 데는 인증이 없습니다.

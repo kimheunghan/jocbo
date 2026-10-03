@@ -1,0 +1,181 @@
+// 우리의 족보 - 웹 공유 서버.
+//
+// PC 프로그램은 족보를 고칠 때마다 그 사본과 사진을 여기 올리고, 가족은 공유
+// 링크와 비밀번호로 그 사본을 봅니다. 화면(frontend)은 PC 와 같은 것을 쓰므로
+// 화면이 부르는 /api 중 보기에 필요한 것만 사본으로 답하고, 고치는 요청은
+// 모두 거절합니다.
+//
+//   PC 프로그램 (Authorization: Bearer 올리기 열쇠)
+//     POST   /api/share                     공유 만들기 -> { id, token }
+//     PUT    /api/share/:id                 족보 사본 올리기 (비밀번호 바꾸기 포함)
+//     PUT    /api/share/:id/files/:fid      사진 올리기 (?size=thumb 이면 카드용 작은 사진)
+//     DELETE /api/share/:id                 공유 끝내기
+//   가족 (쿠키)
+//     GET    /api/share/:id/info            비밀번호 화면에 쓸 족보 이름
+//     POST   /api/share/:id/open            비밀번호 확인 -> 쿠키
+//     GET    /api/me, /api/books, /api/books/:bid, /api/files/:fid
+//
+// 저장은 Netlify Blobs 의 jocbo-share 저장소에 공유 아이디별로 둡니다.
+// 쿠키 서명에 SHARE_SECRET 환경 변수를 씁니다(Netlify 사이트 설정에서 넣습니다).
+import { getStore } from '@netlify/blobs';
+import { createHmac, randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
+import type { Config, Context } from '@netlify/functions';
+
+const COOKIE = 'jocbo_share';
+const DAYS = 30;
+const READ_ONLY = '공유된 족보는 볼 수만 있습니다. 고치는 것은 족보 주인의 PC 프로그램에서 합니다.';
+
+type Meta = { token: string; salt: string; password: string; created: number };
+
+const store = () => getStore({ name: 'jocbo-share', consistency: 'strong' });
+
+function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers },
+  });
+}
+
+const fail = (status: number, detail: string) => json({ detail }, status);
+const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+const hashPassword = (password: string, salt: string) => scryptSync(password, salt, 32).toString('hex');
+
+function same(a: string, b: string) {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+function secret() {
+  const value = Netlify.env.get('SHARE_SECRET');
+  if (!value) throw new Error('SHARE_SECRET is not set');
+  return value;
+}
+
+function sign(id: string, until: number) {
+  return createHmac('sha256', secret()).update(`${id}.${until}`).digest('hex');
+}
+
+/** 쿠키가 열어 준 공유 아이디. 없거나 기한이 지났으면 빈 문자열. */
+function viewer(req: Request) {
+  const cookie = (req.headers.get('cookie') || '').split(/;\s*/).find(c => c.startsWith(COOKIE + '='));
+  if (!cookie) return '';
+  const [id, until, mac] = cookie.slice(COOKIE.length + 1).split('.');
+  if (!id || !until || !mac || Number(until) < Date.now()) return '';
+  return same(mac, sign(id, Number(until))) ? id : '';
+}
+
+async function meta(id: string) {
+  if (!/^[a-z0-9]{12}$/.test(id)) return null;
+  return (await store().get(`${id}/meta`, { type: 'json' })) as Meta | null;
+}
+
+/** PC 프로그램이 보낸 올리기 열쇠가 이 공유의 것인지. */
+async function owner(req: Request, id: string) {
+  const found = await meta(id);
+  const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  return found && token && same(sha(token), found.token) ? found : null;
+}
+
+function goodPassword(password: unknown): password is string {
+  return typeof password === 'string' && password.length >= 4 && password.length <= 128;
+}
+
+export default async (req: Request, context: Context) => {
+  const url = new URL(req.url);
+  const parts = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  const method = req.method;
+  const blobs = store();
+
+  // -- PC 프로그램 ------------------------------------------------------
+  if (parts[0] === 'share') {
+    const id = parts[1] || '';
+
+    if (method === 'POST' && parts.length === 1) {
+      const { password } = await req.json().catch(() => ({}));
+      if (!goodPassword(password)) return fail(400, '비밀번호는 4자 이상이어야 합니다.');
+      const newId = randomBytes(9).toString('base64url').toLowerCase().replace(/[^a-z0-9]/g, '').padEnd(12, '0').slice(0, 12);
+      const token = randomBytes(32).toString('hex');
+      const salt = randomBytes(16).toString('hex');
+      await blobs.setJSON(`${newId}/meta`, { token: sha(token), salt, password: hashPassword(password, salt), created: Date.now() });
+      return json({ id: newId, token }, 201);
+    }
+
+    if (method === 'PUT' && parts.length === 2) {
+      const found = await owner(req, id);
+      if (!found) return fail(403, '공유 열쇠가 맞지 않습니다.');
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body.book !== 'object') return fail(400, '족보 사본이 없습니다.');
+      if (body.password !== undefined) {
+        if (!goodPassword(body.password)) return fail(400, '비밀번호는 4자 이상이어야 합니다.');
+        found.salt = randomBytes(16).toString('hex');
+        found.password = hashPassword(body.password, found.salt);
+        await blobs.setJSON(`${id}/meta`, found);
+      }
+      await blobs.setJSON(`${id}/book`, body.book);
+      return json({ ok: true, files: (await blobs.list({ prefix: `${id}/files/` })).blobs.map(b => b.key.split('/').pop()) });
+    }
+
+    if (method === 'PUT' && parts[2] === 'files' && parts[3]) {
+      if (!(await owner(req, id))) return fail(403, '공유 열쇠가 맞지 않습니다.');
+      const kind = url.searchParams.get('size') === 'thumb' ? 'thumbs' : 'files';
+      const type = req.headers.get('content-type') || 'application/octet-stream';
+      await blobs.set(`${id}/${kind}/${Number(parts[3])}`, await req.arrayBuffer(), { metadata: { type } });
+      return json({ ok: true });
+    }
+
+    if (method === 'DELETE' && parts.length === 2) {
+      if (!(await owner(req, id))) return fail(403, '공유 열쇠가 맞지 않습니다.');
+      const { blobs: all } = await blobs.list({ prefix: `${id}/` });
+      await Promise.all(all.map(b => blobs.delete(b.key)));
+      return json({ ok: true });
+    }
+
+    // -- 가족: 비밀번호 화면 ---------------------------------------------
+    if (method === 'GET' && parts[2] === 'info') {
+      const book = await blobs.get(`${id}/book`, { type: 'json' });
+      if (!(await meta(id)) || !book) return fail(404, '공유가 끝났거나 없는 주소입니다.');
+      return json({ title: book.title || '', opened: viewer(req) === id });
+    }
+
+    if (method === 'POST' && parts[2] === 'open') {
+      const found = await meta(id);
+      if (!found) return fail(404, '공유가 끝났거나 없는 주소입니다.');
+      const { password } = await req.json().catch(() => ({}));
+      if (typeof password !== 'string' || !same(hashPassword(password, found.salt), found.password))
+        return fail(401, '비밀번호가 맞지 않습니다.');
+      const until = Date.now() + DAYS * 86400000;
+      const cookie = `${COOKIE}=${id}.${until}.${sign(id, until)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DAYS * 86400}`
+        + (url.protocol === 'https:' ? '; Secure' : '');
+      return json({ ok: true }, 200, { 'Set-Cookie': cookie });
+    }
+    return fail(404, '없는 요청입니다.');
+  }
+
+  // -- 가족: 화면이 부르는 /api (보기만) ---------------------------------
+  if (method !== 'GET') return fail(403, READ_ONLY);
+  const id = viewer(req);
+  // 화면은 지금 연 공유의 아이디를 붙여 보냅니다. 다른 공유를 열었던 쿠키면 다시 묻습니다.
+  const asked = req.headers.get('x-share');
+  if (!id || (asked && asked !== id)) return fail(401, '비밀번호를 입력해 주세요.');
+  const book = (await blobs.get(`${id}/book`, { type: 'json' })) as Record<string, any> | null;
+  if (!book) return fail(404, '공유가 끝났습니다.');
+
+  if (parts[0] === 'me') return json({ email: '' });
+  if (parts[0] === 'books' && parts.length === 1) return json([{ id: book.id, title: book.title }]);
+  if (parts[0] === 'books' && Number(parts[1]) === book.id) return json(book);
+  if (parts[0] === 'files' && parts[1]) {
+    const fid = Number(parts[1]);
+    if (!book.files?.some((f: { id: number }) => f.id === fid)) return fail(404, '파일이 없습니다.');
+    const small = url.searchParams.get('size') ? await blobs.getWithMetadata(`${id}/thumbs/${fid}`, { type: 'arrayBuffer' }) : null;
+    const found = small || (await blobs.getWithMetadata(`${id}/files/${fid}`, { type: 'arrayBuffer' }));
+    if (!found) return fail(404, '아직 올라오지 않은 파일입니다.');
+    return new Response(found.data, {
+      headers: { 'Content-Type': String(found.metadata.type || 'application/octet-stream'),
+                 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (parts[0] === 'claude') return json({ available: false, configured: false });
+  return fail(404, '공유 화면에서는 쓸 수 없는 기능입니다.');
+};
+
+export const config: Config = { path: '/api/*' };
