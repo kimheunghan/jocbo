@@ -155,7 +155,8 @@ if not exist "jocbo.db" (
 )
 
 rem -- 브라우저 ---------------------------------
-rem 크롬이 있으면 크롬으로, 없으면 기본 브라우저로 엽니다.
+rem 크롬이나 엣지가 있으면 앱 창(--app)으로 엽니다. 주소창과 탭이 없는 별도 창이라
+rem PC 프로그램처럼 보이고 작업 표시줄에도 따로 나타납니다. 둘 다 없으면 기본 브라우저로 엽니다.
 rem %ProgramFiles(x86)% 의 괄호가 for ( ) 블록을 깨뜨리므로 한 줄씩 확인합니다.
 set "CHROME="
 set "PF86=%ProgramFiles(x86)%"
@@ -163,13 +164,16 @@ if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "CHROME=%Prog
 if not defined CHROME if exist "%PF86%\Google\Chrome\Application\chrome.exe" set "CHROME=%PF86%\Google\Chrome\Application\chrome.exe"
 if not defined CHROME if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
 if not defined CHROME for /f "tokens=2,*" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe" /ve 2^>nul ^| find "REG_SZ"') do set "CHROME=%%B"
+rem 크롬이 없으면 엣지를 씁니다. 윈도 10·11에는 엣지가 기본으로 깔려 있습니다.
+if not defined CHROME if exist "%PF86%\Microsoft\Edge\Application\msedge.exe" set "CHROME=%PF86%\Microsoft\Edge\Application\msedge.exe"
+if not defined CHROME if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" set "CHROME=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
 
 rem -- 실행 -------------------------------------
 echo.
 echo   ----------------------------------------
 echo   http://127.0.0.1:8000
-if defined CHROME (echo   크롬으로 엽니다.) else (echo   크롬 없음 - 기본 브라우저로 엽니다.)
-echo   창을 닫거나 Ctrl+C 를 누르면 종료됩니다.
+if defined CHROME (echo   앱 창으로 엽니다.) else (echo   크롬·엣지 없음 - 기본 브라우저로 엽니다.)
+echo   이 검은 창을 닫거나 Ctrl+C 를 누르면 종료됩니다.
 echo   ----------------------------------------
 echo.
 
@@ -177,7 +181,7 @@ rem 서버가 실제로 대답할 때까지(최대 2분) 기다렸다가 엽니다. 갱신 직후 첫 실행은
 rem 서버가 늦게 떠서, 몇 초 만에 열면 "연결할 수 없음" 화면에 멈춰 보였습니다.
 set "WAITOPEN=$u='http://127.0.0.1:8000'; for($i=0;$i -lt 120;$i++){ try { Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep -Seconds 1 } }"
 if defined CHROME (
-  start "" /b powershell -NoProfile -WindowStyle Hidden -Command "%WAITOPEN%; Start-Process -FilePath '%CHROME%' -ArgumentList 'http://127.0.0.1:8000'"
+  start "" /b powershell -NoProfile -WindowStyle Hidden -Command "%WAITOPEN%; Start-Process -FilePath '%CHROME%' -ArgumentList '--app=http://127.0.0.1:8000'"
 ) else (
   start "" /b powershell -NoProfile -WindowStyle Hidden -Command "%WAITOPEN%; Start-Process 'http://127.0.0.1:8000'"
 )
