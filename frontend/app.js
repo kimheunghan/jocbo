@@ -385,7 +385,7 @@ function validDate(value){
  parsed.setUTCFullYear(year,month-1,day);
  return parsed.getUTCFullYear()===year&&parsed.getUTCMonth()===month-1&&parsed.getUTCDate()===day;
 }
-async function enter(){await api('/me');$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
+async function enter(){await api('/me');$('#search').value='';$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
 async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();paintShare();paintPlan();}
@@ -424,6 +424,11 @@ async function paintShare(){
 $('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',bookFormValues(e.target)));await loadBooks(book.id);message('족보 기본정보 저장 완료');});
 $('#bookSelect').onchange=run(refresh);
 $('#search').oninput=()=>{render();renderRelations();};
+// Chrome fills the saved sign-in e-mail into the search box whatever autocomplete
+// says, and then the list shows nobody. It leaves a read-only box alone, so the box
+// is read-only until it is taken hold of, and again once it is left empty.
+for(const type of ['pointerdown','focus'])$('#search').addEventListener(type,()=>$('#search').removeAttribute('readonly'));
+$('#search').addEventListener('blur',()=>{if(!$('#search').value)$('#search').setAttribute('readonly','');});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
 function personName(id){return book.persons.find(p=>p.id===id)?.korean_name||'';}
 function hanjaNumber(value){const n=Number(value);if(!Number.isInteger(n)||n<0||n>99)return String(value||'');const digits='零一二三四五六七八九';if(n<10)return digits[n];if(n===10)return '十';const tens=n>19?digits[Math.floor(n/10)]+'十':'十';return tens+(n%10?digits[n%10]:'');}
