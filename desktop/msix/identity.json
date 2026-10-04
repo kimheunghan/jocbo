@@ -1,0 +1,6 @@
+{
+  "_comment": "Partner Center > 우리의 족보(MSIX) > 제품 관리 > 제품 ID 의 세 값. 비어 있으면 MSIX 를 만들지 않습니다.",
+  "name": "",
+  "publisher": "",
+  "publisher_display": ""
+}
