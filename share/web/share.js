@@ -81,6 +81,9 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // 공유 화면은 열 때마다 가계도의 표시 항목(세대·본관·생몰일·나이·사진·기록 등)을
+    // 모두 켜고 시작합니다. 보는 사람이 그 자리에서 끌 수 있습니다. treeOptions 는 app.js 것.
+    for (const name of Object.keys(treeOptions)) treeOptions[name] = true;
     const header = document.querySelector('header > div');
     if (header) header.insertAdjacentHTML('beforeend', '<span class="share-badge">가족 공유 · 보기 전용</span>');
     treeFirst();
