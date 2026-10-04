@@ -59,8 +59,8 @@
   .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
   .hero .note { color: #aeb8cc; font-size: 13px; margin: 0 0 44px; }
   .hero .note a { color: #d5dcea; }
-  .hero .note .exe { margin-left: 10px; white-space: nowrap; }
-  .hero .note.exe-warn { max-width: 760px; margin-top: -34px; font-size: 12px; color: #93a0b8; }
+  .hero .note.exe-line { margin: -34px 0 6px; }
+  .hero .note.exe-warn { max-width: 760px; margin: 0 0 44px; font-size: 12px; color: #93a0b8; }
   .btn .old { color: #ffffff99; font-weight: 500; text-decoration: line-through; }
   .hero .shot { border-radius: 14px 14px 0 0; box-shadow: 0 -10px 40px #0006; border: 1px solid #ffffff22; border-bottom: 0; }
 
@@ -151,7 +151,6 @@
     header .btn-outline { display: none; }
     .brand { font-size: 18px; }
     .hero .actions, .cta .actions { flex-direction: column; align-items: stretch; }
-    .hero .note .exe { display: block; margin: 6px 0 0; }
     .hero .actions .btn, .cta .actions .btn { width: 100%; }
     .hero .shot, .feature .pic:not(.phone) img {
       aspect-ratio: 4 / 3; object-fit: cover; object-position: 72% 0;
@@ -180,9 +179,9 @@
       <a class="btn btn-primary" href="#" data-store>Microsoft Store에서 무료로 받기</a>
       <a class="btn btn-outline" href="#" data-buy>정식판 구매하기 <span class="old">₩49,000</span> ₩29,000</a>
     </div>
-    <p class="note">Windows 10·11 · 인물 20명까지 무료 · 내 기록은 내 PC에
-      <a class="exe" href="#" data-exe>설치 파일(exe) 직접 받기</a></p>
-    <p class="note exe-warn">설치 파일은 새 프로그램이라 경고가 뜰 수 있습니다. Edge에서 "일반적으로 다운로드되지 않습니다"가 뜨면 [⋯] → [유지], Windows에서 "PC를 보호했습니다"가 뜨면 [추가 정보] → [실행]을 누르십시오. 백신(V3 등)이 막으면 Microsoft Store에서 받는 것이 가장 쉽습니다.</p>
+    <p class="note">Windows 10·11 · 인물 20명까지 무료 · 회원 가입은 PC 안에서만 · 내 기록은 내 PC 밖으로 나가지 않음</p>
+    <p class="note exe-line"><a href="#" data-exe>Microsoft Store를 쓸 수 없나요? 설치 파일(.exe) 직접 받기</a></p>
+    <p class="note exe-warn">새 프로그램이라 경고가 뜰 수 있습니다. Edge의 "일반적으로 다운로드되지 않습니다"는 [⋯] → [유지], Windows의 "PC를 보호했습니다"는 [추가 정보] → [실행]을 누르십시오.</p>
     <img class="shot" src="/img/tree.jpg" alt="가계도 보기 화면 — 세대별로 부부와 자녀가 이어진 가계도">
   </div>
 </div>
