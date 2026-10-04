@@ -1,2 +1,4 @@
 https://jocbo.pages.dev/
 https://jocbo.pages.dev/privacy
+https://jocbo.pages.dev/terms
+https://jocbo.pages.dev/refund
