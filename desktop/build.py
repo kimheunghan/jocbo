@@ -3,9 +3,14 @@
 파이썬(임베디드판)과 꾸러미, 판독 모델까지 모두 넣어서 받는 컴퓨터에는
 아무것도 따로 설치하지 않아도 되게 합니다. 그 뒤 jocbo.iss 로 exe 를 만듭니다.
 
-    py -3.12 desktop\\build.py
+    py -3.12 desktop\\build.py           평소 판 (db/initial.db 와 uploads 를 그대로 넣음)
+    py -3.12 desktop\\build.py --store   Microsoft Store 에 올릴 판
+
+Store 판은 저장소의 db/initial.db(실제 계정과 실존 인물 기록)와 uploads(실제 사진)를
+넣지 않고, 데모 계정 하나와 가상 인물 예제(金海金氏)만 든 족보를 새로 만들어 넣습니다.
 """
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -44,12 +49,18 @@ def packages():
         '--target', str(SITE), '-r', str(ROOT / 'requirements.txt'), '-r', str(ROOT / 'requirements-ocr.txt'))
 
 
+STORE = '--store' in sys.argv
+DEMO = ('demo@example.test', 'DemoFamily123!')
+
+
 def program():
     for folder in ('backend', 'frontend', 'db'):
         shutil.copytree(ROOT / folder, OUT / folder, ignore=shutil.ignore_patterns('__pycache__'))
     # 샘플 족보가 쓰는 사진만 넣습니다. 이 컴퓨터에서 올린 사진은 넣지 않습니다.
-    tracked = subprocess.run(['git', 'ls-files', 'uploads'], cwd=ROOT, check=True,
-                             capture_output=True, text=True).stdout.split()
+    # Store 판은 저장소의 사진도 넣지 않습니다(실제 족보·인물 사진).
+    tracked = [] if STORE else subprocess.run(['git', 'ls-files', 'uploads'], cwd=ROOT, check=True,
+                                              capture_output=True, text=True).stdout.split()
+    (OUT / 'uploads').mkdir(exist_ok=True)
     for name in tracked:
         target = OUT / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -58,6 +69,40 @@ def program():
     shutil.copy2(ROOT / 'desktop' / 'loading.html', OUT / 'loading.html')
     shutil.copy2(ROOT / 'desktop' / 'jocbo.ico', OUT / 'jocbo.ico')
     (OUT / 'db' / 'jocbo.db').unlink(missing_ok=True)
+
+
+def demo_only():
+    """Store 판의 첫 족보: 데모 계정 하나와 그 계정의 가상 인물 예제(金海金氏, 20명)뿐.
+
+    저장소의 db/initial.db 에는 실제 계정과 실존 인물 기록이 들어 있어 빼고, 같은
+    자리에 새로 만든 족보를 둡니다. 설치한 PC 는 처음 실행할 때 이것을 복사해 씁니다.
+    """
+    target = OUT / 'db' / 'initial.db'
+    target.unlink(missing_ok=True)
+    script = (
+        'from backend import main as m\n'
+        'from backend.sample import create_sample\n'
+        'm.meta.create_all(m.engine)\n'
+        'with m.engine.begin() as c:\n'
+        f'    uid = c.execute(m.users.insert().values(email={DEMO[0]!r}, '
+        f'password_hash=m.password_hash({DEMO[1]!r}), plan="free")).inserted_primary_key[0]\n'
+        '    create_sample(c, uid, m.books, m.persons, m.relations)\n')
+    env = {**os.environ, 'DATABASE_URL': 'sqlite:///' + target.as_posix(), 'UPLOAD_DIR': str(OUT / 'uploads')}
+    run(str(RUNTIME / 'python.exe'), '-c', script, cwd=OUT, env=env)
+    import sqlite3
+    with sqlite3.connect(target) as c:
+        users = c.execute('select email from users').fetchall()
+        people = c.execute('select count(*) from persons').fetchone()[0]
+    if users != [(DEMO[0],)] or people != 20:
+        sys.exit(f'Store 판 족보가 예상과 다릅니다: {users}, 인물 {people}명')
+    print('Store 판 족보: 데모 계정 하나, 예제 인물', people, '명')
+    # 로그인 화면에 데모 계정을 적어, 처음 받은 사람이 바로 예제를 둘러보게 합니다.
+    page = OUT / 'frontend' / 'index.html'
+    html = page.read_text(encoding='utf-8')
+    card = '최초 이용 시 회원가입 후 로그인'
+    if card not in html:
+        sys.exit('로그인 화면 안내 자리를 찾지 못했습니다.')
+    page.write_text(html.replace(card, f'예제로 둘러보기: {DEMO[0]} / {DEMO[1]}<br>' + card, 1), encoding='utf-8')
 
 
 def ocr_models():
@@ -80,6 +125,8 @@ if __name__ == '__main__':
     python_runtime()
     packages()
     program()
+    if STORE:
+        demo_only()
     ocr_models()
     check()
     print('완료:', OUT)

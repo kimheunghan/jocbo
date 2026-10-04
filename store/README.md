@@ -2,6 +2,22 @@
 
 Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 → 새 제품 → EXE 또는 MSI 앱**으로 만들고, 아래 값을 칸마다 붙여 넣습니다.
 
+## 0. 올리기 전에: Store용 설치 파일 만들기 (꼭)
+
+평소 설치 파일(`v…` 태그, GitHub에서 받는 것)에는 저장소의 `db/initial.db`와 `uploads`가 그대로 들어갑니다. 여기에는 **운영자 계정(hung6789@naver.com)과 실존 인물 기록·사진**이 있습니다. Store에는 이것을 빼고 만든 **Store 판**을 올립니다.
+
+1. 올릴 판의 코드가 GitHub `main`에 다 올라가 있는지 확인합니다.
+2. 이름이 `store-v`로 시작하는 태그를 올립니다(판 번호는 그날 날짜와 차례).
+   ```
+   git tag store-v2026.10.5.1
+   git push origin store-v2026.10.5.1
+   ```
+3. GitHub Actions가 Store 판을 만들어 Releases에 "Microsoft Store 판"으로 올립니다(10분 남짓). 평소 받는 최신판(latest)은 바뀌지 않습니다.
+4. Store 판에 든 것: 프로그램 전체, 판독 모델, **데모 계정 하나(`demo@example.test` / `DemoFamily123!`)와 가상 인물 예제(金海金氏, 20명)**. 로그인 화면에 "예제로 둘러보기: demo@example.test / DemoFamily123!"가 적혀 나옵니다. 운영자 계정, 실제 족보, 실제 사진은 들어가지 않습니다.
+5. 아래 "패키지 URL"에 `https://github.com/kimheunghan/jocbo/releases/download/store-v2026.10.5.1/jocbo-setup.exe`처럼 그 Store 판의 주소를 넣습니다.
+
+손으로 만들 때는 `py -3.12 desktop\build.py --store` 뒤에 `ISCC desktop\jocbo.iss`를 실행합니다.
+
 ## 1. 제품 이름
 
 `우리의 족보`
@@ -10,14 +26,14 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 
 | 칸 | 값 |
 | --- | --- |
-| 패키지 URL | `https://github.com/kimheunghan/jocbo/releases/download/<버전 태그>/jocbo-setup.exe` |
+| 패키지 URL | `https://github.com/kimheunghan/jocbo/releases/download/store-v<판 번호>/jocbo-setup.exe` (0번에서 만든 Store 판) |
 | 아키텍처 | x64 |
 | 설치 관리자 매개 변수 (조용한 설치) | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` |
 | 언어 | 한국어 |
 | 앱 유형 | EXE |
 
-- 패키지 URL에는 **판이 정해진 주소**(`/releases/download/v2026.10.4.2/jocbo-setup.exe` 처럼)를 넣습니다. `latest` 주소는 내용이 바뀌므로 Store가 받지 않습니다.
-- 새 판을 Store에 내보낼 때는 그 판의 주소로 바꿔 새 제출을 만듭니다.
+- 패키지 URL에는 **판이 정해진 Store 판 주소**(`/releases/download/store-v2026.10.5.1/jocbo-setup.exe` 처럼)를 넣습니다. `latest` 주소는 내용이 바뀌므로 Store가 받지 않고, 평소 판에는 운영자 기록이 들어 있어 쓰지 않습니다.
+- 새 판을 Store에 내보낼 때는 0번대로 새 Store 판을 만들고, 그 주소로 바꿔 새 제출을 만듭니다.
 - 설치는 관리자 권한 없이 사용자 폴더(`%LocalAppData%\Programs\jocbo`)에 됩니다. 프로그램 추가/제거에 "우리의 족보"로 나타납니다.
 
 ## 3. 속성 (Properties)

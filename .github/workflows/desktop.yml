@@ -1,15 +1,20 @@
 name: Desktop installer
 # v 로 시작하는 태그(v2026.10.3 등)를 올리면 jocbo-setup.exe 를 만들어 Releases 에 올립니다.
+# store-v 로 시작하는 태그(store-v2026.10.5 등)는 Microsoft Store 에 올릴 판을 만듭니다.
+# 실제 계정·족보·사진을 빼고 데모 계정과 가상 인물 예제만 넣으며, 평소 내려받는
+# "최신(latest)" 판은 바꾸지 않습니다.
 # Actions 화면에서 직접 돌리면 만들기만 하고 결과물(artifact)로 남깁니다.
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', 'store-v*']
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
   installer:
     runs-on: windows-latest
+    env:
+      STORE: ${{ startsWith(github.ref_name, 'store-') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,7 +23,10 @@ jobs:
       - name: Program folder
         env:
           PYTHONIOENCODING: utf-8
-        run: python desktop/build.py
+        shell: pwsh
+        run: |
+          if ($env:STORE -eq 'true') { python desktop/build.py --store } else { python desktop/build.py }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Installer
         shell: pwsh
         run: |
@@ -27,7 +35,7 @@ jobs:
           if (-not (Test-Path "$inno\Languages\Korean.isl")) {
             Invoke-WebRequest https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Korean.isl -OutFile "$inno\Languages\Korean.isl"
           }
-          $env:JOCBO_VERSION = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { Get-Date -Format 'yyyy.M.d' }
+          $env:JOCBO_VERSION = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME -replace '^(store-)?v', '' } else { Get-Date -Format 'yyyy.M.d' }
           & "$inno\ISCC.exe" desktop\jocbo.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
@@ -35,7 +43,12 @@ jobs:
           name: jocbo-setup
           path: build/jocbo-setup.exe
       - name: Release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && env.STORE != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ github.ref_name }}" build/jocbo-setup.exe --title "우리의 족보 ${{ github.ref_name }}" --notes "jocbo-setup.exe 를 내려받아 실행하면 설치됩니다. 파이썬 등 따로 설치할 것은 없습니다."
+      - name: Store release
+        if: github.ref_type == 'tag' && env.STORE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" build/jocbo-setup.exe --latest=false --title "우리의 족보 Microsoft Store 판 ${{ github.ref_name }}" --notes "Microsoft Store 제출용 설치 파일입니다. 데모 계정(demo@example.test)과 가상 인물 예제만 들어 있습니다. Store 패키지 URL에는 이 판의 주소를 넣습니다."
