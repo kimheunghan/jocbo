@@ -5,6 +5,10 @@
   command = "node build.mjs"
   publish = "dist"
   functions = "netlify/functions"
+  # 공유 사이트와 관계있는 파일이 바뀌었을 때만 배포합니다. Netlify 는 배포마다
+  # 크레딧을 쓰는데, PC 프로그램만 고친 커밋까지 배포하면 금방 바닥납니다.
+  # (명령이 0 으로 끝나면 배포를 건너뜁니다. base 가 share 라 경로는 그 기준입니다.)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../frontend ../netlify.toml"
 
 # 공유 링크(/s/아이디)는 모두 같은 화면을 엽니다. share.js 가 주소에서 아이디를 읽습니다.
 [[redirects]]
