@@ -35,5 +35,10 @@ writeFileSync(join(dist, 'app.html'), page);
 renameSync(join(dist, 'landing.html'), join(dist, 'index.html'));
 // Cloudflare Pages 는 netlify.toml 을 읽지 않으므로 같은 규칙을 _redirects 로도 둡니다.
 // Pages 는 app.html 을 /app 으로 부르므로(/app.html 로 가면 /app 으로 돌려보냄) /app 으로 잇습니다.
-writeFileSync(join(dist, '_redirects'), '/s/* /app 200\n');
+// 구글 서치 콘솔 확인 파일은 .html 주소 그대로 바로 열려야 합니다. Pages 는 .html 주소를
+// 확장자 없는 주소로 넘기므로(308) .txt 로 두고 .html 주소를 그쪽으로 잇습니다.
+const verify = readdirSync(dist).filter(name => /^google[0-9a-f]+\.html$/.test(name));
+for (const name of verify) renameSync(join(dist, name), join(dist, name.replace(/\.html$/, '.txt')));
+writeFileSync(join(dist, '_redirects'), '/s/* /app 200\n'
+  + verify.map(name => `/${name} /${name.replace(/\.html$/, '.txt')} 200\n`).join(''));
 console.log('dist 완료');
