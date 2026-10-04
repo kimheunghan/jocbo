@@ -194,9 +194,13 @@ async function toggleScript(button){
  await busy(button,'불러오는 중…',loadHanjaDict).catch(err=>message(err.message,'error'));
  if(!hanjaReadings)return;
  const which=button.dataset.scriptToggle||'page',switcher=SCRIPT_SWITCHES[which];
- switcher.set(switcher.get()==='hangul'?'hanja':'hangul');
- try{localStorage.setItem(switcher.key,switcher.get());}catch{}
+ const mode=switcher.get()==='hangul'?'hanja':'hangul';
+ // The 한글/漢字 switch under the title turns everything over at once — the
+ // sidebar and the windows too; the smaller switches still turn their own part.
+ const turned=button.classList.contains('title-script')?Object.values(SCRIPT_SWITCHES):[switcher];
+ for(const one of turned){one.set(mode);try{localStorage.setItem(one.key,mode);}catch{}}
  paintScriptToggle();
+ if(turned.length>1){paintPersonScript();paintRelativeBanner();paintNewBookFields();paintScanScript();}
  // A window's switch turns that window over and leaves the page behind it alone.
  if(which==='dialog'){paintPersonScript();paintRelativeBanner();paintNewBookFields();paintScanScript();return;}
  await loadBooks(book?book.id:undefined);
