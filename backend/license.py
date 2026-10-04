@@ -12,7 +12,7 @@ import urllib.request
 
 API = 'https://api.lemonsqueezy.com/v1/licenses'
 # Where [정식판 구매하기] goes. Set once the product exists on Lemon Squeezy.
-CHECKOUT_URL = os.getenv('JOCBO_CHECKOUT_URL', '')
+CHECKOUT_URL = os.getenv('JOCBO_CHECKOUT_URL', 'https://findinside.lemonsqueezy.com/checkout/buy/5ba5c34f-081e-47a6-8270-d37e83ce002e')
 # A key is taken only for a product of this name, so a FindInside key sold from
 # the same store does not unlock this.
 PRODUCT_WORD = '족보'
