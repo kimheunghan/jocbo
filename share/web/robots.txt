@@ -1,0 +1,10 @@
+# 우리의 족보 - 홍보 페이지만 검색에 싣습니다.
+# 가족 공유 링크(/s/…)에는 실존 인물의 이름과 생년월일이 있어 막아 둡니다.
+User-agent: *
+Disallow: /s/
+Disallow: /app
+Disallow: /api/
+Disallow: /download/
+Allow: /
+
+Sitemap: https://jocbo.pages.dev/sitemap.xml

@@ -29,6 +29,8 @@ if (!page.includes(theme) || !page.includes(app)) throw new Error('index.html �
 page = page
   .replace(`href="${theme}">`, `href="${theme}"><link rel="stylesheet" href="/share.css?v=${stamp('share.css')}">`)
   .replace(app, `<script src="/share.js?v=${stamp('share.js')}" defer></script>${app}`);
+// 공유 화면은 검색에 싣지 않습니다(robots.txt 로도 막지만, 링크가 밖에 걸려도 색인되지 않게).
+page = page.replace('<head>', '<head><meta name="robots" content="noindex, nofollow">');
 writeFileSync(join(dist, 'app.html'), page);
 renameSync(join(dist, 'landing.html'), join(dist, 'index.html'));
 // Cloudflare Pages 는 netlify.toml 을 읽지 않으므로 같은 규칙을 _redirects 로도 둡니다.
