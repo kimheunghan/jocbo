@@ -11,8 +11,10 @@ const front = join(import.meta.dirname, '..', 'frontend');
 const web = join(import.meta.dirname, 'web');
 const dist = join(import.meta.dirname, 'dist');
 
-rmSync(dist, { recursive: true, force: true });
-mkdirSync(dist);
+// 폴더째 지우지 않고 안만 비웁니다. 미리보기 서버 등이 폴더를 잡고 있으면 Windows 는
+// 폴더 자체는 지우지 못하게 합니다.
+mkdirSync(dist, { recursive: true });
+for (const name of readdirSync(dist)) rmSync(join(dist, name), { recursive: true, force: true });
 cpSync(front, dist, { recursive: true });
 cpSync(web, dist, { recursive: true });
 

@@ -58,6 +58,8 @@
   .hero p.lead { max-width: 680px; margin: 0 0 30px; color: #d5dcea; font-size: 18px; }
   .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
   .hero .note { color: #aeb8cc; font-size: 13px; margin: 0 0 44px; }
+  .hero .note a { color: #d5dcea; }
+  .btn .old { color: #ffffff99; font-weight: 500; text-decoration: line-through; }
   .hero .shot { border-radius: 14px 14px 0 0; box-shadow: 0 -10px 40px #0006; border: 1px solid #ffffff22; border-bottom: 0; }
 
   section { padding: 84px 0; }
@@ -136,6 +138,7 @@
   <div class="wrap">
     <a class="brand" href="#top"><span class="seal">家</span>우리의 족보</a>
     <nav><a href="#features">기능</a><a href="#pricing">가격</a><a href="#steps">사용 순서</a><a href="#faq">자주 묻는 질문</a></nav>
+    <a class="btn btn-outline" href="#pricing">구매</a>
     <a class="btn btn-primary" href="#download" data-store>무료로 받기</a>
   </div>
 </header>
@@ -146,9 +149,10 @@
     <p class="lead">족보 사진을 올리면 한자 이름·세대·생몰일을 읽어 옮기고, 가계도와 세로쓰기 족보책을 자동으로 만듭니다. 가족에게는 링크 하나로 보여 줍니다.</p>
     <div class="actions" id="download">
       <a class="btn btn-primary" href="#" data-store>Microsoft Store에서 무료로 받기</a>
-      <a class="btn btn-outline" href="https://github.com/kimheunghan/jocbo/releases/latest/download/jocbo-setup.exe">설치 파일 직접 받기 (exe)</a>
+      <a class="btn btn-outline" href="#" data-buy>정식판 구매하기 <span class="old">₩49,000</span> ₩29,000</a>
     </div>
-    <p class="note">Windows 10·11 · 인물 20명까지 무료 · 회원 가입은 PC 안에서만, 내 기록은 내 PC에</p>
+    <p class="note">Windows 10·11 · 인물 20명까지 무료 · 내 기록은 내 PC에 ·
+      <a href="https://github.com/kimheunghan/jocbo/releases/latest/download/jocbo-setup.exe">설치 파일(exe) 직접 받기</a></p>
     <img class="shot" src="/img/tree.jpg" alt="가계도 보기 화면 — 세대별로 부부와 자녀가 이어진 가계도">
   </div>
 </div>

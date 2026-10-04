@@ -336,7 +336,9 @@ async function openLicense(){
    $('#licenseDialog').close();paintPlan();message('이 PC 등록을 풀었습니다');
   });
  }else{
-  body.innerHTML=`<p>무료판은 인물 ${me.free_people}명까지입니다. 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
+  body.innerHTML=(me.plan==='free'
+    ?`<p>무료판은 인물 ${me.free_people}명까지입니다. 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
+    :'<p>이 계정은 정식판이 생기기 전에 만든 계정이라 지금도 인원 제한이 없습니다. 다른 PC나 새 계정에서 쓰려면 정식판 키가 필요합니다.</p>')
    +'<ol class="license-steps"><li>[정식판 구매하기]를 눌러 결제합니다.</li><li>결제 화면과 이메일로 라이선스 키가 옵니다.</li><li>아래 칸에 키를 붙여 넣고 [정식판으로 전환]을 누릅니다.</li></ol>'
    +'<div class="actions"><button type="button" id="licenseBuy">정식판 구매하기</button></div>'
    +'<form id="licenseForm"><label>라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키"></label>'
@@ -351,6 +353,8 @@ async function openLicense(){
  if(!$('#licenseDialog').open)$('#licenseDialog').showModal();
 }
 $('#closeLicense').onclick=()=>$('#licenseDialog').close();
+// 위쪽 [정식판]: 어느 계정이든 구매·키 입력 창을 엽니다.
+$('#licenseOpen').onclick=openLicense;
 // 왼쪽 칸에 무료 인원과 지금 인원을 늘 보여 줍니다. 누르면 정식판 창이 열립니다.
 // 정식판이면 그렇다고 적고, 정식판이 생기기 전부터 있던 계정이면 감춥니다.
 async function paintPlan(){
@@ -432,7 +436,7 @@ function validDate(value){
  parsed.setUTCFullYear(year,month-1,day);
  return parsed.getUTCFullYear()===year&&parsed.getUTCMonth()===month-1&&parsed.getUTCDate()===day;
 }
-async function enter(){await api('/me');$('#search').value='';$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
+async function enter(){await api('/me');$('#search').value='';$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;$('#licenseOpen').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
 async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();paintShare();paintPlan();}

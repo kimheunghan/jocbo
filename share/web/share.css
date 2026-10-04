@@ -1,5 +1,6 @@
 /* 우리의 족보 - 공유 화면. 고치는 단추를 감춥니다. 서버도 고치는 요청은 모두 거절합니다. */
 .share-mode #logout,
+.share-mode #licenseOpen,
 .share-mode #newBook,
 .share-mode #sample,
 .share-mode #newPerson,
