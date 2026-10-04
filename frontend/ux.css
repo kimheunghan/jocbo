@@ -2223,17 +2223,22 @@ button {
 /* 무료 인원 안내 (왼쪽, 족보 선택 아래) */
 #workspace > aside .plan-note {
   margin: 10px 0 0;
-  padding: 7px 10px;
-  border: 1px solid #ffffff2e;
-  border-radius: 6px;
-  color: #e9d6aa;
-  font-size: 12px;
+  padding: 9px 12px;
+  border: 1px solid #ffffff22;
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.5;
+  box-shadow: 0 6px 20px #0000003a;
 }
 
+/* 다 쓰면 읽히도록 밝은 붉은 바탕에 진한 붉은 글씨로 둡니다. */
 #workspace > aside .plan-note.full {
-  border-color: #e0a19a;
-  color: #ffd2cc;
+  border-color: #e7b3ab;
+  background: #fff1ee;
+  color: #a1281d;
 }
 
 /* 가려진 칸의 눈 단추 */
