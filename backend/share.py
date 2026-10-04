@@ -7,6 +7,7 @@ the internet is down the change waits and goes up when it comes back.
 The site keeps a copy for viewing only; the book itself stays here.
 """
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import threading
@@ -18,6 +19,12 @@ import urllib.request
 SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo.netlify.app').rstrip('/')
 # A file larger than this is not sent; a share function takes a few MB at most.
 LARGEST = 4 * 1024 * 1024
+# Photos go up this many at a time: one after another, a book with a few dozen
+# photos took half a minute.
+AT_ONCE = 6
+# One sync at a time, so a change made while photos are going up does not send
+# them all a second time.
+_syncing = threading.Lock()
 
 
 class ShareError(Exception):
@@ -75,26 +82,37 @@ def push(row, book):
         return fingerprint
     base = f"{row['server']}/api/share/{row['share_id']}"
     there = set(call('PUT', base, row['token'], {'book': copy}).get('files', []))
-    for file in copy['files']:
-        if str(file['id']) in there:
-            continue
-        with main.engine.connect() as c:
-            key = c.execute(main.select(main.files.c.storage_key).where(main.files.c.id == file['id'])).scalar()
+    missing = [file['id'] for file in copy['files'] if str(file['id']) not in there]
+    with main.engine.connect() as c:
+        keys = dict(c.execute(main.select(main.files.c.id, main.files.c.storage_key)
+                              .where(main.files.c.id.in_(missing))).all()) if missing else {}
+
+    def send(fid):
+        key = keys.get(fid)
         if not key:
-            continue
+            return
         small = main.thumbnail(key, 240)
         if small:
-            call('PUT', f"{base}/files/{file['id']}?size=thumb", row['token'], small.read_bytes(), 'image/jpeg')
+            call('PUT', f'{base}/files/{fid}?size=thumb', row['token'], small.read_bytes(), 'image/jpeg')
         large = main.thumbnail(key, 1600)
         source = large or (main.UPLOADS / key)
         if source.exists() and source.stat().st_size <= LARGEST:
-            call('PUT', f"{base}/files/{file['id']}", row['token'], source.read_bytes(),
+            call('PUT', f'{base}/files/{fid}', row['token'], source.read_bytes(),
                  'image/jpeg' if large else 'application/octet-stream')
+
+    with ThreadPoolExecutor(AT_ONCE) as pool:
+        # list() so that the first failure is raised here, after the rest have finished.
+        list(pool.map(send, missing))
     return fingerprint
 
 
 def sync_all():
     """Bring every shared book up to date. Gives True when everything went up."""
+    with _syncing:
+        return _sync_all()
+
+
+def _sync_all():
     from backend import main
     with main.engine.connect() as c:
         rows = [dict(r) for r in c.execute(main.select(main.shares)).mappings()]
@@ -120,10 +138,13 @@ class Worker:
 
     def __init__(self):
         self.wake = threading.Event()
+        self.now = False
         self.stopping = False
         self.thread = None
 
-    def changed(self):
+    def changed(self, now=False):
+        # A new share goes up at once; ordinary edits wait a moment to go up together.
+        self.now = self.now or now
         self.wake.set()
 
     def start(self):
@@ -145,7 +166,9 @@ class Worker:
                 break
             self.wake.clear()
             # A family added in one go is many requests; they go up together.
-            time.sleep(3)
+            if not self.now:
+                time.sleep(3)
+            self.now = False
             self.wake.clear()
             try:
                 done = sync_all()

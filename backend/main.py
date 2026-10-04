@@ -311,16 +311,6 @@ def share_status(row):
     return {'shared': True, 'link': web_share.link(row), 'synced_at': row['synced_at'],
             'error': row['error'], 'pending': not row['synced']}
 
-def share_sent(bid, sending):
-    """Send now and note how it went; the error is kept for the page to show."""
-    try:
-        values = {'synced': sending(), 'error': '', 'synced_at': int(time.time())}
-    except web_share.ShareError as error:
-        values = {'error': str(error)}
-    with engine.begin() as c:
-        c.execute(shares.update().where(shares.c.book_id == bid).values(**values))
-        return share_status(share_row(c, bid))
-
 @app.get('/api/books/{bid}/share')
 def get_share(bid: int, uid=Depends(auth)):
     with engine.connect() as c:
@@ -338,9 +328,11 @@ def start_share(bid: int, uid=Depends(auth)):
         except web_share.ShareError as error:
             raise HTTPException(502, str(error))
         c.execute(shares.insert().values(book_id=bid, server=web_share.SERVER, share_id=made['id'], token=made['token']))
-        row, book = dict(share_row(c, bid)), book_detail(c, bid, uid)
-    # The first copy goes up straight away so the link opens at once.
-    return share_sent(bid, lambda: web_share.push(row, book))
+        state = share_status(share_row(c, bid))
+    # The link is given now; the book and its photos go up behind it, and the
+    # page shows 올리는 중 until they are there.
+    web_share.worker.changed(now=True)
+    return state
 
 @app.delete('/api/books/{bid}/share')
 def stop_share(bid: int, uid=Depends(auth)):

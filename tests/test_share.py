@@ -44,7 +44,10 @@ def test_a_shared_book_goes_up_with_its_link(client, site):
     assert r.status_code == 201
     state = r.json()
     assert state['shared'] and state['link'] == 'https://share.example/s/abcdefghijkl'
-    assert not state['error'] and not state['pending']
+    assert not state['error']
+    # The link comes back at once; the book goes up behind it.
+    assert web_share.sync_all()
+    assert not client.get(f'/api/books/{bid}/share').json()['pending']
     sent = site.books['/abcdefghijkl']['book']
     assert [p['korean_name'] for p in sent['persons']] == ['공유 인물']
     # The scans of the printed pages stay on this computer.
@@ -56,6 +59,7 @@ def test_changes_go_up_and_an_unchanged_book_is_not_sent_again(client, site):
     account(client)
     bid = book(client)
     client.post(f'/api/books/{bid}/share')
+    assert web_share.sync_all()
     site.books.clear()
     assert web_share.sync_all()
     assert site.books == {}
@@ -81,6 +85,7 @@ def test_stopping(client, site):
     account(client)
     bid = book(client)
     client.post(f'/api/books/{bid}/share')
+    assert web_share.sync_all()
     # The family opens the link alone; nothing about a password goes up.
     assert set(site.books['/abcdefghijkl']) == {'book'}
     # Stopping fails loudly when the copy on the site cannot be removed.
@@ -99,3 +104,21 @@ def test_someone_elses_book_cannot_be_shared(client, site):
     account(client)
     assert client.post(f'/api/books/{bid}/share').status_code == 404
     assert client.get(f'/api/books/{bid}/share').status_code == 404
+
+
+def test_photos_go_up_small_and_large(client, site, tmp_path):
+    from io import BytesIO
+    from PIL import Image
+    account(client)
+    bid = book(client)
+    picture = BytesIO()
+    Image.new('RGB', (800, 600), 'navy').save(picture, 'JPEG')
+    pids = [person(client, bid, f'사진 인물 {n}') for n in range(3)]
+    for pid in pids:
+        upload = client.post(f'/api/persons/{pid}/files', files={'file': ('face.jpg', picture.getvalue(), 'image/jpeg')})
+        assert upload.status_code == 201
+    client.post(f'/api/books/{bid}/share')
+    assert web_share.sync_all()
+    fids = [f['id'] for f in client.get(f'/api/books/{bid}').json()['files']]
+    assert sorted(site.files) == sorted([f'/abcdefghijkl/files/{fid}' for fid in fids]
+                                        + [f'/abcdefghijkl/files/{fid}?size=thumb' for fid in fids])

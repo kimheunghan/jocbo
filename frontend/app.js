@@ -436,7 +436,7 @@ async function paintShare(){
  $('#shareOpen').onclick=()=>window.open(state.link,'_blank');
  $('#shareStop').onclick=run(async()=>{if(!await ask('웹 공유 끝내기\n\n공유 사이트의 사본을 지웁니다. 보내 둔 링크는 더 열리지 않습니다.','공유 끝내기'))return;await busy($('#shareStop'),'끝내는 중…',()=>api(`/books/${bid}/share`,'DELETE'));await paintShare();message('웹 공유 끝남');});
  // 올리는 중이거나 실패했으면 곧 다시, 아니면 가끔 상태를 새로 봅니다.
- shareTimer=setTimeout(()=>{if(!$('#sharePanel').contains(document.activeElement))paintShare();},state.pending||state.error?5000:30000);
+ shareTimer=setTimeout(()=>{if(!$('#sharePanel').contains(document.activeElement))paintShare();},state.pending?2000:state.error?5000:30000);
 }
 $('#bookInfoForm').onsubmit=run(async e=>{e.preventDefault();await busy(e.target.querySelector('button'),'저장 중…',()=>api('/books/'+book.id,'PUT',bookFormValues(e.target)));await loadBooks(book.id);message('족보 기본정보 저장 완료');});
 $('#bookSelect').onchange=run(refresh);
