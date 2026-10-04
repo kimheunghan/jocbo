@@ -365,7 +365,14 @@
   // 직접 받는 설치 파일: 데모 계정과 예제 족보만 든 Store 판입니다(store-v 태그). 새 판을 내면 바꿉니다.
   const EXE_URL = 'https://jocbo.pages.dev/download/store-v2026.10.4.11/jocbo-setup.exe';
   document.querySelectorAll('[data-exe]').forEach(a => { a.href = EXE_URL; });
-  document.querySelectorAll('[data-store]').forEach(a => { a.href = STORE_URL; a.target = '_blank'; a.rel = 'noopener'; });
+  // Windows 에서는 Store 웹페이지를 거치지 않고 Microsoft Store 앱의 상품 화면을 바로 엽니다.
+  // 다른 기기(휴대폰·Mac)는 웹페이지로 갑니다.
+  const STORE_APP_URL = 'ms-windows-store://pdp/?productid=9P94F6T7DVWW';
+  const onWindows = /Windows NT/.test(navigator.userAgent);
+  document.querySelectorAll('[data-store]').forEach(a => {
+    if (onWindows) { a.href = STORE_APP_URL; a.removeAttribute('target'); }
+    else { a.href = STORE_URL; a.target = '_blank'; a.rel = 'noopener'; }
+  });
   document.querySelectorAll('[data-buy]').forEach(a => {
     if (CHECKOUT_URL) { a.href = CHECKOUT_URL; a.target = '_blank'; a.rel = 'noopener'; }
     else a.onclick = event => { event.preventDefault(); alert('결제 페이지를 준비하고 있습니다. 곧 열립니다.'); };
