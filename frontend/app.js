@@ -1172,6 +1172,26 @@ function bindZoom(key){
   event.preventDefault();
   event.stopPropagation();
  },true);
+ // Two fingers spread or pinched zoom about the point between them, as on a
+ // phone's photos; one finger still scrolls. The frame's touch-action leaves
+ // the pinch to this page rather than to the browser, which would zoom the
+ // whole page instead of the drawing.
+ let pinch=null;
+ const spread=touches=>Math.hypot(touches[0].clientX-touches[1].clientX,touches[0].clientY-touches[1].clientY);
+ scroll.addEventListener('touchstart',event=>{
+  if(event.touches.length!==2)return;
+  pan=null;scroll.classList.remove('panning');
+  pinch={distance:spread(event.touches)||1,zoom};
+ },{passive:true});
+ scroll.addEventListener('touchmove',event=>{
+  if(!pinch||event.touches.length!==2)return;
+  event.preventDefault();
+  const [a,b]=event.touches;
+  apply(pinch.zoom*spread(event.touches)/pinch.distance,(a.clientX+b.clientX)/2,(a.clientY+b.clientY)/2);
+ },{passive:false});
+ const endPinch=event=>{if(event.touches.length<2)pinch=null;};
+ scroll.addEventListener('touchend',endPinch);
+ scroll.addEventListener('touchcancel',endPinch);
  $('[data-zoom="in"]').onclick=()=>apply(zoom*1.2);
  $('[data-zoom="out"]').onclick=()=>apply(zoom/1.2);
  $('[data-zoom="reset"]').onclick=()=>apply(1);
