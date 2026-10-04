@@ -342,7 +342,7 @@ async function openLicense(){
   body.innerHTML=`<p>지금은 <b>무료판</b>입니다. 무료판은 인물 <b>${me.free_people}명까지</b> 등록할 수 있고(지금 ${me.people}명), 그 이상 등록하려면 정식판(유료)으로 전환해야 합니다. 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
    +'<ol class="license-steps"><li>[구매하기]로 결제합니다.</li><li>결제 화면과 이메일로 라이선스 키가 옵니다.</li><li>아래 칸에 키를 붙여 넣고 [키 등록]을 누릅니다.</li></ol>'
    +`<div class="actions"><button type="button" id="licenseBuy">구매하기 ${PRICE}</button></div>`
-   +'<form id="licenseForm"><label>이미 구매했다면 라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키"></label>'
+   +'<form id="licenseForm"><label>이미 구매했다면 라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키를 입력하세요"></label>'
    +'<div class="actions"><button class="secondary">키 등록</button></div></form>';
   $('#licenseBuy').onclick=()=>{if(me.checkout_url)window.open(me.checkout_url,'_blank');else message('결제 페이지를 준비하고 있습니다. 곧 열립니다.');};
   $('#licenseForm').onsubmit=run(async e=>{
