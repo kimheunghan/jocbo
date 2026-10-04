@@ -54,3 +54,8 @@
 .share-error {
   color: #b42318;
 }
+
+/* 족보가 그려지기 전의 빈 화면 틀("족보를 선택해 주세요")은 보이지 않게 둡니다. */
+.share-mode:not(.share-loaded) #workspace {
+  visibility: hidden;
+}

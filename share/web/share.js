@@ -6,12 +6,37 @@
   const id = (location.pathname.match(/^\/s\/([a-z0-9]{12})\/?$/) || [])[1] || '';
   document.documentElement.classList.add('share-mode');
 
-  // 화면이 부르는 /api 에 지금 연 공유의 아이디를 붙입니다. 서버는 쿠키가 연 공유와
-  // 다르면 거절하고, 이 화면이 지금 공유를 새로 엽니다.
+  // 족보는 링크를 여는 즉시 한 번에 받아 옵니다(쿠키도 함께 받아 사진이 열립니다).
+  // 화면(app.js)이 묻는 나와 족보 목록·족보 내용은 이 하나로 바로 답해, 공유 사이트에
+  // 다섯 번 차례로 묻던 것을 한 번으로 줄입니다.
   const fetchOriginal = window.fetch.bind(window);
-  window.fetch = (input, init = {}) => {
+  const view = id
+    ? fetchOriginal(`/api/share/${id}/view`, { method: 'POST' }).then(async response => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(body.detail || '공유가 끝났거나 없는 주소입니다.');
+        return body.book;
+      })
+    : Promise.reject(Error('족보 주인에게 받은 공유 링크로 들어와 주십시오.'));
+  view.catch(() => {});
+  const reply = (data, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+
+  window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
     if (url.startsWith('/api')) {
+      const path = url.split('?')[0];
+      if ((init.method || 'GET').toUpperCase() === 'GET') {
+        if (path === '/api/me' || path === '/api/books' || /^\/api\/books\/\d+(\/share)?$/.test(path)) {
+          let book;
+          try { book = await view; } catch (err) { return reply({ detail: err.message }, 401); }
+          if (path === '/api/me') return reply({ email: '' });
+          if (path === '/api/books') return reply([{ id: book.id, title: book.title }]);
+          if (path.endsWith('/share')) return reply({ shared: false });
+          return Number(path.split('/').pop()) === book.id ? reply(book) : reply({ detail: '족보를 찾을 수 없습니다.' }, 404);
+        }
+      }
+      // 그 밖의 요청에는 지금 연 공유의 아이디를 붙입니다. 서버는 쿠키가 연 공유와
+      // 다르면 거절합니다.
       const headers = new Headers(init.headers || {});
       headers.set('X-Share', id);
       init = { ...init, headers };
@@ -53,7 +78,15 @@
     }).observe(workspace, { attributes: true, attributeFilter: ['hidden'] });
   }
 
-  // 링크로 들어오면 묻는 것 없이 바로 엽니다. 쿠키를 받아 두어야 사진(<img>)도 열립니다.
+  // 족보가 다 그려질 때까지는 "족보 여는 중" 만 보이고, 빈 화면 틀은 감춰 둡니다.
+  function revealWhenDrawn() {
+    const title = document.getElementById('bookTitle');
+    const shown = () => document.documentElement.classList.add('share-loaded');
+    new MutationObserver((_, watcher) => { shown(); watcher.disconnect(); })
+      .observe(title, { childList: true, characterData: true, subtree: true });
+  }
+
+  // 링크로 들어오면 묻는 것 없이 바로 엽니다. 족보를 받아 오면 app.js 가 스스로 엽니다.
   async function openShare() {
     const form = document.getElementById('authForm');
     const title = document.querySelector('.intro-title');
@@ -69,12 +102,9 @@
     }
     form.innerHTML = '<h2>족보 여는 중…</h2>';
     try {
-      const info = await fetch(`/api/share/${id}/info`).then(async r => ({ ok: r.ok, body: await r.json() }));
-      if (!info.ok) throw Error(info.body.detail);
-      if (title && info.body.title) title.innerHTML = `<em>${esc(info.body.title)}</em>`;
-      const opened = await fetch(`/api/share/${id}/open`, { method: 'POST' });
-      if (!opened.ok) throw Error((await opened.json().catch(() => ({}))).detail);
-      await enter(); // app.js
+      const book = await view;
+      if (title && book.title) title.innerHTML = `<em>${esc(book.title)}</em>`;
+      // app.js 는 시작할 때 이미 enter() 를 불러 두었고, 그것이 위에서 받은 족보로 열립니다.
     } catch (err) {
       form.innerHTML = `<h2>열 수 없는 공유입니다</h2><p class="muted">${esc(err.message || '공유가 끝났거나 없는 주소입니다.')}</p>`;
     }
@@ -87,6 +117,7 @@
     const header = document.querySelector('header > div');
     if (header) header.insertAdjacentHTML('beforeend', '<span class="share-badge">가족 공유 · 보기 전용</span>');
     treeFirst();
+    revealWhenDrawn();
     openShare();
   });
 })();

@@ -12,7 +12,8 @@
 //     DELETE /api/share/:id                 공유 끝내기
 //   가족 (쿠키)
 //     GET    /api/share/:id/info            여는 화면에 쓸 족보 이름
-//     POST   /api/share/:id/open            쿠키 받기 (사진도 이 쿠키로 엽니다)
+//     POST   /api/share/:id/view            쿠키와 족보 사본을 한 번에 (사진도 이 쿠키로 엽니다)
+//     POST   /api/share/:id/open            쿠키만 (view 이전 화면용)
 //     GET    /api/me, /api/books, /api/books/:bid, /api/files/:fid
 //
 // 저장은 Netlify Blobs 의 jocbo-share 저장소에 공유 아이디별로 둡니다.
@@ -124,12 +125,16 @@ export default async (req: Request, context: Context) => {
       return json({ title: book.title || '', opened: viewer(req) === id });
     }
 
-    if (method === 'POST' && parts[2] === 'open') {
-      if (!(await meta(id)) || !(await blobs.get(`${id}/book`))) return fail(404, '공유가 끝났거나 없는 주소입니다.');
+    // view 는 쿠키와 족보 사본을 한 번에 줍니다. 화면이 여러 번 묻던 것을 한 번으로
+    // 줄여, 링크를 연 뒤 족보가 뜨기까지 걸리던 4초 남짓을 1초 안팎으로 줄입니다.
+    // open 은 view 이전의 화면을 위해 남겨 둡니다.
+    if (method === 'POST' && (parts[2] === 'open' || parts[2] === 'view')) {
+      const [found, book] = await Promise.all([meta(id), blobs.get(`${id}/book`, { type: 'json' })]);
+      if (!found || !book) return fail(404, '공유가 끝났거나 없는 주소입니다.');
       const until = Date.now() + DAYS * 86400000;
       const cookie = `${COOKIE}=${id}.${until}.${sign(id, until)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DAYS * 86400}`
         + (url.protocol === 'https:' ? '; Secure' : '');
-      return json({ ok: true }, 200, { 'Set-Cookie': cookie });
+      return json(parts[2] === 'view' ? { book } : { ok: true }, 200, { 'Set-Cookie': cookie });
     }
     return fail(404, '없는 요청입니다.');
   }
