@@ -2345,3 +2345,70 @@ button {
 #workspace > aside .plan-note:hover {
   filter: brightness(.97);
 }
+
+/* ── 휴대폰: 한 줄로 두면 오른쪽으로 넘치는 줄들을 폭에 맞춰 쌓습니다 ───── */
+/* 넓은 화면에서는 위의 규칙대로 한 줄을 지키고, 본문 폭이 휴대폰만큼 좁을 때만
+   제목 옆 단추, 보기 탭, 확대·축소 막대를 여러 줄로 내려 화면 안에 둡니다. */
+@container content (max-width: 640px) {
+  .page-title {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .page-title h1 {
+    font-size: 22px;
+    white-space: normal;
+  }
+
+  .page-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .view-bar {
+    flex-wrap: wrap;
+  }
+
+  .view-bar nav {
+    display: flex;
+    flex: 1 1 100%;
+  }
+
+  .view-bar nav button {
+    flex: 1;
+  }
+
+  .view-tools {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  /* 검색 칸은 한 줄을 다 쓰고, 등록·이미지 단추는 그 아래에 나란히 둡니다. */
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .toolbar label {
+    flex: 1 1 100%;
+  }
+
+  .toolbar button {
+    flex: 1 1 0;
+    padding: 10px 12px;
+  }
+}
+
+/* 보기 막대 안: 확대·축소 단추는 폭에 맞춰 줄을 바꾸고, 손가락으로 쓰는 화면이라
+   "끌어서 이동 · Ctrl+휠" 안내는 뺍니다. */
+@container (max-width: 640px) {
+  .view-tools .zoom-bar {
+    flex-wrap: wrap;
+    width: 100%;
+    border-radius: 14px;
+  }
+
+  .view-tools .zoom-bar small {
+    display: none;
+  }
+}

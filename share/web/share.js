@@ -74,6 +74,8 @@
       if (!workspace.hidden && !shown) {
         shown = true;
         document.querySelector('[data-view="tree"]')?.click();
+        // 휴대폰처럼 좁은 화면에서는 가계도 전체가 한 화면에 들어오게 맞춰 엽니다.
+        if (window.innerWidth <= 640) setTimeout(() => document.querySelector('[data-zoom="fit"]')?.click(), 300);
       }
     }).observe(workspace, { attributes: true, attributeFilter: ['hidden'] });
   }
