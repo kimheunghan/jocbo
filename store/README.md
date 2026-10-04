@@ -43,7 +43,7 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 | 범주 | 생산성 (Productivity) · 하위: 없음 |
 | 개인정보처리방침 URL | `https://jocbo.pages.dev/privacy.html` |
 | 웹 사이트 | `https://jocbo.pages.dev` |
-| 지원 연락처 | `hung6789@naver.com` |
+| 지원 연락처 | `hung67890@gmail.com` |
 | 시스템 요구 사항 | Windows 10 이상, x64, 인터넷(설치·웹 공유·정식판 등록 때) |
 
 ## 4. 연령 등급 (Age ratings)
