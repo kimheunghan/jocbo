@@ -14,7 +14,7 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
    ```
 3. GitHub Actions가 Store 판을 만들어 Releases에 "Microsoft Store 판"으로 올립니다(10분 남짓). 평소 받는 최신판(latest)은 바뀌지 않습니다.
 4. Store 판에 든 것: 프로그램 전체, 판독 모델, **데모 계정 하나(`demo@example.test` / `DemoFamily123!`)와 가상 인물 예제(金海金氏, 20명)**. 로그인 화면에 "예제로 둘러보기: demo@example.test / DemoFamily123!"가 적혀 나옵니다. 운영자 계정, 실제 족보, 실제 사진은 들어가지 않습니다.
-5. 아래 "패키지 URL"에 `https://github.com/kimheunghan/jocbo/releases/download/store-v2026.10.5.1/jocbo-setup.exe`처럼 그 Store 판의 주소를 넣습니다.
+5. GitHub 주소는 다른 주소로 넘겨져(리디렉션) Store가 받지 않으므로, 공유 사이트의 내려받기 주소를 씁니다. 아래 "패키지 URL"에 `https://jocbo.pages.dev/download/store-v2026.10.5.1/jocbo-setup.exe`처럼 그 Store 판의 주소를 넣습니다.
 
 손으로 만들 때는 `py -3.12 desktop\build.py --store` 뒤에 `ISCC desktop\jocbo.iss`를 실행합니다.
 
@@ -26,7 +26,7 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 
 | 칸 | 값 |
 | --- | --- |
-| 패키지 URL | `https://github.com/kimheunghan/jocbo/releases/download/store-v<판 번호>/jocbo-setup.exe` (0번에서 만든 Store 판) |
+| 패키지 URL | `https://jocbo.pages.dev/download/store-v<판 번호>/jocbo-setup.exe` (0번에서 만든 Store 판) |
 | 아키텍처 | x64 |
 | 설치 관리자 매개 변수 (조용한 설치) | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` |
 | 언어 | 한국어 |
