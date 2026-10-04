@@ -20,6 +20,7 @@ SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo.pages.dev').rstrip('/')
 # A file larger than this is not sent: the share site keeps each one in a single
 # database cell, which holds 2MB. Photos go up resized and stay well under it.
 LARGEST = 1_900_000
+AGENT = 'jocbo-desktop/1.0'
 # Photos go up this many at a time: one after another, a book with a few dozen
 # photos took half a minute.
 AT_ONCE = 6
@@ -35,6 +36,8 @@ class ShareError(Exception):
 def call(method, url, token='', body=None, content_type='application/json'):
     data = json.dumps(body).encode() if content_type == 'application/json' and body is not None else body
     request = urllib.request.Request(url, data=data, method=method)
+    # Cloudflare turns away Python's own name ("Python-urllib") as a bot (error 1010).
+    request.add_header('User-Agent', AGENT)
     request.add_header('Content-Type', content_type)
     if token:
         request.add_header('Authorization', 'Bearer ' + token)

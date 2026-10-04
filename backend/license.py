@@ -25,7 +25,7 @@ class LicenseError(Exception):
 def call(action, **fields):
     data = urllib.parse.urlencode(fields).encode()
     request = urllib.request.Request(f'{API}/{action}', data=data, method='POST',
-                                     headers={'Accept': 'application/json'})
+                                     headers={'Accept': 'application/json', 'User-Agent': 'jocbo-desktop/1.0'})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             return json.loads(response.read() or b'{}')
