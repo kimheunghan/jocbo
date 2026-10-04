@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>우리의 족보 · 족보 정리와 가계도 프로그램</title>
+<meta name="description" content="족보 사진을 올리면 한자 이름·세대·생몰일을 읽어 옮기고, 가계도와 세로쓰기 족보책을 자동으로 만드는 Windows 족보 프로그램. 인물 20명까지 무료.">
+<meta property="og:title" content="우리의 족보 · 흩어진 집안의 기록을 한곳에">
+<meta property="og:description" content="족보 사진 판독, 가계도 자동 생성, 족보책 인쇄, 가족에게 링크로 공유. 인물 20명까지 무료.">
+<meta property="og:image" content="/img/tree.jpg">
+<link rel="icon" href="/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@600;700;900&display=swap">
+<style>
+  :root {
+    --navy: #13254a; --navy-deep: #0f1f3f; --gold: #d8bf85; --gold-deep: #b89a5a;
+    --paper: #f6efe1; --paper-raised: #fdfaf3; --ink: #1d2433; --ink-soft: #4b5563;
+    --seal: #b8322a; --line: #e4dccb; --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+         font-family: "Noto Sans KR", "Malgun Gothic", sans-serif; line-height: 1.7; }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  .wrap { width: min(1120px, 100% - 32px); margin: 0 auto; }
+
+  /* 머리 */
+  header { position: sticky; top: 0; z-index: 10; background: var(--navy);
+           border-bottom: 3px solid var(--gold-deep); }
+  header .wrap { display: flex; align-items: center; gap: 18px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #fff;
+           font-family: "Noto Serif KR", serif; font-weight: 900; font-size: 20px; }
+  .seal { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 7px;
+          background: var(--seal); color: #fff; font-size: 20px; }
+  nav { margin-left: auto; display: flex; gap: 20px; }
+  nav a { color: #e6ebf5; text-decoration: none; font-size: 14px; }
+  nav a:hover { color: var(--gold); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+         padding: 12px 22px; border-radius: 10px; font-weight: 700; font-size: 15px;
+         text-decoration: none; border: 1px solid transparent; cursor: pointer; }
+  .btn-primary { background: var(--gold); color: var(--navy-deep); }
+  .btn-primary:hover { background: #e6cf98; }
+  .btn-outline { border-color: #ffffff66; color: #fff; }
+  .btn-outline:hover { background: #ffffff14; }
+  .btn-dark { background: var(--navy); color: #fff; }
+  .btn-dark:hover { background: var(--navy-deep); }
+  .btn-light { background: #fff; border-color: var(--line); color: var(--ink); }
+  header .btn { padding: 8px 14px; font-size: 13px; }
+
+  /* 첫 화면 */
+  .hero { background: linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%); color: #fff;
+          padding: 72px 0 0; overflow: hidden; }
+  .hero h1 { margin: 0 0 18px; font-family: "Noto Serif KR", serif; font-size: clamp(32px, 5vw, 54px);
+             line-height: 1.25; font-weight: 900; }
+  .hero h1 em { font-style: normal; color: var(--gold); }
+  .hero p.lead { max-width: 680px; margin: 0 0 30px; color: #d5dcea; font-size: 18px; }
+  .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+  .hero .note { color: #aeb8cc; font-size: 13px; margin: 0 0 44px; }
+  .hero .shot { border-radius: 14px 14px 0 0; box-shadow: 0 -10px 40px #0006; border: 1px solid #ffffff22; border-bottom: 0; }
+
+  section { padding: 84px 0; }
+  .eyebrow { margin: 0 0 8px; color: var(--gold-deep); font-size: 13px; font-weight: 700; letter-spacing: .16em; }
+  h2 { margin: 0 0 14px; font-family: "Noto Serif KR", serif; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.35; color: var(--navy); }
+  .sub { margin: 0 0 40px; color: var(--ink-soft); max-width: 720px; }
+
+  /* 기능 */
+  .feature { display: grid; grid-template-columns: 1fr 1.25fr; gap: 44px; align-items: center; margin-bottom: 72px; }
+  .feature:nth-child(even) { grid-template-columns: 1.25fr 1fr; }
+  .feature:nth-child(even) .text { order: 2; }
+  .feature h3 { margin: 0 0 10px; font-family: "Noto Serif KR", serif; font-size: 24px; color: var(--navy); }
+  .feature p { margin: 0 0 10px; color: var(--ink-soft); }
+  .feature ul { margin: 0; padding-left: 18px; color: var(--ink-soft); }
+  .feature .pic { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line);
+                  box-shadow: 0 14px 36px #13254a22; background: #fff; }
+  .feature .pic.phone { max-width: 300px; justify-self: center; border-radius: 28px; border: 8px solid var(--navy); }
+
+  /* 가격 */
+  .pricing { background: var(--paper-raised); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .plan { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 30px; }
+  .plan.paid { border: 2px solid var(--navy); box-shadow: 0 14px 36px #13254a22; }
+  .plan h3 { margin: 0 0 4px; font-size: 20px; color: var(--navy); }
+  .price { margin: 10px 0 4px; font-size: 34px; font-weight: 900; color: var(--navy); }
+  .price del { margin-right: 8px; color: #9aa3b2; font-size: 18px; font-weight: 500; }
+  .price small { font-size: 14px; font-weight: 500; color: var(--ink-soft); }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--seal); color: #fff; font-size: 12px; font-weight: 700; }
+  .plan ul { margin: 18px 0 24px; padding: 0; list-style: none; }
+  .plan li { padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .plan li::before { content: "✓"; margin-right: 8px; color: var(--gold-deep); font-weight: 900; }
+  .plan li.no::before { content: "–"; color: #b6bcc7; }
+  .plan .btn { width: 100%; }
+  .fine { margin-top: 18px; color: var(--ink-soft); font-size: 13px; }
+
+  /* 순서 */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; padding: 0; list-style: none; }
+  .steps li { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 22px 22px 66px; position: relative; }
+  .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 20px; top: 20px;
+                      width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%;
+                      background: var(--navy); color: var(--gold); font-weight: 900; }
+  .steps strong { display: block; color: var(--navy); }
+  .steps span { color: var(--ink-soft); font-size: 14px; }
+
+  /* 기록은 어디에 */
+  .safe { background: var(--navy); color: #e6ebf5; }
+  .safe h2 { color: #fff; }
+  .safe .sub { color: #c5cede; }
+  .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .cards3 div { background: #ffffff0d; border: 1px solid #ffffff22; border-radius: var(--radius); padding: 22px; }
+  .cards3 strong { display: block; color: var(--gold); margin-bottom: 6px; }
+
+  /* 자주 묻는 질문 */
+  details { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; }
+  summary { cursor: pointer; font-weight: 700; color: var(--navy); }
+  details p { margin: 10px 0 0; color: var(--ink-soft); }
+
+  .cta { text-align: center; }
+  .cta .actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+  footer { background: var(--navy-deep); color: #9aa7bf; padding: 36px 0; font-size: 13px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 26px; justify-content: space-between; }
+  footer a { color: #d5dcea; }
+
+  @media (max-width: 860px) {
+    nav { display: none; }
+    .feature, .feature:nth-child(even), .plans, .steps, .cards3 { grid-template-columns: 1fr; }
+    .feature:nth-child(even) .text { order: 0; }
+    section { padding: 60px 0; }
+    .hero { padding-top: 48px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="seal">家</span>우리의 족보</a>
+    <nav><a href="#features">기능</a><a href="#pricing">가격</a><a href="#steps">사용 순서</a><a href="#faq">자주 묻는 질문</a></nav>
+    <a class="btn btn-primary" href="#download" data-store>무료로 받기</a>
+  </div>
+</header>
+
+<div class="hero" id="top">
+  <div class="wrap">
+    <h1>흩어진 집안의 기록을<br><em>한곳에, 영원히.</em></h1>
+    <p class="lead">족보 사진을 올리면 한자 이름·세대·생몰일을 읽어 옮기고, 가계도와 세로쓰기 족보책을 자동으로 만듭니다. 가족에게는 링크 하나로 보여 줍니다.</p>
+    <div class="actions" id="download">
+      <a class="btn btn-primary" href="#" data-store>Microsoft Store에서 무료로 받기</a>
+      <a class="btn btn-outline" href="https://github.com/kimheunghan/jocbo/releases/latest/download/jocbo-setup.exe">설치 파일 직접 받기 (exe)</a>
+    </div>
+    <p class="note">Windows 10·11 · 인물 20명까지 무료 · 회원 가입은 PC 안에서만, 내 기록은 내 PC에</p>
+    <img class="shot" src="/img/tree.jpg" alt="가계도 보기 화면 — 세대별로 부부와 자녀가 이어진 가계도">
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">FEATURES</p>
+    <h2>족보책 한 권을 컴퓨터로 옮기는 데 필요한 것</h2>
+    <p class="sub">손으로 옮겨 적던 일을 사진 한 장으로 시작합니다. 기록하고, 잇고, 인쇄하고, 나누는 일까지 한 프로그램에서 합니다.</p>
+
+    <div class="feature">
+      <div class="text">
+        <h3>족보 사진 판독</h3>
+        <p>족보 쪽을 찍어 올리면 한자 이름, 세대, 생몰일, 字·號·墓 같은 기록을 읽어 칸마다 채워 줍니다.</p>
+        <ul><li>번체·간체를 함께 배운 판독 모델이 PC 안에서 돌아갑니다</li><li>판독 결과는 원본과 나란히 보며 고친 뒤 한꺼번에 등록합니다</li><li>원하면 Claude로 한 번 더 정밀하게 읽을 수 있습니다(선택)</li></ul>
+      </div>
+      <div class="pic"><img src="/img/scan.jpg" alt="족보 이미지 판독 화면" loading="lazy"></div>
+    </div>
+
+    <div class="feature">
+      <div class="text">
+        <h3>가계도 자동 생성</h3>
+        <p>부모·배우자·자녀만 이어 주면 세대별 가계도가 저절로 그려집니다. 재혼이면 배우자별로 자녀 선이 갈립니다.</p>
+        <ul><li>카드의 <b>+</b>로 그 자리에서 가족 추가</li><li>세대·본관·생몰일·나이·사진 등 표시 항목 선택</li><li>첫 장은 전체, 다음 장부터 가족별로 A4 인쇄·PDF</li></ul>
+      </div>
+      <div class="pic"><img src="/img/tree.jpg" alt="가계도 보기 화면" loading="lazy"></div>
+    </div>
+
+    <div class="feature">
+      <div class="text">
+        <h3>세로쓰기 족보책</h3>
+        <p>입력한 기록을 전통 족보 양식 그대로, 한 면에 여섯 세대 칸을 두고 세로쓰기 한자로 짜 줍니다. 인쇄하거나 PDF로 저장해 나눌 수 있습니다.</p>
+      </div>
+      <div class="pic"><img src="/img/book.jpg" alt="족보책 미리보기 화면" loading="lazy"></div>
+    </div>
+
+    <div class="feature">
+      <div class="text">
+        <h3>한글로 쓰고 한자로 고르기</h3>
+        <p>한글명을 입력하고 글자마다 한자를 골라 넣습니다. 화면 전체를 한글로 보기·한자로 보기로 바로 바꿀 수 있습니다.</p>
+        <ul><li>字·初名·號, 본관, 생몰일, 묘소 기록</li><li>인물 사진과 원문 자료 첨부</li><li>이름·한자·기록으로 인물 검색</li></ul>
+      </div>
+      <div class="pic"><img src="/img/person.jpg" alt="인물 정보 입력 화면" loading="lazy"></div>
+    </div>
+
+    <div class="feature">
+      <div class="text">
+        <h3>가족에게는 링크 하나로</h3>
+        <p><b>공유 시작</b>을 누르면 그 족보의 링크가 생깁니다. 받은 가족은 휴대폰이나 PC 브라우저에서 바로 가계도를 봅니다. 설치도 가입도 필요 없습니다.</p>
+        <ul><li>PC에서 고치면 몇 초 뒤 링크에도 반영</li><li>PC를 꺼도 링크는 계속 열립니다</li><li>보기 전용 · 언제든 공유 끝내기</li></ul>
+      </div>
+      <div class="pic phone"><img src="/img/share-mobile.jpg" alt="휴대폰에서 연 공유 링크" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <p class="eyebrow">PRICING</p>
+    <h2>20명까지는 무료, 그 이상은 한 번 구매로</h2>
+    <p class="sub">무료판으로 모든 기능을 써 보고, 기록이 20명을 넘을 때 정식판으로 바꾸면 됩니다. 이미 입력한 기록은 언제나 보고 고칠 수 있습니다.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3>무료판</h3>
+        <p class="price">₩0</p>
+        <ul>
+          <li>인물 20명까지 (모든 족보 합계)</li>
+          <li>족보 사진 판독</li>
+          <li>가계도 · 족보책 · 인쇄 · PDF</li>
+          <li>웹 공유 링크</li>
+          <li class="no">20명을 넘는 등록</li>
+        </ul>
+        <a class="btn btn-light" href="#" data-store>무료로 받기</a>
+      </div>
+      <div class="plan paid">
+        <h3>정식판 <span class="badge">출시 기념 할인</span></h3>
+        <p class="price"><del>₩49,000</del>₩29,000 <small>일회 구매 · 부가세 포함</small></p>
+        <ul>
+          <li>인물 수 제한 없음</li>
+          <li>무료판의 모든 기능</li>
+          <li>PC 2대 (옮겨 쓰기 가능)</li>
+          <li>1.x 판 업데이트 무료</li>
+          <li>구매 후 14일 안에 환불</li>
+        </ul>
+        <a class="btn btn-dark" href="#" data-buy>정식판 구매하기</a>
+      </div>
+    </div>
+    <p class="fine">결제는 Lemon Squeezy가 처리합니다(카드·PayPal). 결제하면 라이선스 키가 결제 화면과 이메일로 옵니다. Claude로 판독은 본인의 Anthropic API 키로 쓰는 선택 기능이며, 사용료는 Anthropic에 따로 냅니다.</p>
+  </div>
+</section>
+
+<section id="steps">
+  <div class="wrap">
+    <p class="eyebrow">HOW IT WORKS</p>
+    <h2>사용 순서</h2>
+    <p class="sub">설치부터 정식판 전환까지 여섯 걸음입니다.</p>
+    <ol class="steps">
+      <li><strong>설치</strong><span>Microsoft Store에서 받거나 설치 파일(exe)을 직접 받아 실행합니다. 파이썬 등 따로 설치할 것은 없습니다.</span></li>
+      <li><strong>가입과 로그인</strong><span>처음 한 번 이메일로 가입합니다. 계정은 내 PC 안에만 만들어집니다.</span></li>
+      <li><strong>기록하기</strong><span>족보 사진을 올려 판독하거나, 인물을 하나씩 등록하고 가족을 잇습니다. 예제 족보로 먼저 둘러봐도 됩니다.</span></li>
+      <li><strong>20명까지 무료</strong><span>21번째 인물을 등록하려 하면 정식판 안내가 뜹니다. 그 전까지 모든 기능을 씁니다.</span></li>
+      <li><strong>구매</strong><span>정식판을 구매하면 라이선스 키가 결제 화면과 이메일로 옵니다.</span></li>
+      <li><strong>키 넣기</strong><span>프로그램에 키를 붙여 넣으면 바로 인원 제한이 풀립니다(인터넷 연결 필요).</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="safe">
+  <div class="wrap">
+    <p class="eyebrow">PRIVACY</p>
+    <h2>집안의 기록은 내 PC에</h2>
+    <p class="sub">족보에는 살아 계신 분의 이름과 생년월일이 들어 있습니다. 그래서 기본은 모두 내 PC 안에서만 처리합니다.</p>
+    <div class="cards3">
+      <div><strong>내 PC에 저장</strong>족보 DB, 사진, 판독은 모두 설치한 PC 안에서 이루어집니다. 서버로 보내지 않습니다.</div>
+      <div><strong>공유는 내가 고른 것만</strong>웹 공유를 시작한 족보만 사본이 공유 사이트에 올라가고, 링크를 받은 사람만 볼 수 있습니다. 공유를 끝내면 사본은 지워집니다.</div>
+      <div><strong>선택 기능만 외부로</strong>Claude로 판독을 쓸 때만 그 족보 사진이 Anthropic으로 전송됩니다. 쓰지 않으면 나가지 않습니다.</div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <p class="eyebrow">FAQ</p>
+    <h2>자주 묻는 질문</h2>
+    <details><summary>판독이 100% 정확한가요?</summary><p>아닙니다. 오래된 목판 인쇄는 획이 뭉개져 비슷한 글자로 읽히기도 합니다. 판독 결과는 원본 사진과 나란히 보며 고친 뒤 등록하는 방식입니다.</p></details>
+    <details><summary>20명은 어떻게 세나요?</summary><p>한 계정의 모든 족보에 등록한 인물 수를 합친 것입니다. 20명이 되면 새로 등록하는 것만 막히고, 이미 있는 기록을 보고 고치고 인쇄하는 것은 그대로 됩니다.</p></details>
+    <details><summary>웹 공유 링크는 PC를 꺼도 열리나요?</summary><p>열립니다. 공유 사이트에 사본이 보관됩니다. PC에서 고친 내용은 프로그램이 켜져 있을 때 몇 초 뒤 자동으로 반영되고, 꺼져 있던 동안 고친 것은 다음에 켤 때 올라갑니다.</p></details>
+    <details><summary>정식판을 다른 PC로 옮길 수 있나요?</summary><p>PC 2대까지 쓸 수 있고, 옮길 때는 쓰지 않을 PC에서 등록을 풀고 새 PC에 키를 넣으면 됩니다.</p></details>
+    <details><summary>맥(Mac)에서도 되나요?</summary><p>지금은 Windows 10·11만 지원합니다. 공유 링크는 맥·휴대폰 브라우저에서도 열립니다.</p></details>
+    <details><summary>환불은 어떻게 하나요?</summary><p>구매 후 14일 안에 결제 확인 이메일에 회신하거나 아래 문의 메일로 알려 주시면 환불해 드립니다.</p></details>
+  </div>
+</section>
+
+<section class="pricing cta">
+  <div class="wrap">
+    <h2>오늘, 우리 집안의 첫 장을 옮겨 보세요</h2>
+    <p class="sub" style="margin: 0 auto 28px">인물 20명까지 무료입니다. 예제 족보로 먼저 둘러볼 수도 있습니다.</p>
+    <div class="actions">
+      <a class="btn btn-dark" href="#" data-store>Microsoft Store에서 무료로 받기</a>
+      <a class="btn btn-light" href="#" data-buy>정식판 구매하기 ₩29,000</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 우리의 족보 · 결제 대행 Lemon Squeezy</span>
+    <span><a href="/privacy.html">개인정보처리방침</a> · 문의 <a href="mailto:hung6789@naver.com">hung6789@naver.com</a></span>
+  </div>
+</footer>
+
+<script>
+  // Microsoft Store 주소와 결제 주소는 여기 두 곳만 고치면 됩니다.
+  // 비어 있으면 Store 단추는 설치 파일(exe)로, 구매 단추는 준비 중 안내로 갑니다.
+  const STORE_URL = '';
+  const CHECKOUT_URL = '';
+  const EXE_URL = 'https://github.com/kimheunghan/jocbo/releases/latest/download/jocbo-setup.exe';
+  document.querySelectorAll('[data-store]').forEach(a => { a.href = STORE_URL || EXE_URL; });
+  document.querySelectorAll('[data-buy]').forEach(a => {
+    if (CHECKOUT_URL) { a.href = CHECKOUT_URL; a.target = '_blank'; a.rel = 'noopener'; }
+    else a.onclick = event => { event.preventDefault(); alert('결제 페이지를 준비하고 있습니다. 곧 열립니다.'); };
+  });
+</script>
+</body>
+</html>

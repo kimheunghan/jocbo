@@ -315,24 +315,56 @@ async function api(path, method='GET', data) {
   if(!r.ok) throw Error(errorText(result.detail));
   return result;
 }
-// 결제는 아직 연결 전이라, 무료 인원을 넘었다는 것과 유료 전환 안내만 띄웁니다.
+// 무료 인원을 넘으면 그렇다고 알리고, [정식판 안내]로 구매·키 입력 창을 엽니다.
 function paywall(text){
- $('#confirmHeading').textContent='유료 결제로 전환';
+ $('#confirmHeading').textContent='정식판으로 전환';
  ask(`${text}
-유료로 전환하면 인원 제한 없이 등록할 수 있습니다.`,'유료 전환')
-  .then(ok=>{$('#confirmHeading').textContent='확인';if(ok)message('유료 결제는 준비 중입니다. 열리면 바로 알려 드리겠습니다.');});
+정식판은 인원 제한 없이 등록할 수 있습니다.`,'정식판 안내')
+  .then(ok=>{$('#confirmHeading').textContent='확인';if(ok)openLicense();});
 }
-// 왼쪽 칸에 무료 인원과 지금 인원을 늘 보여 줍니다. 유료나 예전 계정이면 감춥니다.
+// 정식판: 구매 페이지로 보내고, 받은 라이선스 키를 넣으면 인원 제한이 풀립니다.
+async function openLicense(){
+ let me;try{me=await api('/me');}catch(err){message(err.message,'error');return;}
+ const body=$('#licenseBody');
+ if(me.licensed){
+  body.innerHTML='<p>정식판을 쓰고 있습니다. 인물 수 제한이 없습니다.</p>'
+   +'<p class="muted">키 하나로 PC 2대까지 씁니다. 다른 PC로 옮기려면 이 PC의 등록을 먼저 풀어 주십시오.</p>'
+   +'<div class="actions"><button type="button" id="licenseRelease" class="danger">이 PC 등록 풀기</button></div>';
+  $('#licenseRelease').onclick=run(async()=>{
+   if(!await ask('이 PC 등록 풀기\n\n이 계정은 무료판(인물 20명)으로 돌아갑니다. 기록은 그대로 남습니다.','등록 풀기'))return;
+   await busy($('#licenseRelease'),'푸는 중…',()=>api('/license','DELETE'));
+   $('#licenseDialog').close();paintPlan();message('이 PC 등록을 풀었습니다');
+  });
+ }else{
+  body.innerHTML=`<p>무료판은 인물 ${me.free_people}명까지입니다. 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
+   +'<ol class="license-steps"><li>[정식판 구매하기]를 눌러 결제합니다.</li><li>결제 화면과 이메일로 라이선스 키가 옵니다.</li><li>아래 칸에 키를 붙여 넣고 [정식판으로 전환]을 누릅니다.</li></ol>'
+   +'<div class="actions"><button type="button" id="licenseBuy">정식판 구매하기</button></div>'
+   +'<form id="licenseForm"><label>라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키"></label>'
+   +'<div class="actions"><button class="secondary">정식판으로 전환</button></div></form>';
+  $('#licenseBuy').onclick=()=>{if(me.checkout_url)window.open(me.checkout_url,'_blank');else message('결제 페이지를 준비하고 있습니다. 곧 열립니다.');};
+  $('#licenseForm').onsubmit=run(async e=>{
+   e.preventDefault();
+   await busy(e.target.querySelector('button'),'확인하는 중…',()=>api('/license','POST',{key:e.target.elements.key.value.trim()}));
+   $('#licenseDialog').close();paintPlan();message('정식판으로 바뀌었습니다. 인물 수 제한이 없습니다.');
+  });
+ }
+ if(!$('#licenseDialog').open)$('#licenseDialog').showModal();
+}
+$('#closeLicense').onclick=()=>$('#licenseDialog').close();
+// 왼쪽 칸에 무료 인원과 지금 인원을 늘 보여 줍니다. 누르면 정식판 창이 열립니다.
+// 정식판이면 그렇다고 적고, 정식판이 생기기 전부터 있던 계정이면 감춥니다.
 async function paintPlan(){
  let me;try{me=await api('/me');}catch{return;}
  const note=$('#planNote');
- note.hidden=me.plan!=='free';
+ note.hidden=me.plan!=='free'&&!me.licensed;
  if(note.hidden)return;
+ note.onclick=openLicense;
+ if(me.licensed){note.classList.remove('full');note.textContent='정식판 사용 중 · 인물 수 제한 없음';return;}
  const full=me.people>=me.free_people;
  note.classList.toggle('full',full);
  note.textContent=full
-  ?`무료 인원(${me.free_people}명)을 다 썼습니다 · 더 등록하려면 유료 전환`
-  :`무료 이용 · 인물 ${me.people}/${me.free_people}명 · ${me.free_people}명을 넘으면 유료`;
+  ?`무료 인원(${me.free_people}명)을 다 썼습니다 · 눌러서 정식판 전환`
+  :`무료 이용 · 인물 ${me.people}/${me.free_people}명 · ${me.free_people}명을 넘으면 정식판`;
 }
 function run(fn){return async e=>{try{message('');await fn(e);}catch(err){if(!err.quiet)message(err.message,'error');}};}
 function formData(form){return Object.fromEntries(new FormData(form));}

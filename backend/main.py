@@ -19,6 +19,7 @@ from sqlalchemy import (create_engine, MetaData, Table, Column, Integer, String,
                         inspect, text)
 from sqlalchemy.exc import IntegrityError
 
+from backend import license as paid
 from backend import share as web_share
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +33,7 @@ meta = MetaData()
 # A free account holds up to FREE_PERSONS people across its books; adding past
 # that asks for the paid plan. An account from before this ('' plan) has no limit.
 FREE_PERSONS = 20
-users = Table('users', meta, Column('id', Integer, primary_key=True), Column('email', String(255), nullable=False, unique=True), Column('password_hash', String(255), nullable=False), Column('plan', String(10), nullable=False, server_default='free'))
+users = Table('users', meta, Column('id', Integer, primary_key=True), Column('email', String(255), nullable=False, unique=True), Column('password_hash', String(255), nullable=False), Column('plan', String(10), nullable=False, server_default='free'), Column('license_key', String(100), nullable=False, server_default=''), Column('license_instance', String(100), nullable=False, server_default=''))
 sessions = Table('sessions', meta, Column('token_hash', String(64), primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('expires', Integer, nullable=False))
 books = Table('family_books', meta, Column('id', Integer, primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('title', String(200), nullable=False), Column('clan_name', String(200), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('branch_name', String(200), nullable=False, server_default=''), Column('volume', String(50), nullable=False, server_default=''), Column('founder', String(200), nullable=False, server_default=''), Column('page', String(50), nullable=False, server_default=''), Column('lineage', String(200), nullable=False, server_default=''), Column('page_breaks', String(200), nullable=False, server_default=''), Column('description', Text, nullable=False))
 persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('korean_name', String(100), nullable=False), Column('hanja_name', String(100), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('generation', Integer, nullable=False), Column('gender', String(10), nullable=False), Column('birth_date', String(10), nullable=False), Column('death_date', String(10), nullable=False), Column('note', Text, nullable=False), CheckConstraint('generation > 0'))
@@ -51,7 +52,7 @@ async def lifespan(app):
                          'page': 'VARCHAR(50)', 'lineage': 'VARCHAR(200)', 'page_breaks': 'VARCHAR(200)'},
         'persons': {'bon_gwan': 'VARCHAR(200)'},
         # Accounts already here take '' — no limit — since they began before it.
-        'users': {'plan': 'VARCHAR(10)'},
+        'users': {'plan': 'VARCHAR(10)', 'license_key': 'VARCHAR(100)', 'license_instance': 'VARCHAR(100)'},
     }
     with engine.begin() as connection:
         for table, columns in additions.items():
@@ -227,14 +228,46 @@ def room_for(c, uid, adding):
     if adding <= 0 or c.execute(select(users.c.plan).where(users.c.id == uid)).scalar() != 'free':
         return
     if people_count(c, uid) + adding > FREE_PERSONS:
-        raise HTTPException(402, f'무료 이용은 인물 {FREE_PERSONS}명까지입니다. 더 등록하려면 유료로 전환해 주십시오.')
+        raise HTTPException(402, f'무료 이용은 인물 {FREE_PERSONS}명까지입니다. 더 등록하려면 정식판으로 전환해 주십시오.')
 
 @app.get('/api/me')
 def me(uid=Depends(auth)):
     with engine.connect() as c:
-        user = c.execute(select(users.c.email, users.c.plan).where(users.c.id == uid)).mappings().first()
+        user = c.execute(select(users.c.email, users.c.plan, users.c.license_key).where(users.c.id == uid)).mappings().first()
         return {'email': user['email'], 'plan': user['plan'] or 'paid', 'people': people_count(c, uid),
-                'free_people': FREE_PERSONS}
+                'free_people': FREE_PERSONS, 'licensed': bool(user['license_key']),
+                'checkout_url': paid.CHECKOUT_URL}
+
+class LicenseKey(Input):
+    key: str = Field(min_length=8, max_length=100)
+
+@app.post('/api/license')
+def put_in_license(data: LicenseKey, uid=Depends(auth)):
+    """Turn the account into the full version with a key bought on the checkout page."""
+    import platform
+    try:
+        instance = paid.activate(data.key, platform.node() or 'PC')
+    except paid.LicenseError as error:
+        raise HTTPException(400, str(error))
+    with engine.begin() as c:
+        c.execute(users.update().where(users.c.id == uid)
+                  .values(plan='paid', license_key=data.key, license_instance=instance))
+    return {'plan': 'paid'}
+
+@app.delete('/api/license')
+def take_out_license(uid=Depends(auth)):
+    """Free this PC's place under the key, so it can go on another PC."""
+    with engine.connect() as c:
+        user = c.execute(select(users.c.license_key, users.c.license_instance).where(users.c.id == uid)).mappings().first()
+    if not user['license_key']:
+        raise HTTPException(400, '이 계정에는 등록된 라이선스 키가 없습니다.')
+    try:
+        paid.deactivate(user['license_key'], user['license_instance'])
+    except paid.LicenseError as error:
+        raise HTTPException(400, str(error))
+    with engine.begin() as c:
+        c.execute(users.update().where(users.c.id == uid).values(plan='free', license_key='', license_instance=''))
+    return {'plan': 'free'}
 
 @app.get('/api/books')
 def list_books(uid=Depends(auth)):

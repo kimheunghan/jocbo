@@ -2315,3 +2315,33 @@ button {
 #workspace > aside .plan-note {
   margin-bottom: 14px;
 }
+
+/* 정식판 창 */
+#licenseDialog {
+  width: min(480px, calc(100vw - 32px));
+}
+
+#licenseDialog p {
+  margin: 0 0 10px;
+}
+
+.license-steps {
+  margin: 4px 0 16px;
+  padding-left: 20px;
+  color: var(--ink-faint);
+  font-size: 14px;
+}
+
+#licenseForm {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+#workspace > aside .plan-note {
+  cursor: pointer;
+}
+
+#workspace > aside .plan-note:hover {
+  filter: brightness(.97);
+}

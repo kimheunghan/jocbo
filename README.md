@@ -21,14 +21,20 @@
 
 설치 파일은 GitHub Actions(`.github/workflows/desktop.yml`)가 만듭니다. `v` 로 시작하는 태그(`v2026.10.3` 등)를 올리면 Releases 에 올라갑니다. 손으로 만들 때는 `py -3.12 desktop\build.py` 로 `build\app` 을 만든 뒤 Inno Setup 6 으로 `ISCC desktop\jocbo.iss` 를 실행합니다.
 
-## 무료 이용과 유료 전환
+## 무료 이용과 정식판
 
-새로 가입한 계정은 **인물 20명까지 무료**입니다(계정의 모든 족보를 합친 수). 21번째를 등록하려 하면 [유료 전환] 안내 창이 뜨고 등록되지 않습니다. 이미 있는 인물을 보고 고치는 것은 그대로 됩니다.
+새로 가입한 계정은 **인물 20명까지 무료**입니다(계정의 모든 족보를 합친 수). 21번째를 등록하려 하면 [정식판으로 전환] 안내가 뜨고 등록되지 않습니다. 이미 있는 인물을 보고 고치는 것은 그대로 됩니다.
 
-- 왼쪽 칸 족보 선택 아래에 "무료 이용 · 인물 N/20명"이 늘 보이고, 로그인 화면에도 적혀 있습니다.
+- 왼쪽 칸 족보 선택 위에 "무료 이용 · 인물 N/20명"이 늘 보이고, 누르면 정식판 창이 열립니다. 로그인 화면에도 적혀 있습니다.
+- 정식판 창: [정식판 구매하기]는 Lemon Squeezy 결제 페이지(`backend/license.py`의 `CHECKOUT_URL`, 환경 변수 `JOCBO_CHECKOUT_URL`)를 엽니다. 결제 후 받은 라이선스 키를 넣으면 Lemon Squeezy에 이 PC를 등록하고 계정을 정식판으로 바꿉니다. 키 하나로 PC 2대까지이며, [이 PC 등록 풀기]로 자리를 돌려줍니다.
+- 상품 이름에 "족보"가 들어간 키만 받습니다. 같은 스토어의 다른 상품(FindInside 등) 키로는 풀리지 않습니다.
 - 서버는 넘는 등록(인물 등록, 판독 결과 한꺼번에 등록, 예제 추가)을 402로 거절합니다. 무료 인원은 `backend/main.py`의 `FREE_PERSONS`입니다.
-- 이 기능보다 먼저 만든 계정은 제한이 없습니다(`users.plan`이 빈 값).
-- 실제 결제는 아직 연결하지 않았습니다. [유료 전환]을 누르면 준비 중이라고 안내합니다.
+- 정식판이 생기기 전에 만든 계정은 제한이 없습니다(`users.plan`이 빈 값).
+
+## 홍보 사이트와 Microsoft Store
+
+- 홍보 사이트: <https://jocbo.netlify.app> (`share/web/landing.html`, 개인정보처리방침 `share/web/privacy.html`, 사진 `share/web/img/`). Store 주소와 결제 주소는 landing.html 아래 `STORE_URL`, `CHECKOUT_URL` 두 줄만 고치면 됩니다.
+- Microsoft Store 제출 자료: `store/README.md`(입력 칸별 값), `store/screenshots/`, `store/logo-*.png`.
 
 ## 웹 공유 (가족이 링크로 보기)
 

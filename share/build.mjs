@@ -1,8 +1,9 @@
-// 우리의 족보 - 공유 사이트의 화면을 dist 에 만듭니다.
-// PC 화면(frontend)을 그대로 가져오고, 공유용 share.js·share.css 를 끼웁니다.
+// 우리의 족보 - 공유 사이트를 dist 에 만듭니다.
+// 첫 화면(index.html)은 홍보 페이지(web/landing.html)이고, 공유 링크(/s/아이디)는
+// app.html 을 엽니다. app.html 은 PC 화면(frontend)에 공유용 share.js·share.css 를 끼운 것입니다.
 // 공유 주소는 /s/아이디 라서 화면의 파일 이름을 / 부터 적고, 고친 판을 브라우저가
 // 새로 받도록 내용에 따른 꼬리표(?v=)를 붙입니다.
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, renameSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
@@ -17,7 +18,7 @@ cpSync(web, dist, { recursive: true });
 
 const stamp = name => createHash('sha256').update(readFileSync(join(dist, name))).digest('hex').slice(0, 10);
 let page = readFileSync(join(dist, 'index.html'), 'utf8');
-for (const name of readdirSync(dist)) {
+for (const name of readdirSync(dist).filter(name => statSync(join(dist, name)).isFile())) {
   page = page.replaceAll(`"${name}"`, `"/${name}?v=${stamp(name)}"`);
 }
 const theme = `/theme.css?v=${stamp('theme.css')}`;
@@ -26,5 +27,6 @@ if (!page.includes(theme) || !page.includes(app)) throw new Error('index.html �
 page = page
   .replace(`href="${theme}">`, `href="${theme}"><link rel="stylesheet" href="/share.css?v=${stamp('share.css')}">`)
   .replace(app, `<script src="/share.js?v=${stamp('share.js')}" defer></script>${app}`);
-writeFileSync(join(dist, 'index.html'), page);
+writeFileSync(join(dist, 'app.html'), page);
+renameSync(join(dist, 'landing.html'), join(dist, 'index.html'));
 console.log('dist 완료');
