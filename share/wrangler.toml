@@ -1,0 +1,12 @@
+# 우리의 족보 - 웹 공유 사이트 (Cloudflare Pages).
+# 화면은 dist(node build.mjs 로 만듦), 서버는 functions/api, 족보 사본은 D1(DB)에 둡니다.
+#   배포: npx wrangler pages deploy dist --project-name jocbo
+#   비밀값: npx wrangler pages secret put SHARE_SECRET --project-name jocbo
+name = "jocbo"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jocbo-share"
+database_id = "00000000-0000-0000-0000-000000000000"

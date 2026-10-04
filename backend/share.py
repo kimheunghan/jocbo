@@ -17,8 +17,9 @@ import urllib.request
 
 # The share site. Set JOCBO_SHARE_SERVER to try another (netlify dev: http://localhost:8888).
 SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo.netlify.app').rstrip('/')
-# A file larger than this is not sent; a share function takes a few MB at most.
-LARGEST = 4 * 1024 * 1024
+# A file larger than this is not sent: the share site keeps each one in a single
+# database cell, which holds 2MB. Photos go up resized and stay well under it.
+LARGEST = 1_900_000
 # Photos go up this many at a time: one after another, a book with a few dozen
 # photos took half a minute.
 AT_ONCE = 6

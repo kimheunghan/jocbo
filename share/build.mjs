@@ -31,4 +31,7 @@ page = page
   .replace(app, `<script src="/share.js?v=${stamp('share.js')}" defer></script>${app}`);
 writeFileSync(join(dist, 'app.html'), page);
 renameSync(join(dist, 'landing.html'), join(dist, 'index.html'));
+// Cloudflare Pages 는 netlify.toml 을 읽지 않으므로 같은 규칙을 _redirects 로도 둡니다.
+// Pages 는 app.html 을 /app 으로 부르므로(/app.html 로 가면 /app 으로 돌려보냄) /app 으로 잇습니다.
+writeFileSync(join(dist, '_redirects'), '/s/* /app 200\n');
 console.log('dist 완료');
