@@ -339,7 +339,7 @@ async function openLicense(){
   });
  }else{
   $('#licenseHeading').textContent='정식판으로 전환';
-  body.innerHTML=`<p>지금은 <b>무료판</b>입니다(인물 ${me.free_people}명까지, 지금 ${me.people}명). 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
+  body.innerHTML=`<p>지금은 <b>무료판</b>입니다. 무료판은 인물 <b>${me.free_people}명까지</b> 등록할 수 있고(지금 ${me.people}명), 그 이상 등록하려면 정식판(유료)으로 전환해야 합니다. 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
    +'<ol class="license-steps"><li>[구매하기]로 결제합니다.</li><li>결제 화면과 이메일로 라이선스 키가 옵니다.</li><li>아래 칸에 키를 붙여 넣고 [키 등록]을 누릅니다.</li></ol>'
    +`<div class="actions"><button type="button" id="licenseBuy">구매하기 ${PRICE}</button></div>`
    +'<form id="licenseForm"><label>이미 구매했다면 라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키"></label>'
@@ -373,8 +373,8 @@ async function paintPlan(){
  const full=me.people>=me.free_people;
  note.classList.toggle('full',full);
  note.textContent=full
-  ?`무료 인원(${me.free_people}명)을 다 썼습니다 · 눌러서 정식판 전환`
-  :`무료 이용 · 인물 ${me.people}/${me.free_people}명 · ${me.free_people}명을 넘으면 정식판`;
+  ?`무료판은 인물 ${me.free_people}명까지 등록할 수 있습니다. ${me.free_people}명을 다 등록했습니다. 더 등록하려면 정식판(유료)으로 전환해 주십시오. ▸ 눌러서 전환`
+  :`무료판은 인물 ${me.free_people}명까지 등록할 수 있고, 그 이상은 정식판(유료)으로 전환해야 합니다. 지금 ${me.people}명 등록.`;
 }
 function run(fn){return async e=>{try{message('');await fn(e);}catch(err){if(!err.quiet)message(err.message,'error');}};}
 function formData(form){return Object.fromEntries(new FormData(form));}
