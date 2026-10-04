@@ -75,7 +75,16 @@
         shown = true;
         document.querySelector('[data-view="tree"]')?.click();
         // 휴대폰처럼 좁은 화면에서는 가계도 전체가 한 화면에 들어오게 맞춰 엽니다.
-        if (window.innerWidth <= 640) setTimeout(() => document.querySelector('[data-zoom="fit"]')?.click(), 300);
+        // 족보가 도착해 가계도가 다시 그려진 뒤에 맞춰야 하므로, 인물 카드가 생길 때까지 기다립니다.
+        if (window.innerWidth <= 640) {
+          const started = Date.now();
+          const fit = () => {
+            if (document.querySelector('.zoom-scroll [data-tree-person]')) {
+              setTimeout(() => document.querySelector('[data-zoom="fit"]')?.click(), 150);
+            } else if (Date.now() - started < 15000) setTimeout(fit, 100);
+          };
+          fit();
+        }
       }
     }).observe(workspace, { attributes: true, attributeFilter: ['hidden'] });
   }
