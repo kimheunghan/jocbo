@@ -41,8 +41,8 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 | 칸 | 값 |
 | --- | --- |
 | 범주 | 생산성 (Productivity) · 하위: 없음 |
-| 개인정보처리방침 URL | `https://jocbo.netlify.app/privacy.html` |
-| 웹 사이트 | `https://jocbo.netlify.app` |
+| 개인정보처리방침 URL | `https://jocbo.pages.dev/privacy.html` |
+| 웹 사이트 | `https://jocbo.pages.dev` |
 | 지원 연락처 | `hung6789@naver.com` |
 | 시스템 요구 사항 | Windows 10 이상, x64, 인터넷(설치·웹 공유·정식판 등록 때) |
 
@@ -84,7 +84,7 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 족보 기록과 사진은 설치한 PC 안에만 저장됩니다. 웹 공유를 시작한 족보만 사본이 공유 사이트에 올라갑니다.
 
 ■ 무료와 정식판
-인물 20명까지 모든 기능을 무료로 씁니다. 그 이상은 정식판(한 번 구매, PC 2대)을 구매해 라이선스 키를 넣으면 인원 제한이 풀립니다. 구매: https://jocbo.netlify.app
+인물 20명까지 모든 기능을 무료로 씁니다. 그 이상은 정식판(한 번 구매, PC 2대)을 구매해 라이선스 키를 넣으면 인원 제한이 풀립니다. 구매: https://jocbo.pages.dev
 ```
 
 ### 간단한 설명 (Short description)

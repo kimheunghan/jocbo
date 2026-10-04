@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 
 # The share site. Set JOCBO_SHARE_SERVER to try another (netlify dev: http://localhost:8888).
-SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo.netlify.app').rstrip('/')
+SERVER = os.getenv('JOCBO_SHARE_SERVER', 'https://jocbo.pages.dev').rstrip('/')
 # A file larger than this is not sent: the share site keeps each one in a single
 # database cell, which holds 2MB. Photos go up resized and stay well under it.
 LARGEST = 1_900_000
@@ -107,6 +107,25 @@ def push(row, book):
     return fingerprint
 
 
+def moved(row):
+    """A book shared on a site no longer in use is shared anew on this one.
+
+    The share site moved from Netlify to Cloudflare. The new share gets its own
+    link, which the web share panel shows; the copy on the old site is removed
+    if that site still answers, and left alone if not.
+    """
+    from backend import main
+    made = create()
+    try:
+        remove(row)
+    except ShareError:
+        pass
+    values = {'server': SERVER, 'share_id': made['id'], 'token': made['token'], 'synced': ''}
+    with main.engine.begin() as c:
+        c.execute(main.shares.update().where(main.shares.c.book_id == row['book_id']).values(**values))
+    return {**row, **values}
+
+
 def sync_all():
     """Bring every shared book up to date. Gives True when everything went up."""
     with _syncing:
@@ -120,6 +139,8 @@ def _sync_all():
     done = True
     for row in rows:
         try:
+            if row['server'] != SERVER:
+                row = moved(row)
             with main.engine.connect() as c:
                 owner = c.execute(main.select(main.books.c.user_id).where(main.books.c.id == row['book_id'])).scalar()
                 book = main.book_detail(c, row['book_id'], owner)

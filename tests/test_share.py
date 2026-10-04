@@ -122,3 +122,20 @@ def test_photos_go_up_small_and_large(client, site, tmp_path):
     fids = [f['id'] for f in client.get(f'/api/books/{bid}').json()['files']]
     assert sorted(site.files) == sorted([f'/abcdefghijkl/files/{fid}' for fid in fids]
                                         + [f'/abcdefghijkl/files/{fid}?size=thumb' for fid in fids])
+
+
+def test_a_book_shared_on_the_old_site_moves_to_the_new_one(client, site, monkeypatch):
+    account(client)
+    bid = book(client)
+    monkeypatch.setattr(web_share, 'SERVER', 'https://old.example')
+    client.post(f'/api/books/{bid}/share')
+    assert web_share.sync_all()
+    assert client.get(f'/api/books/{bid}/share').json()['link'].startswith('https://old.example/s/')
+
+    monkeypatch.setattr(web_share, 'SERVER', 'https://share.example')
+    assert web_share.sync_all()
+    state = client.get(f'/api/books/{bid}/share').json()
+    assert state['link'] == 'https://share.example/s/abcdefghijkl' and not state['error']
+    # The copy on the old site is taken down, and the book goes up on the new one.
+    assert site.removed == ['/abcdefghijkl']
+    assert site.books['/abcdefghijkl']['book']['id'] == bid

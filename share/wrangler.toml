@@ -9,4 +9,4 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "jocbo-share"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "4cbe9445-3460-4762-b73c-4b062fec0add"

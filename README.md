@@ -33,7 +33,7 @@
 
 ## 홍보 사이트와 Microsoft Store
 
-- 홍보 사이트: <https://jocbo.netlify.app> (`share/web/landing.html`, 개인정보처리방침 `share/web/privacy.html`, 사진 `share/web/img/`). Store 주소와 결제 주소는 landing.html 아래 `STORE_URL`, `CHECKOUT_URL` 두 줄만 고치면 됩니다.
+- 홍보 사이트: <https://jocbo.pages.dev> (`share/web/landing.html`, 개인정보처리방침 `share/web/privacy.html`, 사진 `share/web/img/`). Store 주소와 결제 주소는 landing.html 아래 `STORE_URL`, `CHECKOUT_URL` 두 줄만 고치면 됩니다.
 - Microsoft Store 제출 자료: `store/README.md`(입력 칸별 값), `store/screenshots/`, `store/logo-*.png`.
 
 ## 웹 공유 (가족이 링크로 보기)
@@ -48,7 +48,7 @@ PC 프로그램의 왼쪽 칸 **웹 공유**에서 [공유 시작]을 누르면 
 - 올라가는 것은 족보 기본정보, 인물, 관계, 인물 사진입니다. 족보 원본 사진(판독용)은 올라가지 않습니다.
 - [공유 끝내기]를 누르면 공유 사이트의 사본을 지웁니다. 보내 둔 링크는 더 열리지 않습니다.
 
-공유 사이트는 Netlify에서 돕니다(`share/`, `netlify.toml`). 화면은 `frontend/`를 그대로 쓰고, `share/web/share.js`가 링크로 바로 열기와 보기 전용을 맡습니다. 서버는 `share/netlify/functions/api.mts` 하나이고, 족보 사본과 사진은 Netlify Blobs에 둡니다.
+공유 사이트는 Netlify에서 돕니다(`share/`, Cloudflare Pages: `share/wrangler.toml`, `share/functions/`, `share/schema.sql`). 화면은 `frontend/`를 그대로 쓰고, `share/web/share.js`가 링크로 바로 열기와 보기 전용을 맡습니다. 서버는 `share/netlify/functions/api.mts` 하나이고, 족보 사본과 사진은 Netlify Blobs에 둡니다.
 
 - Netlify 사이트 설정의 환경 변수 `SHARE_SECRET`에 긴 무작위 문자열을 넣어야 합니다. 링크를 연 브라우저에 주는 쿠키(사진을 여는 데 씀)를 서명합니다.
 - PC 프로그램이 올리는 곳은 `backend/share.py`의 `SERVER`이며, 환경 변수 `JOCBO_SHARE_SERVER`로 바꿀 수 있습니다.
