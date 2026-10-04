@@ -142,9 +142,11 @@ export default async (req: Request, context: Context) => {
   // -- 가족: 화면이 부르는 /api (보기만) ---------------------------------
   if (method !== 'GET') return fail(403, READ_ONLY);
   const id = viewer(req);
-  // 화면은 지금 연 공유의 아이디를 붙여 보냅니다. 다른 공유를 열었던 쿠키면 다시 묻습니다.
-  const asked = req.headers.get('x-share');
-  if (!id || (asked && asked !== id)) return fail(401, '공유 링크로 다시 들어와 주십시오.');
+  // 족보 내용은 화면이 붙여 보내는 공유 아이디가 쿠키의 것과 같을 때만 줍니다. 아이디
+  // 없이 묻는 화면(꼬리 없는 주소)에는 전에 연 공유가 있어도 주지 않습니다. 사진(<img>)은
+  // 아이디를 붙일 수 없어 쿠키만 보되, 그 족보에 있는 파일만 줍니다.
+  const asked = req.headers.get('x-share') || '';
+  if (!id || (parts[0] !== 'files' && asked !== id)) return fail(401, '공유 링크로 다시 들어와 주십시오.');
   const book = (await blobs.get(`${id}/book`, { type: 'json' })) as Record<string, any> | null;
   if (!book) return fail(404, '공유가 끝났습니다.');
 
