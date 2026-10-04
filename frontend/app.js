@@ -322,27 +322,28 @@ function paywall(text){
 정식판은 인원 제한 없이 등록할 수 있습니다.`,'정식판 안내')
   .then(ok=>{$('#confirmHeading').textContent='확인';if(ok)openLicense();});
 }
-// 정식판: 구매 페이지로 보내고, 받은 라이선스 키를 넣으면 인원 제한이 풀립니다.
+// 정식판 창. 무료 계정에는 구매와 키 등록을, 정식판 계정에는 쓰고 있다는 것만 보여 줍니다.
+const PRICE='₩29,000';
 async function openLicense(){
  let me;try{me=await api('/me');}catch(err){message(err.message,'error');return;}
  const body=$('#licenseBody');
- if(me.licensed){
-  body.innerHTML='<p>정식판을 쓰고 있습니다. 인물 수 제한이 없습니다.</p>'
-   +'<p class="muted">키 하나로 PC 2대까지 씁니다. 다른 PC로 옮기려면 이 PC의 등록을 먼저 풀어 주십시오.</p>'
-   +'<div class="actions"><button type="button" id="licenseRelease" class="danger">이 PC 등록 풀기</button></div>';
-  $('#licenseRelease').onclick=run(async()=>{
+ if(me.plan!=='free'){
+  $('#licenseHeading').textContent='정식판 사용 중';
+  body.innerHTML='<p>이 계정은 정식판입니다. 인물 수 제한 없이 씁니다.</p>'
+   +(me.licensed?'<p class="muted">키 하나로 PC 2대까지 씁니다. 다른 PC로 옮기려면 이 PC의 등록을 먼저 풀어 주십시오.</p>'
+    +'<div class="actions"><button type="button" id="licenseRelease" class="danger">이 PC 등록 풀기</button></div>':'');
+  if(me.licensed)$('#licenseRelease').onclick=run(async()=>{
    if(!await ask('이 PC 등록 풀기\n\n이 계정은 무료판(인물 20명)으로 돌아갑니다. 기록은 그대로 남습니다.','등록 풀기'))return;
    await busy($('#licenseRelease'),'푸는 중…',()=>api('/license','DELETE'));
    $('#licenseDialog').close();paintPlan();message('이 PC 등록을 풀었습니다');
   });
  }else{
-  body.innerHTML=(me.plan==='free'
-    ?`<p>무료판은 인물 ${me.free_people}명까지입니다. 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
-    :'<p>이 계정은 정식판이 생기기 전에 만든 계정이라 지금도 인원 제한이 없습니다. 다른 PC나 새 계정에서 쓰려면 정식판 키가 필요합니다.</p>')
-   +'<ol class="license-steps"><li>[정식판 구매하기]를 눌러 결제합니다.</li><li>결제 화면과 이메일로 라이선스 키가 옵니다.</li><li>아래 칸에 키를 붙여 넣고 [정식판으로 전환]을 누릅니다.</li></ol>'
-   +'<div class="actions"><button type="button" id="licenseBuy">정식판 구매하기</button></div>'
-   +'<form id="licenseForm"><label>라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키"></label>'
-   +'<div class="actions"><button class="secondary">정식판으로 전환</button></div></form>';
+  $('#licenseHeading').textContent='정식판으로 전환';
+  body.innerHTML=`<p>지금은 <b>무료판</b>입니다(인물 ${me.free_people}명까지, 지금 ${me.people}명). 정식판은 인원 제한이 없고, 한 번 구매로 PC 2대에서 씁니다.</p>`
+   +'<ol class="license-steps"><li>[구매하기]로 결제합니다.</li><li>결제 화면과 이메일로 라이선스 키가 옵니다.</li><li>아래 칸에 키를 붙여 넣고 [키 등록]을 누릅니다.</li></ol>'
+   +`<div class="actions"><button type="button" id="licenseBuy">구매하기 ${PRICE}</button></div>`
+   +'<form id="licenseForm"><label>이미 구매했다면 라이선스 키<input name="key" required minlength="8" maxlength="100" autocomplete="off" spellcheck="false" placeholder="결제 확인 이메일의 키"></label>'
+   +'<div class="actions"><button class="secondary">키 등록</button></div></form>';
   $('#licenseBuy').onclick=()=>{if(me.checkout_url)window.open(me.checkout_url,'_blank');else message('결제 페이지를 준비하고 있습니다. 곧 열립니다.');};
   $('#licenseForm').onsubmit=run(async e=>{
    e.preventDefault();
@@ -353,12 +354,17 @@ async function openLicense(){
  if(!$('#licenseDialog').open)$('#licenseDialog').showModal();
 }
 $('#closeLicense').onclick=()=>$('#licenseDialog').close();
-// 위쪽 [정식판]: 어느 계정이든 구매·키 입력 창을 엽니다.
 $('#licenseOpen').onclick=openLicense;
 // 왼쪽 칸에 무료 인원과 지금 인원을 늘 보여 줍니다. 누르면 정식판 창이 열립니다.
 // 정식판이면 그렇다고 적고, 정식판이 생기기 전부터 있던 계정이면 감춥니다.
 async function paintPlan(){
  let me;try{me=await api('/me');}catch{return;}
+ // 위쪽: 무료 계정에는 할 일([정식판으로 전환]), 정식판 계정에는 지금 상태(정식판)를 적습니다.
+ const top=$('#licenseOpen'),free=me.plan==='free';
+ top.textContent=free?'정식판으로 전환':'정식판';
+ top.classList.toggle('upgrade',free);
+ top.title=free?'구매하거나 라이선스 키를 넣어 인원 제한을 풉니다':'정식판 사용 중';
+ top.hidden=false;
  const note=$('#planNote');
  note.hidden=me.plan!=='free'&&!me.licensed;
  if(note.hidden)return;
@@ -436,7 +442,7 @@ function validDate(value){
  parsed.setUTCFullYear(year,month-1,day);
  return parsed.getUTCFullYear()===year&&parsed.getUTCMonth()===month-1&&parsed.getUTCDate()===day;
 }
-async function enter(){await api('/me');$('#search').value='';$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;$('#licenseOpen').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
+async function enter(){await api('/me');$('#search').value='';$('#auth').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;// The readings are wanted the moment the workspace opens, not after a click.
  await loadHanjaDict().catch(()=>{});await loadBooks();}
 async function loadBooks(selected){const all=await api('/books');paintScriptToggle();$('#bookSelect').innerHTML=all.map(b=>`<option value="${b.id}">${esc(sideScriptText(b.title))}</option>`).join('');if(selected)$('#bookSelect').value=selected;await refresh();}
 async function refresh(){const bid=$('#bookSelect').value;book=bid?await api('/books/'+bid):null;if(book)normalizeBookGenerations();$('#bookTitle').textContent=book?scriptText(book.title):'족보 없음';$('#relationsPanel').hidden=!book;$('#print').disabled=!book;$('#printTree').disabled=!book;$('#newPerson').disabled=!book;$('#bookInfoForm').hidden=!book;if(book){for(const name of ['volume','page','page_breaks','description'])$('#bookInfoForm').elements[name].value=book[name]||'';paintBookFields();}paintReadings();paintBookFacts();render();renderRelations();paintShare();paintPlan();}

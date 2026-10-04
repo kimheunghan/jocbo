@@ -77,10 +77,19 @@ header .seal {
   color: #fff;
 }
 
-/* 정식판 단추는 금빛 테두리로 로그아웃과 구별합니다. */
+/* 정식판 계정: 상태 표시라 조용하게, 무료 계정: 할 일이라 금빛으로 채웁니다. */
 #licenseOpen {
   border-color: #d8bf85;
   color: #f1e3bd;
+}
+
+#licenseOpen.upgrade {
+  background: #d8bf85;
+  color: #13254a;
+}
+
+#licenseOpen.upgrade:hover {
+  background: #e6cf98;
 }
 
 .header-actions {
