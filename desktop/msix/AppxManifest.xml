@@ -34,13 +34,16 @@
                           BackgroundColor="transparent"
                           Square150x150Logo="Assets\Square150x150Logo.png"
                           Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\Square71x71Logo.png"
+                         Square310x310Logo="Assets\Square310x310Logo.png" />
       </uap:VisualElements>
       <!-- 설치하면 바탕화면에 바로가기를 만들고, 지우면 함께 지웁니다. Store 앱은 이것이 없으면
-           시작 메뉴에만 나타나 설치되지 않은 것처럼 보입니다. -->
+           시작 메뉴에만 나타나 설치되지 않은 것처럼 보입니다. 바로가기는 위 uap10:Parameters 를
+           받지 못하므로 같은 인수를 Arguments 로 줍니다(없으면 파이썬만 켜졌다 꺼집니다). -->
       <Extensions>
         <desktop7:Extension Category="windows.shortcut">
-          <desktop7:Shortcut File="[{Desktop}]\우리의 족보.lnk" Icon="[{Package}]\Assets\jocbo.ico" />
+          <desktop7:Shortcut File="[{Desktop}]\우리의 족보.lnk" Icon="[{Package}]\Assets\jocbo.ico"
+                             Arguments="-m launcher" />
         </desktop7:Extension>
       </Extensions>
     </Application>

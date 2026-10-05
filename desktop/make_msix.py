@@ -39,11 +39,53 @@ def logo(size, width=None):
     return img
 
 
-def makeappx():
-    found = sorted(glob.glob(r'C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\makeappx.exe'))
+def icons(assets):
+    """Windows 가 화면마다 골라 쓰는 크기의 그림을 모두 만듭니다.
+
+    설치 진행 표시·작업 표시줄·알림은 targetsize 그림(16~256), 시작 메뉴와 타일은
+    배율(scale-100~400) 그림을 찾습니다. 맞는 크기가 없으면 빈 칸이나 흐린 그림이
+    나옵니다. 어느 그림을 쓸지는 resources.pri 가 알려 줍니다.
+    """
+    shutil.rmtree(assets, ignore_errors=True)
+    assets.mkdir()
+    scales = (100, 125, 150, 200, 400)
+    tiles = {'StoreLogo': (50, 50), 'Square44x44Logo': (44, 44), 'Square71x71Logo': (71, 71),
+             'Square150x150Logo': (150, 150), 'Square310x310Logo': (310, 310), 'Wide310x150Logo': (310, 150)}
+    for name, (w, h) in tiles.items():
+        logo(h, w).save(assets / f'{name}.png')
+        for s in scales:
+            logo(round(h * s / 100), round(w * s / 100)).save(assets / f'{name}.scale-{s}.png')
+    for size in (16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256):
+        im = logo(size)
+        im.save(assets / f'Square44x44Logo.targetsize-{size}.png')
+        im.save(assets / f'Square44x44Logo.targetsize-{size}_altform-unplated.png')
+        im.save(assets / f'Square44x44Logo.targetsize-{size}_altform-lightunplated.png')
+
+
+def sdk_tool(name):
+    found = sorted(glob.glob(rf'C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\{name}'))
     if not found:
-        sys.exit('MakeAppx.exe 를 찾지 못했습니다(Windows SDK 필요).')
+        sys.exit(f'{name} 를 찾지 못했습니다(Windows SDK 필요).')
     return found[-1]
+
+
+def makeappx():
+    return sdk_tool('makeappx.exe')
+
+
+def resources():
+    """그림 크기별 목록(resources.pri)을 만듭니다. 이것이 없으면 Windows 는 크기를 고르지 못합니다."""
+    makepri = sdk_tool('makepri.exe')
+    # 프로그램 폴더 전체를 훑으면 파이썬 꾸러미의 ko·en 같은 폴더 이름을 언어로 잘못 읽습니다.
+    # 그림과 설명서만 따로 두고 목록을 만듭니다(목록 속 경로는 패키지 기준이라 같습니다).
+    stage = ROOT / 'build' / 'pri'
+    shutil.rmtree(stage, ignore_errors=True)
+    shutil.copytree(APP / 'Assets', stage / 'Assets')
+    shutil.copy(APP / 'AppxManifest.xml', stage / 'AppxManifest.xml')
+    config = ROOT / 'build' / 'priconfig.xml'
+    subprocess.run([makepri, 'createconfig', '/cf', str(config), '/dq', 'ko-KR', '/o'], check=True)
+    subprocess.run([makepri, 'new', '/pr', str(stage), '/cf', str(config), '/mn', str(stage / 'AppxManifest.xml'),
+                    '/of', str(APP / 'resources.pri'), '/o'], check=True)
 
 
 def main(version):
@@ -62,18 +104,13 @@ def main(version):
         manifest = manifest.replace('{{' + key + '}}', value)
     (APP / 'AppxManifest.xml').write_text(manifest, encoding='utf-8')
 
-    assets = APP / 'Assets'
-    shutil.rmtree(assets, ignore_errors=True)
-    assets.mkdir()
-    logo(50).save(assets / 'StoreLogo.png')
-    logo(44).save(assets / 'Square44x44Logo.png')
-    logo(150).save(assets / 'Square150x150Logo.png')
-    logo(150, 310).save(assets / 'Wide310x150Logo.png')
-    shutil.copy(Path(__file__).resolve().parent / 'jocbo.ico', assets / 'jocbo.ico')  # 바탕화면 바로가기 그림
+    icons(APP / 'Assets')
+    shutil.copy(Path(__file__).resolve().parent / 'jocbo.ico', APP / 'Assets' / 'jocbo.ico')  # 바탕화면 바로가기 그림
     # 패키지 안은 읽기 전용이라 실행 중에 생기는 캐시는 쓰이지 않습니다. 미리 만든 것도 뺍니다.
     for cache in APP.rglob('__pycache__'):
         shutil.rmtree(cache, ignore_errors=True)
 
+    resources()
     out = ROOT / 'build' / 'jocbo.msix'
     out.unlink(missing_ok=True)
     subprocess.run([makeappx(), 'pack', '/d', str(APP), '/p', str(out), '/o'], check=True)
