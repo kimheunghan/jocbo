@@ -57,6 +57,106 @@ def _reader():
     return _engine
 
 
+_korean_engine = None
+HANGUL = re.compile(r'[가-힣]')
+
+
+def _korean():
+    """The reader for hangul (PP-OCRv5 Korean), or None where it cannot be had.
+
+    The 족보 reader is taught hanja and turns hangul into nonsense characters:
+    학과졸업 comes back as 計斗. A page sets much in hangul — the reading of a
+    name in brackets, a career, an address — so each line is read by this one
+    too, and where it is hangul its reading is taken.
+    """
+    global _korean_engine
+    if _korean_engine is None:
+        try:
+            from rapidocr import RapidOCR, OCRVersion, ModelType, LangRec
+            _korean_engine = RapidOCR(params={
+                'Global.log_level': 'error', 'Global.max_side_len': 3000,
+                'Det.ocr_version': OCRVersion.PPOCRV5, 'Det.model_type': ModelType.MOBILE,
+                'Rec.ocr_version': OCRVersion.PPOCRV5, 'Rec.lang_type': LangRec.KOREAN,
+                'Rec.model_type': ModelType.MOBILE})
+        except Exception:
+            _korean_engine = False
+    return _korean_engine or None
+
+
+def _hangul_share(text):
+    letters = [char for char in text if not char.isspace() and char not in '()（）']
+    return sum(1 for char in letters if HANGUL.match(char)) / len(letters) if letters else 0.0
+
+
+BRACKETS = re.compile(r'[（(]([^（(）)]*)([）)]?)')
+
+
+def _merged(text, score, korean, korean_score):
+    """One line as both readers read it.
+
+    A line of hangul (학과졸업) is the Korean reader's. In a line of hanja with
+    a hangul reading in brackets (配全州崔氏（전주최씨）), the hanja are the 족보
+    reader's and what is in the brackets is the Korean one's.
+    """
+    if not korean or korean_score < 0.5:
+        return text
+    if not re.search(r'[（(]', text):
+        if _hangul_share(korean) >= 0.7 and korean_score >= 0.6 and score < 0.85:
+            return korean
+        return text
+    readings = [inside for inside, _ in BRACKETS.findall(korean) if HANGUL.search(inside)]
+    if not readings and _hangul_share(korean) >= 0.8 and len(BRACKETS.findall(text)) == 1:
+        readings = [korean.strip()]
+    if not readings:
+        return text
+    queue = iter(readings)
+
+    def put(match):
+        reading = next(queue, None)
+        return match.group(0) if reading is None else '（' + reading + (match.group(2) or '')
+
+    return BRACKETS.sub(put, text)
+
+
+def _with_hangul(turned, found):
+    """The hanja reader's lines with their hangul read by the Korean reader,
+    and the lines of hangul it did not find at all (한라대학교 교무처장)."""
+    korean = _korean()
+    if not korean or not found:
+        return found
+    import numpy
+    out = []
+    for corners, text, score in found:
+        xs = [point[0] for point in corners]
+        ys = [point[1] for point in corners]
+        crop = turned.crop((int(min(xs)), int(min(ys)), int(max(xs)) + 1, int(max(ys)) + 1))
+        read = korean(numpy.asarray(crop), use_det=False, use_cls=False)
+        reading = (read.txts or [''])[0] if read.txts else ''
+        reading_score = float((read.scores or [0])[0]) if read.scores else 0.0
+        out.append((corners, _merged(text, score, reading, reading_score), score))
+
+    def area(box):
+        return max(0, box[2] - box[0]) * max(0, box[3] - box[1])
+
+    def bounds(corners):
+        xs = [point[0] for point in corners]
+        ys = [point[1] for point in corners]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    taken = [bounds(corners) for corners, _, _ in found]
+    whole = korean(numpy.asarray(turned), use_det=True, use_cls=True, use_rec=True)
+    for corners, text, score in zip(whole.boxes if whole.boxes is not None else [], whole.txts or [], whole.scores or []):
+        box = bounds(corners.tolist())
+        overlap = max((area((max(box[0], other[0]), max(box[1], other[1]), min(box[2], other[2]), min(box[3], other[3])))
+                       for other in taken), default=0)
+        # Four letters at least: the reading set small beside a name (정환) is two
+        # or three, and taken as a line of its own it would split the name.
+        if (float(score) >= 0.8 and _hangul_share(text) >= 0.7 and len(HANGUL.findall(text)) >= 4
+                and overlap < 0.3 * max(area(box), 1)):
+            out.append((corners.tolist(), text, float(score)))
+    return out
+
+
 def _traditional(text):
     """The model is trained on simplified characters; a 족보 is not written in them."""
     global _convert
@@ -657,7 +757,10 @@ CLAN_HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2})\s*([㐀-鿿])\s*氏\s*(?:[（(]
 # The spouse's own name comes just before with its hangul too, which the reader
 # turns into characters of its own that run into the father's; the bracket that
 # closes right after him is what marks where his name ends.
-FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
+FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(]([^（(）)]{0,6})[）)]\s*女')
+# 配 尙州黃氏 慧淑(상주황씨혜숙) 鍾萬(종만) 一九四七年: her name, then a second one
+# with its bracket right before the date — her father's, the 女 lost.
+UNMARKED_FATHER = re.compile(r'氏\s*[㐀-鿿]{2}\s*[（(][^（(）)]*?[）)]?\s*([㐀-鿿]{2})\s*[（(]([^（(）)]{0,6})[）)]\s*(?=[〇零○一二三四五六七八九0-9])')
 # 墓는 comes back as 墓二, 墓雲, 墓亡, 墓乞, 墓六 or 墓匕.
 # 墓는 合墳(합분): a grave shared with the spouse names no place at all.
 # 墓는 大邱市 達城郡 瑜伽面 陽里 山一六五-一 雙墳 石物(석물) 있음: a place given
@@ -729,8 +832,17 @@ def _notes(chunk, dated):
     # In the order the page gives them: her father, the day of her rites, her grave.
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
+        # Written as the page writes it, 鍾萬(종만)女 — the page gives no 父 here,
+        # so none is added. The reading is the page's where the Korean reader
+        # had it, or left for the hanja's own reading to fill: 鍾萬()女.
         fathers = list(FATHER.finditer(chunk))
-        notes += ['父 ' + _fixed(match.group(1)) for match in fathers]
+        if not fathers:
+            # 鍾萬(종만)女 with its 女 lost by the reader: a second name with its
+            # bracket after hers, just before her birth date.
+            lost = UNMARKED_FATHER.search(chunk)
+            if lost:
+                notes.append('%s(%s)女' % (_fixed(lost.group(1)), _reading(lost.group(2))))
+        notes += ['%s(%s)女' % (_fixed(match.group(1)), _reading(match.group(2))) for match in fathers]
         # 配 慶州崔氏 三順 鎭翰(진한)女 子 東炫 女 志娟: some books list her
         # children after her father, as for a husband.
         if fathers:
@@ -739,10 +851,28 @@ def _notes(chunk, dated):
     # 墓는, as the page writes it, where the reader saw the 는 in some shape.
     # 碑石 및 床石(비석 및 상석) 있음: stones are named because they stand there;
     # the page's 있음 is hangul the reader cannot give back.
+    graves = list(GRAVE.finditer(marked))
     notes += [('墓는 ' if match.group('nun') else '墓 ') + _grave_words(match.group('place') + match.group('stones'))
               + (' 있음' if re.search('石物|床石|牀石|碑石|墓碑', match.group('stones')) else '')
-              for match in GRAVE.finditer(marked)]
+              for match in graves]
+    # 연세대학교 상경대학 경영학과 졸업 한라건설 상무이사: what the page sets in
+    # hangul outside a bracket — a career, an office held — goes in as read.
+    rest = marked
+    for match in reversed(graves):
+        rest = rest[:match.start()] + BRACKET + rest[match.end():]
+    # The reading set small beside the name itself (女點先 점선) is the name's,
+    # not something more the page says.
+    rest = re.sub(r'^([子女配])([㐀-鿿]{1,3})\s*[가-힣]{1,4}(?![가-힣])', r'\1\2', rest)
+    told = [run.strip() for run in re.findall(r'[가-힣][가-힣\s]*', rest.replace(BRACKET, '|'))
+            if len(HANGUL.findall(run)) >= 2]
+    if told:
+        notes.append(' '.join(told))
     return '\n'.join(notes)
+
+
+def _reading(text):
+    """The hangul in a bracket when the Korean reader gave it, else nothing."""
+    return text if text and _hangul_share(text) >= 0.7 else ''
 
 
 def _children(text):
@@ -975,8 +1105,9 @@ def _not_her_own_father(person):
     name = person['hanja_name']
     if not person['married_in'] or len(name) < 3 or name.endswith('氏'):
         return
-    own = '父 ' + name[-2:]
-    person['note'] = '\n'.join(item for item in person['note'].split('\n') if item != own)
+    own = name[-2:] + '('
+    person['note'] = '\n'.join(item for item in person['note'].split('\n')
+                               if not (item.startswith(own) and item.endswith(')女')))
 
 
 DAY = re.compile(r'(기일|생일) (\d{1,2})월 (\d{1,2})일')
@@ -1017,7 +1148,9 @@ def read(path, surname=''):
     # The reader works in lines across, so the page is turned a quarter left
     # and every column becomes a line read left to right. It misses fewer
     # columns that way than reading them standing.
-    result, _ = _reader()(page.rotate(90, expand=True))
+    turned = page.rotate(90, expand=True)
+    result, _ = _reader()(turned)
+    result = _with_hangul(turned, result)
     boxes = []
     for corners, text, score in result or []:
         xs = [point[0] for point in corners]

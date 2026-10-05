@@ -2590,7 +2590,10 @@ const NOTE_LABELS=new Set(['初名','一名','系子','生父']);
 function fillMarkedReadings(line){
  const words=line.split(' ');
  for(let i=0;i<words.length;i++){
-  if(!words[i].endsWith('()'))continue;
+  // 鍾萬()女: the page's 女 follows the bracket within the word.
+  const tail=(words[i].match(/\(\)([^\s()]+)$/)||[])[1]||'';
+  if(tail)words[i]=words[i].slice(0,-tail.length);
+  if(!words[i].endsWith('()')){words[i]+=tail;continue;}
   const base=words[i].slice(0,-2),group=[base];
   for(let j=i-1;j>=0;j--){
    const word=words[j];
@@ -2600,7 +2603,7 @@ function fillMarkedReadings(line){
    group.unshift(word);
   }
   const reading=base?readingOf(group.join(' ')):'';
-  words[i]=base+(reading&&/^[가-힣 ]+$/.test(reading)?`(${reading})`:'');
+  words[i]=base+(reading&&/^[가-힣 ]+$/.test(reading)?`(${reading})`:'')+tail;
  }
  return words.filter(Boolean).join(' ');
 }
@@ -2670,13 +2673,24 @@ $('#claudeKeySave').onclick=async()=>{
  $('#claudeKeyBox').hidden=true;
  message('Claude API 키 저장 완료 — [Claude로 판독]을 다시 누르세요');
 };
+// Reading a page takes half a minute or more; the dialog says so, counts the
+// seconds and keeps a bar moving, so the wait is not taken for a hang.
+async function withScanProgress(label,work){
+ const box=$('#scanProgress'),started=Date.now();
+ $('#scanProgressText').textContent=label.replace(/….*$/,'');
+ $('#scanProgressHint').textContent=/Claude/.test(label)?'Claude 판독은 1~3분쯤 걸립니다. 창을 닫지 마십시오.':'사진 한 장에 30초~1분쯤 걸립니다. 창을 닫지 마십시오.';
+ const tick=()=>{$('#scanProgressTime').textContent=Math.round((Date.now()-started)/1000)+'초';};
+ tick();box.hidden=false;
+ const timer=setInterval(tick,1000);
+ try{return await work();}finally{clearInterval(timer);box.hidden=true;}
+}
 async function readScan(engine,button,waiting){
  scanError();
  const id=Number($('#scanPick').value);
  if(!id){scanError('족보 이미지 없음 — 먼저 올리기');return;}
  let found;
  try{
-  found=await busy(button,waiting,()=>api('/scans/'+id+'/read'+(engine?'?engine='+engine:''),'POST'));
+  found=await withScanProgress(waiting,()=>busy(button,waiting,()=>api('/scans/'+id+'/read'+(engine?'?engine='+engine:''),'POST')));
  }catch(err){
   if(engine==='claude'&&/키/.test(err.message))$('#claudeKeyBox').hidden=false;
   scanError(err.message);

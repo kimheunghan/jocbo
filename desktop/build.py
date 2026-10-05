@@ -115,9 +115,11 @@ def demo_only():
 
 def ocr_models():
     """판독 모델은 처음 판독할 때 꾸러미 폴더로 내려받습니다. 여기서 미리 받아 둡니다."""
-    run(str(RUNTIME / 'python.exe'), '-c', 'from backend.readscan import _reader; _reader()', cwd=OUT)
+    # 한자 모델과, 한글(괄호 속 음·경력·주소)을 읽는 한국어 모델을 함께 받습니다.
+    run(str(RUNTIME / 'python.exe'), '-c',
+        'from backend.readscan import _reader, _korean; _reader(); assert _korean()', cwd=OUT)
     models = list(SITE.glob('rapidocr/models/*.onnx'))
-    if not models:
+    if not models or not any('korean' in p.name for p in models):
         sys.exit('판독 모델이 받아지지 않았습니다.')
     print('판독 모델:', ', '.join(p.name for p in models))
 

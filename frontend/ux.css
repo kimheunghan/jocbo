@@ -2430,3 +2430,12 @@ button {
   min-width: 0;
   flex-wrap: wrap;
 }
+
+/* 판독 중: 걸리는 시간을 알리고, 움직이는 막대로 멈추지 않았음을 보여 줍니다. */
+.scan-progress { margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--line, #e4dccb); border-radius: 10px; background: #fffaf0; }
+.scan-progress p { margin: 0 0 6px; }
+.scan-progress small { color: #6b7280; }
+.scan-progress-bar { position: relative; height: 6px; margin-bottom: 6px; overflow: hidden; border-radius: 999px; background: #eee3cc; }
+.scan-progress-bar span { position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 999px; background: #b89a5a; animation: scan-progress 1.4s ease-in-out infinite; }
+@keyframes scan-progress { 0% { left: -35%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .scan-progress-bar span { animation-duration: 4s; } }

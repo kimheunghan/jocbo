@@ -101,7 +101,7 @@ def test_what_a_spouse_and_a_daughter_bring():
     # in the page's order.
     wife = r._entries('配全州崔氏（烈平劉從）鶴林（計臺）女忌雲九月十九日墓雲同原酉坐（妄', '金', starts={0})[0]
     assert (wife['hanja_name'], wife['bon_gwan'], wife['death_date']) == ('崔氏', '全州', '--09-19')
-    assert wife['note'] == '父 鶴林\n忌는 九月十九日\n墓는 同原 酉坐()'
+    assert wife['note'] == '鶴林()女\n忌는 九月十九日\n墓는 同原 酉坐()'
     # The same line read badly: (전주최씨) and 鶴林 come back as nonsense with
     # one character, 車, and 墓 as 基. She is still 崔氏, with what can be read.
     wife = r._entries('配全州崔氏（羽平卦冷(吧)車(三忌七九月十九日基雲同原酉坐（三', '金', starts={0})[0]
@@ -112,7 +112,7 @@ def test_what_a_spouse_and_a_daughter_bring():
     # husband is 合墳, facing no way at all.
     wife = r._entries('配昌寧成氏（諮從）元永（）女墓雲合墳（計號）', '金', starts={0})[0]
     assert (wife['hanja_name'], wife['bon_gwan']) == ('成氏', '昌寧')
-    assert wife['note'] == '父 元永\n墓는 合墳()'
+    assert wife['note'] == '元永()女\n墓는 合墳()'
     # A bracket the reader left open does not swallow the 忌 and 墓 after it.
     wife = r._entries('配延安車氏（補從忌六七月二十八日墓亡陽洞後山（喜享處）子坐(R對)', '金', starts={0})[0]
     # A grave given by its address runs on to its 雙墳 and 石物, each word set
@@ -130,7 +130,15 @@ def test_what_a_spouse_and_a_daughter_bring():
 
     # Some books list a wife's father and children under her as for a husband.
     band = r._entries('子相錫一九二一年辛酉十二月二十六日生配慶州崔氏三順（경주최씨삼순）鎭翰（진한）女子東炫女志娟', '金', {0})
-    assert [(one['hanja_name'], one['note']) for one in band] == [('金相錫', ''), ('崔三順', '父 鎭翰\n子 東炫\n女 志娟')]
+    assert [(one['hanja_name'], one['note']) for one in band] == [('金相錫', ''), ('崔三順', '鎭翰(진한)女\n子 東炫\n女 志娟')]
+    # 鍾萬(종만)女 with its 女 lost by the reader is still written as the page has it.
+    wife = r._entries('配尚州黃氏慧淑（상주황씨혜숙）鍾萬(종만)一九四七年丁亥七月十六日生', '金', starts={0})[0]
+    assert (wife['hanja_name'], wife['note'], wife['birth_date']) == ('黃慧淑', '鍾萬(종만)女', '1947-07-16')
+    # A career set in hangul goes in as read; the dates go only in their fields.
+    son = r._entries('子正煥初名正熙一九四八年戊子二月二十六日生연세대학교상경대학 경영학과졸업설상무이사 한라', '金', starts={0})[0]
+    assert (son['birth_date'], son['note']) == ('1948-02-26', '初名 正熙\n연세대학교상경대학 경영학과졸업설상무이사 한라')
+    # The reading beside a name is the name's, not a note.
+    assert r._entries('女點先점선', '金', starts={0})[0]['note'] == ''
     # Undated people of the book after an in-law stay people: a daughter with
     # her own husband after another daughter's, a son after a wife.
     band = r._entries('女順熙夫朴在德（박재덕）密陽（밀양）人子玄熙' '女點先夫諸葛芝奉（제갈지봉）', '金')
@@ -192,9 +200,9 @@ def test_what_only_the_head_of_a_column_can_open():
     assert read[0]['birth_date'] == '1956-07-27'
     # The bracket closing after him marks where 東國 ends, whatever stray
     # characters the spouse's own hangul became before him.
-    assert read[0]['note'] == '父 東國'
+    assert read[0]['note'] == '東國()女'
     clear = r._entries('配天安全氏京愛（천안전씨경애）東國（동국）女一九五六年丙申七月二十七日生', '金')[0]
-    assert clear['note'] == '父 東國'
+    assert clear['note'] == '東國(동국)女'
     assert r._entries('配金寫金氏美蘭（可相（女一九六〇年庚子一月十一日生', '金')[0]['note'] == ''
     assert r._entries('配金寫金氏美蘭', '金')[0]['bon_gwan'] == '金寧'
     # An older book names a daughter by her husband and his 본관: she is
@@ -291,4 +299,4 @@ def test_a_son_headed_by_his_forebears_is_read_without_子():
 
 def test_a_spouses_father_ends_where_his_bracket_closes():
     read = r._entries('配清州韓氏明來（祠昭叫世東(川吾)女一九七八年戊午十二月十二日生', '金')[0]
-    assert (read['hanja_name'], read['note'], read['birth_date']) == ('韓明來', '父 世東', '1978-12-12')
+    assert (read['hanja_name'], read['note'], read['birth_date']) == ('韓明來', '世東()女', '1978-12-12')
