@@ -69,6 +69,7 @@ def main(version):
     logo(44).save(assets / 'Square44x44Logo.png')
     logo(150).save(assets / 'Square150x150Logo.png')
     logo(150, 310).save(assets / 'Wide310x150Logo.png')
+    shutil.copy(Path(__file__).resolve().parent / 'jocbo.ico', assets / 'jocbo.ico')  # 바탕화면 바로가기 그림
     # 패키지 안은 읽기 전용이라 실행 중에 생기는 캐시는 쓰이지 않습니다. 미리 만든 것도 뺍니다.
     for cache in APP.rglob('__pycache__'):
         shutil.rmtree(cache, ignore_errors=True)
