@@ -651,6 +651,8 @@ OTHER_NAMES = re.compile(r'(字|初名|號|諱)\s*([㐀-鿿]{2})')
 # Where a person lies: 墓 up to the way the grave faces. 墓는 comes back as 墓二,
 # since the reader has no hangul.
 HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2,4}?)(?=[（(子]|$)')
+# 夫 安東金氏 興漢(흥한): a husband named as a wife is, by 본관 and clan, then his name.
+CLAN_HUSBAND = re.compile(r'夫\s*([㐀-鿿]{2})\s*([㐀-鿿])\s*氏\s*(?:[（(][^（(）)]{0,8}[）)]?)?\s*([㐀-鿿]{2})')
 # 父: 世東(세동)女 — the father's name with its hangul in a bracket, then 女.
 # The spouse's own name comes just before with its hangul too, which the reader
 # turns into characters of its own that run into the father's; the bracket that
@@ -718,7 +720,12 @@ def _notes(chunk, dated):
     # In the order the page gives them: her father, the day of her rites, her grave.
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
-        notes += ['父 ' + _fixed(name) for name in FATHER.findall(chunk)]
+        fathers = list(FATHER.finditer(chunk))
+        notes += ['父 ' + _fixed(match.group(1)) for match in fathers]
+        # 配 慶州崔氏 三順 鎭翰(진한)女 子 東炫 女 志娟: some books list her
+        # children after her father, as for a husband.
+        if fathers:
+            notes += _children(chunk[fathers[-1].end():])
     notes += _yearless(chunk, dated)
     # 墓는, as the page writes it, where the reader saw the 는 in some shape.
     notes += [('墓는 ' if match.group('nun') else '墓 ') + _grave_words(match.group('place') + match.group('stones'))
@@ -730,7 +737,10 @@ def _children(text):
     """子 東炫 女 志娟, as a husband's entry lists them: each 子 or 女 with the
     two-character names after it (女 智恩 睿恩 is two daughters). A date ends
     the list, and the 子 of 庚子 is no son."""
-    plain = re.sub(r'[（(][^）)]*[）)]?', '', text)
+    # A bracket holds a reading. One the reader left open (諸葛芝奉（望刈號子柄律)
+    # takes the few characters of that reading, never the 子 or 女 after it.
+    plain = re.sub(r'[（(][^（(）)]*[）)]', '', text)
+    plain = re.sub(r'[（(][^（(）)子女]{0,6}', '', plain)
     cut = DATE_START.search(plain)
     plain = plain[:cut.start()] if cut else plain
     marks = [index for index, char in enumerate(plain) if char in '子女'
@@ -744,7 +754,8 @@ def _children(text):
         # follows is another column's text run on (一大大四手甲寅).
         kept = []
         for name in names:
-            if any(char in DIGITS or char in '年月日生卒' for char in name):
+            # 字聲後 after the names is the next column's 字, not a child.
+            if any(char in DIGITS or char in '年月日生卒字號諱忌墓配夫坐向' for char in name):
                 break
             kept.append(_fixed(name))
         names = kept
@@ -842,6 +853,17 @@ def _entries(stream, surname, starts=None):
             continue
         else:
             given = _name(chunk[1:])
+            # 女 点先 夫 諸葛芝奉 子 柄律: the reader may set 子柄律 apart, as a line of
+            # its own. Undated, in the band of the one married in that it follows,
+            # it is a child named in that entry — a husband's or a wife's, as some
+            # books list them under her too — and goes in that note, not the book.
+            spouse = people[-1] if people else None
+            if (marker in '子女' and given and spouse and spouse.get('_partner') and spouse['married_in']
+                    and not _dates(chunk)):
+                kids = _children(chunk)
+                if kids:
+                    spouse['note'] = '\n'.join(filter(None, [spouse['note']] + kids))
+                    continue
             # A bare marker, or one that is really part of a 간지, is not a person;
             # nor is (지한)女 一九二四年, a date the reader took for a name.
             if not 1 <= len(given) <= 3 or all(char in DIGITS for char in given):
@@ -900,11 +922,19 @@ def _entries(stream, surname, starts=None):
         # hers — 夫 金熙旋 瑞興人 父 學龍 — and is proposed after her, so he can
         # be filed and joined to her as her spouse.
         if marker == '女':
-            for match in HUSBAND.finditer(chunk):
-                husband = _fixed(match.group(1))
+            clan = list(CLAN_HUSBAND.finditer(chunk))
+            for match in clan or HUSBAND.finditer(chunk):
                 after = chunk[match.end():match.end() + 24]
-                home = re.match(r'\s*(?:[（(][^）)]*[）)]?)?\s*([㐀-鿿]{2})\s*(?:[（(][^）)人]*[）)]?)?\s*人', after)
-                father = re.search(r'人\s*父\s*([㐀-鿿]{2})', after)
+                if clan:
+                    family = MISCONVERTED.get(match.group(2), match.group(2))
+                    husband = _fixed(family + match.group(3))
+                    home = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in match.group(1)))
+                    father = re.search(r'^\s*(?:[（(][^（(）)]{0,8}[）)]?)?\s*父\s*([㐀-鿿]{2})', after)
+                else:
+                    husband = _fixed(match.group(1))
+                    found_home = re.match(r'\s*(?:[（(][^）)]*[）)]?)?\s*([㐀-鿿]{2})\s*(?:[（(][^）)人]*[）)]?)?\s*人', after)
+                    home = _bon_gwan(found_home.group(1)) if found_home else ''
+                    father = re.search(r'人\s*父\s*([㐀-鿿]{2})', after)
                 # His name and 본관 have fields of their own and the marriage is
                 # the spouse link; his note is what is left: his father and
                 # their children.
@@ -913,7 +943,7 @@ def _entries(stream, surname, starts=None):
                 people.insert(entry + 1, {
                     '_partner': people[entry],
                     'hanja_name': husband, 'gender': '남',
-                    'bon_gwan': _bon_gwan(home.group(1)) if home else '',
+                    'bon_gwan': home,
                     'birth_date': '', 'death_date': '', 'married_in': True, 'ganji_agrees': None,
                     'note': '\n'.join(note),
                     'raw': chunk[match.start():match.start() + 80], 'at': start,

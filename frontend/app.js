@@ -2621,7 +2621,9 @@ function scanFillRow(row,person,generation){
  // The page gives the characters; the reading follows from them — unless the
  // reader could read the hangul the page prints beside the name itself.
  get('korean_name').value=person.korean_name||readingOf(person.hanja_name||'')||'';
- get('bon_gwan').value=person.bon_gwan||(book?book.bon_gwan||'':'');
+ // Someone who married in (a 配 wife, a daughter's 夫) is of another family:
+ // the book's own 본관 is not theirs, so only what the page gives stands.
+ get('bon_gwan').value=person.bon_gwan||(person.married_in?'':(book?book.bon_gwan||'':''));
  get('gender').value=person.gender||'미상';
  get('birth_date').value=person.birth_date||'';
  get('death_date').value=person.death_date||'';

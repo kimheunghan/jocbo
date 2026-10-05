@@ -123,9 +123,23 @@ def test_what_a_spouse_and_a_daughter_bring():
     assert (wife['hanja_name'], wife['bon_gwan'], wife['death_date']) == ('車氏', '延安', '--07-28')
     assert wife['note'] == '忌는 七月二十八日\n墓는 陽洞後山() 子坐()'
 
-    # A daughter's son belongs to her husband's line, not this book's.
+    # Some books list a wife's father and children under her as for a husband.
+    band = r._entries('子相錫一九二一年辛酉十二月二十六日生配慶州崔氏三順（경주최씨삼순）鎭翰（진한）女子東炫女志娟', '金', {0})
+    assert [(one['hanja_name'], one['note']) for one in band] == [('金相錫', ''), ('崔三順', '父 鎭翰\n子 東炫\n女 志娟')]
+    # 夫 安東金氏 興漢(흥한): a husband named by 본관 and clan, as a wife is.
+    daughter, husband = r._entries('女珍英夫安東金氏（안동김씨）興漢（흥한）子東炫', '金', {0})
+    assert (husband['hanja_name'], husband['bon_gwan'], husband['note']) == ('金興漢', '安東', '子 東炫')
+    # A daughter's son belongs to her husband's line, not this book's: he is
+    # named in her husband's note.
     band = r._entries('女點先夫諸葛芝奉（제갈지봉）子柄律子相錫一九二一年辛酉十二月二十六日生', '金')
     assert [one['hanja_name'] for one in band] == ['金点先', '諸葛芝奉', '金相錫']
+    assert band[1]['note'] == '子 柄律'
+    # The bracket after the husband's name left open still leaves his son.
+    band = r._entries('女點先夫諸葛芝奉（望刈號子柄律字聲後', '金')
+    assert [(one['hanja_name'], one['note']) for one in band] == [('金点先', ''), ('諸葛芝奉', '子 柄律')]
+    # 子柄律 read as a line of its own, undated, after her husband: still his son.
+    band = r._entries('女點先君夫諸葛芝奉（刈望(oke子柄律', '金')
+    assert [(one['hanja_name'], one['note']) for one in band] == [('金点先', ''), ('諸葛芝奉', '子 柄律')]
     # Her husband is proposed after her, to be filed as her spouse; her note is
     # hers, and what the page says of him and their children is his.
     assert band[0]['note'] == ''
