@@ -119,13 +119,25 @@ def test_what_a_spouse_and_a_daughter_bring():
     # apart to take its own reading, through the reader's broken brackets.
     son = r._entries('子相三字龍三一九一五年乙卯十二月二十三日生一九八二年壬戌二月八日卒'
                      '墓六大邱市達城郡瑜伽面陽裏（川子川生F（一六五一雙墳（咎是）石物（勻量）', '金', starts={0})[0]
-    assert son['note'] == '字 龍三\n墓는 大邱市 達城郡 瑜伽面 陽里() 一六五一 雙墳() 石物()'
+    assert son['note'] == '字 龍三\n墓는 大邱市 達城郡 瑜伽面 陽里() 一六五一 雙墳() 石物() 있음'
+    # 陽里(…) 山一七一-三 酉坐封墳(유좌봉분) 碑石 및 床石(비석 및 상석) 있음: the 山
+    # of the lot number, the mound and both stones are kept; 및 comes back as 巽.
+    son = r._entries('子相錫字龍鶴一九二一年辛酉十二月二十六日生一九八〇年庚申三月五卒'
+                     '墓亡大邱廣域市達城郡瑜伽面陽裏（州千甘叫引山一七一-三酉坐封墳（異鬥號是）碑石巽牀石（川斜', '金', starts={0})[0]
+    assert son['note'] == '字 龍鶴\n墓는 大邱廣域市 達城郡 瑜伽面 陽里() 山 一七一-三 酉坐封墳() 碑石 및 床石() 있음'
     assert (wife['hanja_name'], wife['bon_gwan'], wife['death_date']) == ('車氏', '延安', '--07-28')
     assert wife['note'] == '忌는 七月二十八日\n墓는 陽洞後山() 子坐()'
 
     # Some books list a wife's father and children under her as for a husband.
     band = r._entries('子相錫一九二一年辛酉十二月二十六日生配慶州崔氏三順（경주최씨삼순）鎭翰（진한）女子東炫女志娟', '金', {0})
     assert [(one['hanja_name'], one['note']) for one in band] == [('金相錫', ''), ('崔三順', '父 鎭翰\n子 東炫\n女 志娟')]
+    # Undated people of the book after an in-law stay people: a daughter with
+    # her own husband after another daughter's, a son after a wife.
+    band = r._entries('女順熙夫朴在德（박재덕）密陽（밀양）人子玄熙' '女點先夫諸葛芝奉（제갈지봉）', '金')
+    assert [one['hanja_name'] for one in band] == ['金順熙', '朴在德', '金点先', '諸葛芝奉']
+    assert band[1]['note'] == '子 玄熙'
+    band = r._entries('配潘南朴氏貴子（반남박씨귀자）勝玉（승옥）女' '子雙煥鬥', '金')
+    assert [one['hanja_name'] for one in band] == ['朴貴子', '金雙煥']
     # 夫 安東金氏 興漢(흥한): a husband named by 본관 and clan, as a wife is.
     daughter, husband = r._entries('女珍英夫安東金氏（안동김씨）興漢（흥한）子東炫', '金', {0})
     assert (husband['hanja_name'], husband['bon_gwan'], husband['note']) == ('金興漢', '安東', '子 東炫')

@@ -2594,6 +2594,8 @@ function fillMarkedReadings(line){
   const base=words[i].slice(0,-2),group=[base];
   for(let j=i-1;j>=0;j--){
    const word=words[j];
+   // \u7891\u77f3 \ubc0f \u5e8a\u77f3(\ube44\uc11d \ubc0f \uc0c1\uc11d): one reading covers both stones and the \ubc0f.
+   if(word==='\ubc0f'){group.unshift(word);continue;}
    if(!/^[\u3400-\u9fff\uf900-\ufaff]+$/.test(word)||/^[〇一二三四五六七八九十百千]+$/.test(word)||NOTE_LABELS.has(word))break;
    group.unshift(word);
   }

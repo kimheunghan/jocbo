@@ -666,10 +666,12 @@ FATHER = re.compile(r'([㐀-鿿]{2})\s*[（(][^（(）)]{0,6}[）)]\s*女')
 # reading goes where the page puts it: once after 大邱市 達城郡 瑜伽面 陽里, not
 # after each word.
 BRACKET = ''
-GRAVE = re.compile(r'墓\s*(?P<nun>[는二雲亡乞六匕])?\s*(?P<place>[^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,24}?[坐向]'
-                   r'|[^墓配忌生卒]{2,40}?墳)(?P<stones>(?:%s?(?:石物|床石|碑石|墓碑))*%s?)' % (BRACKET, BRACKET))
-# 里 comes back as 裏 where an address names its village.
-GRAVE_MISREAD = {'裏': '里'}
+# 酉坐封墳(유좌봉분): the mound is named after the way it faces. 碑石 및 床石: the
+# hangul 및 between the stones comes back as one stray character (碑石巽牀石).
+GRAVE = re.compile(r'墓\s*(?P<nun>[는二雲亡乞六匕])?\s*(?P<place>[^墓配忌生卒]{0,4}?墳|[^墓配忌生卒]{2,30}?[坐向](?:%s?[封雙合單]墳)?'
+                   r'|[^墓配忌生卒]{2,40}?墳)(?P<stones>(?:%s?.?(?:石物|床石|牀石|碑石|墓碑))*%s?)' % (BRACKET, BRACKET, BRACKET))
+# 里 comes back as 裏 where an address names its village, and 床 as 牀.
+GRAVE_MISREAD = {'裏': '里', '牀': '床'}
 
 
 # The way a grave faces: 子坐, 乾坐, 艮向.
@@ -685,9 +687,12 @@ def _grave_words(text):
     pieces = text.split(BRACKET)
     out = []
     for index, piece in enumerate(pieces):
+        # 碑石巽床石: the 및 the page writes between two stones.
+        piece = re.sub(r'(?<=碑石).?(?=床石|石物|墓碑)', ' 및 ', piece)
         piece = re.sub(r'([市郡面邑里])(?=.)', r'\1 ', piece)
         piece = re.sub(r'(?<=[^\s%s])(?=[%s]{2,})' % (numerals, numerals), ' ', piece)
-        piece = re.sub(r'(?<=[^\s])(?=雙墳|合墳|石物|床石|碑石|墓碑|[%s][坐向]$)' % BEARING, ' ', piece)
+        # 酉坐封墳 stays one word, as the page gives it one reading (유좌봉분).
+        piece = re.sub(r'(?<=[^\s坐向])(?=雙墳|合墳|石物|床石|碑石|墓碑|[%s][坐向](?:[封雙合單]墳)?$)' % BEARING, ' ', piece)
         if not piece:
             continue
         # A bracket after a lot number reads nothing the page did not.
@@ -707,7 +712,11 @@ def _notes(chunk, dated):
     # numerals of an address (（一六五一雙墳 keeps 一六五一). Latin letters are
     # the reader's noise.
     marked = re.sub(r'[（(][^（(）)]*[）)]', BRACKET, chunk)
-    marked = re.sub(r'[（(][^（(）)忌墓配%s]{0,6}' % ''.join(DIGITS), BRACKET, marked)
+    # 陽里(대구광역시 달성군 유가면 양리) 山一七一-三: a long reading left open ends
+    # where the lot number begins, its 山 kept.
+    lot = r'山\s*[%s]' % ''.join(DIGITS)
+    marked = re.sub(r'(?<=[里洞裏])[（(][^（(）)]{0,16}?(?=%s)' % lot, BRACKET, marked)
+    marked = re.sub(r'[（(](?:(?!%s)[^（(）)忌墓配%s]){0,6}' % (lot, ''.join(DIGITS)), BRACKET, marked)
     # (2）長) is one bracket the reader broke in two: what stands between
     # them was inside it.
     marked = re.sub(BRACKET + r'[^（(）)%s]{1,3}[）)]' % BRACKET, BRACKET, marked)
@@ -728,7 +737,10 @@ def _notes(chunk, dated):
             notes += _children(chunk[fathers[-1].end():])
     notes += _yearless(chunk, dated)
     # 墓는, as the page writes it, where the reader saw the 는 in some shape.
+    # 碑石 및 床石(비석 및 상석) 있음: stones are named because they stand there;
+    # the page's 있음 is hangul the reader cannot give back.
     notes += [('墓는 ' if match.group('nun') else '墓 ') + _grave_words(match.group('place') + match.group('stones'))
+              + (' 있음' if re.search('石物|床石|牀石|碑石|墓碑', match.group('stones')) else '')
               for match in GRAVE.finditer(marked)]
     return '\n'.join(notes)
 
@@ -854,12 +866,15 @@ def _entries(stream, surname, starts=None):
         else:
             given = _name(chunk[1:])
             # 女 点先 夫 諸葛芝奉 子 柄律: the reader may set 子柄律 apart, as a line of
-            # its own. Undated, in the band of the one married in that it follows,
-            # it is a child named in that entry — a husband's or a wife's, as some
-            # books list them under her too — and goes in that note, not the book.
+            # its own. A bare name like that right after a daughter's husband is
+            # a child named in his entry and goes in his note, not the book. Only
+            # a bare name: a daughter or son of the book is often undated too
+            # (女點先夫…, 子異外…墓…), and one after a wife (子雙煥) is hers and the
+            # book's, so those stay people.
             spouse = people[-1] if people else None
-            if (marker in '子女' and given and spouse and spouse.get('_partner') and spouse['married_in']
-                    and not _dates(chunk)):
+            bare = re.fullmatch(r'[子女][㐀-鿿]{2}(?:[（(][^（(）)]{0,6}[）)]?)?', chunk.strip())
+            if (marker in '子女' and given and bare and spouse and spouse.get('_partner') and spouse['married_in']
+                    and spouse['gender'] == '남'):
                 kids = _children(chunk)
                 if kids:
                     spouse['note'] = '\n'.join(filter(None, [spouse['note']] + kids))
