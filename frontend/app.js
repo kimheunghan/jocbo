@@ -2152,7 +2152,23 @@ function scanMatch(row){
 function isNamesake(row,found){
  const hanja=scanRowFields(row)('hanja_name').value.trim();
  if(hanja&&found.hanja_name&&found.hanja_name!==hanja)return true;
+ if(otherPerson(row,found))return true;
  return book.persons.filter(person=>person.korean_name===found.korean_name).length>1;
+}
+// The same name is another person when the page puts the line in another
+// 세대, or when it is a clan name alone (崔氏, a wife named by her clan) with
+// another 본관: 全州崔氏 and 慶州崔氏 are two women.
+function otherPerson(row,found){
+ const get=scanRowFields(row);
+ const generation=Number(get('generation').value)||0;
+ if(generation&&found.generation&&generation!==found.generation)return true;
+ const bon=get('bon_gwan').value.trim();
+ return clanOnly(row,found)&&!!bon&&!!found.bon_gwan&&bon!==found.bon_gwan;
+}
+// 崔氏, 최씨: named by the clan alone, as a wife who married in is.
+function clanOnly(row,found){
+ const get=scanRowFields(row);
+ return /[氏씨]$/.test(get('hanja_name').value.trim()||get('korean_name').value.trim()||found.hanja_name||'');
 }
 // The same rule the server keeps when it updates a note: an item is said
 // already when, readings in brackets and spacing aside, the old note holds it.
@@ -2193,20 +2209,26 @@ function paintScanMatch(row){
  // The very characters of a record are that record, even with a 동명이인 in
  // the book; only other characters make the line a question of who it is.
  const sameHanja=scanRowFields(row)('hanja_name').value.trim()===found.hanja_name;
- const namesakes=book.persons.filter(person=>person.korean_name===found.korean_name).length>1;
- if(isNamesake(row,found)&&!sameHanja){
+ // Another 세대, or another 본관 for a clan name alone: likely someone else, so
+ // the line asks, and is filed as a person apart unless 업데이트 is chosen.
+ const other=otherPerson(row,found);
+ // 崔氏 in the same 세대 and 본관 is likely the one on record, yet two brothers'
+ // wives can both be 全州崔氏: the line may still be filed apart.
+ const namesakes=book.persons.filter(person=>person.korean_name===found.korean_name).length>1||clanOnly(row,found);
+ if((isNamesake(row,found)&&!sameHanja)||other){
   row.dataset.matchId=String(found.id);
   row.dataset.replace='';
   row.dataset.shownId='';
   // Filed with the page, a line with other characters is a new person; one
   // with the very characters of a record is that record.
   const same=scanRowFields(row)('hanja_name').value.trim()===found.hanja_name;
-  if(row.dataset.namesake!==String(found.id)){row.dataset.namesake=String(found.id);row.dataset.fillId=same?String(found.id):'';}
+  if(row.dataset.namesake!==String(found.id)){row.dataset.namesake=String(found.id);row.dataset.fillId=same&&!other?String(found.id):'';}
   row.classList.remove('filling');
   note.hidden=false;
-  note.innerHTML=`<span>동명이인: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대</span>`
+  const bon=found.bon_gwan&&clanOnly(row,found)?` · ${esc(found.bon_gwan)}`:'';
+  note.innerHTML=`<span>동명이인: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대${bon}</span>`
    +'<button type="button" class="scan-new scan-update" data-namesake="update" title="기존 인물의 빈칸·미상만 채움">업데이트</button>'
-   +'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 새로 등록">신규 등록</button>';
+   +'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 따로 등록">별도 등록</button>';
   note.querySelector('[data-namesake="update"]').onclick=()=>{row.dataset.fillId=String(found.id);saveScanRow(row);};
   note.querySelector('[data-namesake="apart"]').onclick=()=>{row.dataset.fillId='';saveScanRow(row);};
   return;
@@ -2241,7 +2263,7 @@ function paintScanMatch(row){
  note.innerHTML=`<span>기존 인물: <strong>${esc(displayName(found,dialogScriptMode).primary)}</strong> · ${found.generation}세대 · `
   +(blanks.length?`빈칸 ${esc(blanks.join('·'))}`:'빈칸 없음')+'</span>'
   +'<button type="button" class="scan-new scan-update" data-save-row title="이 줄만 지금 반영 · 줄에 보이는 그대로 기존 인물에 저장">업데이트</button>'
-  +(namesakes?'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 새로 등록">신규 등록</button>':'');
+  +(namesakes?'<button type="button" class="scan-new" data-namesake="apart" title="다른 사람으로 따로 등록">별도 등록</button>':'');
  note.querySelector('[data-save-row]').onclick=()=>{row.dataset.fillId=String(found.id);saveScanRow(row);};
  const apart=note.querySelector('[data-namesake="apart"]');
  if(apart)apart.onclick=()=>{row.dataset.fillId='';saveScanRow(row);};
