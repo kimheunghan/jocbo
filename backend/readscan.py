@@ -179,8 +179,8 @@ def _yearless(text, dated):
         if not month or not day or not (1 <= month <= 12) or not (1 <= day <= 31):
             continue
         kind = match.group(4) or match.group(5) or ''
-        # 忌는 九月十九日 is the day her rites are held, which the book keeps as
-        # it writes it; it is no death date.
+        # 忌는 九月十九日 stays in the note as the book writes it; the month and
+        # day also go in the death date (_days_into_dates).
         if match.group(1) == '忌':
             found.append('忌는 %s月%s日' % (_numeral(month), _numeral(day)))
             continue
@@ -935,6 +935,7 @@ def _not_her_own_father(person):
 
 
 DAY = re.compile(r'(기일|생일) (\d{1,2})월 (\d{1,2})일')
+RITES = re.compile(r'忌는 ([〇一二三四五六七八九十]+)月([〇一二三四五六七八九十]+)日')
 
 
 def _days_into_dates(person):
@@ -943,6 +944,11 @@ def _days_into_dates(person):
     dated one has not already taken the place."""
     kept = []
     for item in filter(None, person['note'].split('\n')):
+        # 忌는 九月十九日 stays in the note as the book writes it, and is also the
+        # day of the death date, the year left blank.
+        rites = RITES.fullmatch(item)
+        if rites and not person['death_date']:
+            person['death_date'] = '--%02d-%02d' % (_small(rites.group(1)), _small(rites.group(2)))
         day = DAY.fullmatch(item)
         field = {'기일': 'death_date', '생일': 'birth_date'}.get(day.group(1)) if day else None
         if field and not person[field]:
