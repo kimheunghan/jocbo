@@ -179,9 +179,21 @@ def _yearless(text, dated):
         if not month or not day or not (1 <= month <= 12) or not (1 <= day <= 31):
             continue
         kind = match.group(4) or match.group(5) or ''
-        label = '기일' if match.group(1) == '忌' or kind == '卒' else '생일'
+        # 忌는 九月十九日 is the day her rites are held, which the book keeps as
+        # it writes it; it is no death date.
+        if match.group(1) == '忌':
+            found.append('忌는 %s月%s日' % (_numeral(month), _numeral(day)))
+            continue
+        label = '기일' if kind == '卒' else '생일'
         found.append('%s %d월 %d일' % (label, month, day))
     return found
+
+
+def _numeral(number):
+    """19 as the page writes it: 十九. Months and days only, so below 100."""
+    tens, ones = divmod(number, 10)
+    figures = '〇一二三四五六七八九'
+    return ((figures[tens] if tens > 1 else '') + '十' if tens else '') + (figures[ones] if ones else '')
 
 
 def rules(image):
@@ -698,16 +710,19 @@ def _notes(chunk, dated):
     # them was inside it.
     marked = re.sub(BRACKET + r'[^（(）)%s]{1,3}[）)]' % BRACKET, BRACKET, marked)
     marked = re.sub(r'[）)]|[A-Za-z]', '', marked)
+    # 墓는 comes back as 基雲 where the reader lost the 墓 as well.
+    marked = re.sub(r'基(?=[는二雲亡乞六匕])', '墓', marked)
     plain = marked.replace(BRACKET, '')
     notes = ['%s %s' % (match.group(1), _fixed(match.group(2))) for match in OTHER_NAMES.finditer(plain)
              if not DATE_START.match(plain, match.start(2) + 1)]
-    # 墓는, as the page writes it, where the reader saw the 는 in some shape.
-    notes += [('墓는 ' if match.group('nun') else '墓 ') + _grave_words(match.group('place') + match.group('stones'))
-              for match in GRAVE.finditer(marked)]
+    # In the order the page gives them: her father, the day of her rites, her grave.
     # 配 … 鍾萬(종만)女: someone who married in is named as her father's daughter.
     if chunk.startswith('配'):
         notes += ['父 ' + _fixed(name) for name in FATHER.findall(chunk)]
     notes += _yearless(chunk, dated)
+    # 墓는, as the page writes it, where the reader saw the 는 in some shape.
+    notes += [('墓는 ' if match.group('nun') else '墓 ') + _grave_words(match.group('place') + match.group('stones'))
+              for match in GRAVE.finditer(marked)]
     return '\n'.join(notes)
 
 
@@ -760,18 +775,24 @@ def _entries(stream, surname, starts=None):
             # the name. That bracket is read as nonsense, and the name after it
             # sometimes not at all — the person is still there, with the 본관 and
             # family name to go on.
-            given = _name(re.sub(r'^\s*[（(][^）)]*[）)]?', '', given))
+            after = re.sub(r'^\s*[（(][^）)]*[）)]?', '', given)
+            given = _name(after)
+            # 配 全州崔氏 鶴林(학림)女: a name followed by 女 is her father's, who
+            # she is the daughter of — she is named by her clan alone. Where two
+            # names come (韓氏 明來 世東(세동)女), the first is hers.
+            if given and re.match(r'\s*%s\s*(?:[（(][^（(）)]{0,8}[）)]?)?\s*女' % re.escape(given), after):
+                given = ''
+            # One character is what the reader made of a hangul bracket (崔氏
+            # (전주최씨) read as 崔氏…車), not a name.
+            if len(given) < 2:
+                given = ''
             family = MISCONVERTED.get(family, family)
             # 金寧金氏 read as 金金氏 has lost a character of the 본관; the person
             # still stands, with the 본관 left for a hand to fill.
             bon_gwan = _bon_gwan(''.join(MISCONVERTED.get(char, char) for char in bon_gwan)) if len(bon_gwan) == 2 else ''
-            # 配 延安車氏 with no name after it is named as the page names
-            # her, 본관 and clan together: 延安車氏. A name that is there is
-            # hers (配 昌寧成氏 元永 is 成元永).
-            if not given:
-                hanja = bon_gwan + family + '氏'
-            else:
-                hanja = family + given
+            # 配 延安車氏 with no name of her own is 車氏, her 본관 in its own
+            # field. A name that is there is hers (配 昌寧成氏 元永 is 成元永).
+            hanja = family + (given or '氏')
         elif marker == LINEAGE:
             heading, _, rest = chunk[1:].partition(LINEAGE_END)
             given = _name(rest)

@@ -47,6 +47,14 @@ def packages():
         sys.exit('파이썬 3.12 64비트로 돌리십시오: py -3.12 desktop\\build.py')
     run(sys.executable, '-m', 'pip', 'install', '--quiet', '--no-compile',
         '--target', str(SITE), '-r', str(ROOT / 'requirements.txt'), '-r', str(ROOT / 'requirements-ocr.txt'))
+    # PC 판이 쓰지 않는 것은 뺍니다. 받는 크기와 설치 시간이 줄어듭니다.
+    # - OpenCV 의 동영상 처리(FFmpeg, 31MB): 판독은 사진만 다루고, OpenCV 는 이 파일을
+    #   동영상을 열 때만 불러옵니다.
+    # - psycopg(15MB): PostgreSQL 서버용입니다. PC 판은 SQLite 만 씁니다.
+    # 빼고도 족보 사진 42장의 판독 결과가 같고 시험이 모두 통과하는 것을 확인했습니다.
+    for path in list(SITE.glob('cv2/opencv_videoio_ffmpeg*.dll')) + list(SITE.glob('psycopg*')):
+        print('뺌:', path.name)
+        shutil.rmtree(path) if path.is_dir() else path.unlink()
 
 
 STORE = '--store' in sys.argv

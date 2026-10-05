@@ -2586,6 +2586,8 @@ function withReadings(text){
   if(NOTE_LABELS.has(run))return run;
   // A lot number (一六五一) is read as figures, not as a word.
   if(/^[〇一二三四五六七八九十百千]+$/.test(run))return run;
+  // 忌는 九月十九日: a day is written in figures too, with no reading after it.
+  if(/^[〇一二三四五六七八九十]+月[〇一二三四五六七八九十]+日$/.test(run))return run;
   const reading=readingOf(run);
   return reading&&/^[가-힣]+$/.test(reading)?`${run}(${reading})`:run;
  });
