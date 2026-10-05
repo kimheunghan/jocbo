@@ -3,8 +3,8 @@
 서버를 이 프로세스 안에서 돌리고, 엣지나 크롬의 앱 창(주소창·탭 없는 창)으로
 화면을 엽니다. 그 창을 닫으면 서버도 함께 멈춥니다.
 
-족보 DB·사진·API 키는 프로그램 폴더가 아니라 %LocalAppData%\\jocbo(Store 판은
-jocbo-store)에 둡니다. 새 판을 설치하거나 프로그램을 지워도 족보는 남습니다.
+족보 DB·사진·API 키는 프로그램 폴더가 아니라 %LocalAppData%\\jocbo 에 둡니다.
+새 판을 설치하거나 프로그램을 지워도 족보는 남습니다.
 """
 import ctypes
 import os
@@ -19,11 +19,7 @@ import webbrowser
 from pathlib import Path
 
 APP = Path(__file__).resolve().parent
-LOCAL = Path(os.environ.get('LOCALAPPDATA', Path.home()))
-# Store 판(build.py --store)은 데모 족보로 시작하는 판이라 족보를 따로 둡니다. 같은 PC 에
-# 실제 족보가 든 판(설치판·start.bat)이 있어도 그 족보를 열지 않습니다.
-STORE = (APP / 'store.txt').exists()
-DATA = LOCAL / ('jocbo-store' if STORE else 'jocbo')
+DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'jocbo'
 # start.bat 판(8000)과 같이 켜 두어도 서로의 DB 를 열지 않도록 따로 둡니다.
 PORT = 8770
 URL = f'http://127.0.0.1:{PORT}'
@@ -38,37 +34,17 @@ def message(text, buttons=0x40):
     return ctypes.windll.user32.MessageBoxW(None, text, TITLE, buttons)
 
 
-def demo_born(db):
-    """Store 판이 깔아 준 데모 족보에서 시작한 DB 인지. 그 판은 데모 계정이 첫 계정입니다."""
-    if not db.exists():
-        return False
-    import sqlite3
-    try:
-        with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as c:
-            first = c.execute('select email from users order by id limit 1').fetchone()
-    except sqlite3.Error:
-        return False
-    return first == ('demo@example.test',)
-
-
 def prepare_data():
     """처음 실행이면 족보를 마련합니다.
 
-    설치판은 start.bat 으로 쓰던 족보(문서\\jocbo)가 있으면 그것을 가져옵니다. Store 판은
-    다른 판의 족보를 가져오지 않습니다. 가져올 것이 없으면 설치에 들어 있는 족보로
-    시작합니다. 이미 있는 족보는 건드리지 않습니다.
+    start.bat 으로 쓰던 족보(문서\\jocbo)가 있으면 그것을 가져오고, 없으면 설치에
+    들어 있는 샘플 족보로 시작합니다. 이미 있는 족보는 건드리지 않습니다.
     """
     DATA.mkdir(parents=True, exist_ok=True)
     if (DATA / 'jocbo.db').exists():
         return
-    if STORE:
-        # 예전 Store 판은 %LocalAppData%\\jocbo 에 두었습니다. 그 족보가 데모 족보에서
-        # 시작한 것(첫 계정이 데모 계정)일 때만 이어서 씁니다.
-        old = LOCAL / 'jocbo'
-        source = old if demo_born(old / 'jocbo.db') else None
-    else:
-        old = Path.home() / 'Documents' / 'jocbo'
-        source = old if (old / 'jocbo.db').exists() else None
+    old = Path.home() / 'Documents' / 'jocbo'
+    source = old if (old / 'jocbo.db').exists() else None
     if source:
         shutil.copy2(source / 'jocbo.db', DATA / 'jocbo.db')
         if (source / '.env').exists() and not (DATA / '.env').exists():
