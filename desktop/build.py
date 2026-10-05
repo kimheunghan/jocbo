@@ -96,6 +96,8 @@ def demo_only():
     if users != [(DEMO[0],)] or people != 20:
         sys.exit(f'Store 판 족보가 예상과 다릅니다: {users}, 인물 {people}명')
     print('Store 판 족보: 데모 계정 하나, 예제 인물', people, '명')
+    # 실행기는 이 표시를 보고 족보를 %LocalAppData%\jocbo-store 에 따로 둡니다.
+    (OUT / 'store.txt').write_text('Microsoft Store 판: 데모 족보로 시작합니다.\n', encoding='utf-8')
     # 로그인 화면에 데모 계정을 적어, 처음 받은 사람이 바로 예제를 둘러보게 합니다.
     page = OUT / 'frontend' / 'index.html'
     html = page.read_text(encoding='utf-8')
