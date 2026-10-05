@@ -101,19 +101,37 @@ def _merged(text, score, korean, korean_score):
     if not korean or korean_score < 0.5:
         return text
     if not re.search(r'[（(]', text):
-        if _hangul_share(korean) >= 0.7 and korean_score >= 0.6 and score < 0.85:
+        # Only a line the 족보 reader made little of (計斗) and the Korean one
+        # read clearly, three letters at least (학과졸업), is taken as hangul. A
+        # line with a date in it is hanja (…六月十五日卒墓…), whatever the Korean
+        # reader made of it, and so is a name (和可 is no 양과).
+        if (_hangul_share(korean) >= 0.7 and korean_score >= 0.7 and score < 0.7
+                and len(HANGUL.findall(korean)) >= 3 and not re.search('[年月日生卒]', text)):
             return korean
         return text
-    readings = [inside for inside, _ in BRACKETS.findall(korean) if HANGUL.search(inside)]
+    readings = [(inside, bool(close)) for inside, close in BRACKETS.findall(korean) if HANGUL.search(inside)]
     if not readings and _hangul_share(korean) >= 0.8 and len(BRACKETS.findall(text)) == 1:
-        readings = [korean.strip()]
+        readings = [(korean.strip(), False)]
     if not readings:
         return text
     queue = iter(readings)
 
     def put(match):
-        reading = next(queue, None)
-        return match.group(0) if reading is None else '（' + reading + (match.group(2) or '')
+        reading, whole = next(queue, (None, False))
+        if reading is None:
+            return match.group(0)
+        if match.group(2):
+            return '（' + reading + match.group(2)
+        # A bracket the reader left open ran on past the reading into what
+        # follows it (熙善（平な刈司包東原 for 熙善(주강씨희선) 東原): one nonsense
+        # character stands for each letter, and the rest is kept — but only when
+        # the Korean reader saw the bracket close. Half a reading ((전주) says
+        # nothing of where the bracket ends, and what is left is still nonsense.
+        inside = match.group(1)
+        letters = len(HANGUL.findall(reading))
+        if whole and len(inside) > letters:
+            return '（' + reading + '）' + inside[letters:]
+        return '（' + reading
 
     return BRACKETS.sub(put, text)
 
@@ -841,8 +859,8 @@ def _notes(chunk, dated):
             # bracket after hers, just before her birth date.
             lost = UNMARKED_FATHER.search(chunk)
             if lost:
-                notes.append('%s(%s)女' % (_fixed(lost.group(1)), _reading(lost.group(2))))
-        notes += ['%s(%s)女' % (_fixed(match.group(1)), _reading(match.group(2))) for match in fathers]
+                notes.append('%s(%s)女' % (_fixed(lost.group(1)), _reading(lost.group(2), _fixed(lost.group(1)))))
+        notes += ['%s(%s)女' % (_fixed(match.group(1)), _reading(match.group(2), _fixed(match.group(1)))) for match in fathers]
         # 配 慶州崔氏 三順 鎭翰(진한)女 子 東炫 女 志娟: some books list her
         # children after her father, as for a husband.
         if fathers:
@@ -870,9 +888,39 @@ def _notes(chunk, dated):
     return '\n'.join(notes)
 
 
-def _reading(text):
-    """The hangul in a bracket when the Korean reader gave it, else nothing."""
-    return text if text and _hangul_share(text) >= 0.7 else ''
+_readings = None
+# 두음법칙: 李 is 이 at the start of a name, though the dictionary gives 리.
+INITIAL = {'라': '나', '래': '내', '로': '노', '뢰': '뇌', '루': '누', '르': '느', '리': '이', '량': '양',
+           '려': '여', '력': '역', '련': '연', '렬': '열', '렴': '염', '령': '영', '례': '예', '료': '요',
+           '룡': '용', '류': '유', '륙': '육', '륜': '윤', '률': '율', '륭': '융', '릉': '능', '림': '임',
+           '립': '입', '녀': '여', '뇨': '요', '뉴': '유', '니': '이', '닉': '익'}
+
+
+def _reading(text, hanja=''):
+    """The hangul in a bracket when the Korean reader gave it and it is the
+    reading of the characters it follows (泰豪 is 태호, not 테호), else nothing,
+    and the hanja's own reading is put in when the note is shown."""
+    if not text or _hangul_share(text) < 0.7:
+        return ''
+    if not hanja:
+        return text
+    global _readings
+    if _readings is None:
+        import json
+        from pathlib import Path
+        try:
+            _readings = json.loads((Path(__file__).resolve().parent.parent / 'frontend' / 'hanjaeum.json')
+                                   .read_text(encoding='utf-8'))
+        except Exception:
+            _readings = {}
+    letters = HANGUL.findall(text)
+    if len(letters) != len(hanja):
+        return ''
+    for char, letter in zip(hanja, letters):
+        known = set(re.split(r'[,/\s]+', _readings.get(char, '')))
+        if letter not in known and letter not in {INITIAL.get(one) for one in known}:
+            return ''
+    return text
 
 
 def _children(text):

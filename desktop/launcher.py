@@ -83,7 +83,9 @@ def open_window(path, url=URL):
     전용 프로필을 따로 만들면 엣지가 윈도 계정으로 저절로 로그인하며 동기화
     안내를 띄우므로, 프로필은 그대로 두고 창만 앱 창으로 엽니다.
     """
-    subprocess.Popen([path, f'--app={url}', '--window-size=1280,860'])
+    # 세로가 짧은 노트북(배율 125%)에서도 창 아래가 화면 밖으로 내려가지 않는 크기입니다.
+    # 그다음부터는 쓰는 사람이 늘리고 줄인 크기를 브라우저가 기억합니다.
+    subprocess.Popen([path, f'--app={url}', '--window-size=1280,806'])
 
 
 def splash():
