@@ -315,6 +315,9 @@ async function api(path, method='GET', data) {
   if(!r.ok) throw Error(errorText(result.detail));
   return result;
 }
+// The installed launcher stops the server once this window goes quiet.
+const alive=()=>fetch('/api/alive').catch(()=>{});
+alive();setInterval(alive,20000);
 // 무료 인원을 넘으면 그렇다고 알리고, [정식판 안내]로 구매·키 입력 창을 엽니다.
 function paywall(text){
  $('#confirmHeading').textContent='정식판으로 전환';

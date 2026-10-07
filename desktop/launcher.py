@@ -26,6 +26,10 @@ URL = f'http://127.0.0.1:{PORT}'
 TITLE = '우리의 족보'
 # frontend/index.html 의 <title>. 앱 창이 떠 있는지 이 제목으로 찾습니다.
 PAGE_TITLE = '우리의 족보 · 가족의 기록'
+# 화면은 20초마다 서버에 신호(/api/alive)를 보냅니다. 최소화한 창은 브라우저가
+# 1분에 한 번으로 늦추므로, 이만큼 신호가 없을 때만 창이 닫힌 것으로 봅니다.
+# 번역 등으로 창 제목이 바뀌어도 이 신호로 창이 떠 있음을 압니다.
+QUIET = 150
 # 앱 창을 찾지 못하면 이 안내의 [확인]이 종료 단추를 대신합니다.
 RUNNING = '우리의 족보가 실행 중입니다.\n\n다 쓰셨으면 [확인]을 누르십시오. 프로그램이 종료됩니다.'
 
@@ -116,6 +120,12 @@ def windows_open():
     return len(windows())
 
 
+def in_use():
+    """앱 창이 떠 있는지. 제목으로 찾거나, 화면이 최근에 신호를 보냈으면 떠 있습니다."""
+    from backend import main as backend
+    return windows_open() or time.time() - backend.last_seen < QUIET
+
+
 def bring_forward():
     """이미 떠 있는 창을 앞으로 가져옵니다. 최소화돼 있으면 되살립니다."""
     user32 = ctypes.windll.user32
@@ -123,6 +133,12 @@ def bring_forward():
         if user32.IsIconic(handle):
             user32.ShowWindow(handle, 9)
         user32.SetForegroundWindow(handle)
+
+
+def allow_forward():
+    """아이콘을 누른 이 실행기가 가진 "앞으로 나올 권리"를 브라우저에도 넘깁니다.
+    넘기지 않으면 첫 클릭에 앱 창이 다른 창 뒤에 뜹니다."""
+    ctypes.windll.user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
 
 
 # 이 실행기가 떠 있는 동안 잡고 있는 표시. 두 번째로 눌린 실행기는 이것을 보고 물러납니다.
@@ -138,12 +154,20 @@ def already_running():
 
 def main():
     # 느리게 뜬다고 여러 번 눌러도 하나만 뜹니다. 이미 실행 중이면 그 창을 앞으로 가져옵니다.
+    # 창을 닫은 직후라 서버가 아직 떠 있으면, 앞으로 가져올 창이 없으니 새로 엽니다.
     if already_running():
-        bring_forward()
+        if windows():
+            bring_forward()
+        elif browser():
+            allow_forward()
+            open_window(browser())
+        else:
+            webbrowser.open(URL)
         return
     path = browser()
     # 누르자마자 창부터 띄웁니다. 서버가 준비되면 그 창이 족보 화면으로 넘어갑니다.
     if path:
+        allow_forward()
         open_window(path, splash())
 
     prepare_data()
@@ -169,14 +193,16 @@ def main():
         # 창이 뜨기를 기다렸다가, 모두 닫히면 끝냅니다. 잠깐 사라지는 순간(새로
         # 고침 등)에 끝나지 않도록 몇 번 연달아 없을 때만 닫힌 것으로 봅니다.
         for _ in range(60):
-            if windows_open():
+            if in_use():
                 break
             time.sleep(0.5)
         else:
             message(RUNNING)
+        # 첫 클릭에 창이 다른 창 뒤에 떴더라도 한 번 앞으로 가져옵니다.
+        bring_forward()
         missing = 0
         while missing < 3:
-            missing = 0 if windows_open() else missing + 1
+            missing = 0 if in_use() else missing + 1
             time.sleep(1)
     else:
         webbrowser.open(URL)

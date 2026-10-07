@@ -77,6 +77,16 @@ async def send_changes_up(request: Request, call_next):
         web_share.worker.changed()
     return response
 
+# When the desktop window last said it is open. The launcher keeps the server up
+# while it hears from the window, whatever the window's title has become.
+last_seen = 0.0
+
+@app.get('/api/alive')
+def alive():
+    global last_seen
+    last_seen = time.time()
+    return {}
+
 class Input(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
 
