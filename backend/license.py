@@ -11,11 +11,13 @@ import urllib.parse
 import urllib.request
 
 API = 'https://api.lemonsqueezy.com/v1/licenses'
-# Where [정식판 구매하기] goes. Set once the product exists on Lemon Squeezy.
-CHECKOUT_URL = os.getenv('JOCBO_CHECKOUT_URL', 'https://findinside.lemonsqueezy.com/checkout/buy/5ba5c34f-081e-47a6-8270-d37e83ce002e')
-# A key is taken only for a product of this name, so a FindInside key sold from
-# the same store does not unlock this.
-PRODUCT_WORD = '족보'
+# Where [정식판 구매하기] goes. The site sends /buy on to the live checkout, so a
+# new checkout link needs no new build (share/build.mjs).
+CHECKOUT_URL = os.getenv('JOCBO_CHECKOUT_URL', 'https://jocbo.pages.dev/buy')
+# A key is taken only for this live Lemon Squeezy product. Test-mode keys (free
+# with a test card) and FindInside keys from the same store come from other
+# products and are turned down.
+PRODUCT_ID = int(os.getenv('JOCBO_PRODUCT_ID', '1420186'))
 
 
 class LicenseError(Exception):
@@ -58,9 +60,9 @@ def activate(key, pc_name):
     body = call('activate', license_key=key, instance_name=pc_name)
     if not body.get('activated'):
         raise LicenseError(explain(body.get('error')) or '라이선스 키를 등록하지 못했습니다.')
-    product = (body.get('meta') or {}).get('product_name', '')
+    product = (body.get('meta') or {}).get('product_id')
     instance = (body.get('instance') or {}).get('id', '')
-    if PRODUCT_WORD not in product:
+    if product != PRODUCT_ID:
         # Give the place back at once; this key is for something else.
         try:
             call('deactivate', license_key=key, instance_id=instance)

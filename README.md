@@ -27,7 +27,8 @@
 
 - 왼쪽 칸 족보 선택 위에 "무료 이용 · 인물 N/20명"이 늘 보이고, 누르면 정식판 창이 열립니다. 로그인 화면에도 적혀 있습니다.
 - 정식판 창: [정식판 구매하기]는 Lemon Squeezy 결제 페이지(`backend/license.py`의 `CHECKOUT_URL`, 환경 변수 `JOCBO_CHECKOUT_URL`)를 엽니다. 결제 후 받은 라이선스 키를 넣으면 Lemon Squeezy에 이 PC를 등록하고 계정을 정식판으로 바꿉니다. 키 하나로 PC 2대까지이며, [이 PC 등록 풀기]로 자리를 돌려줍니다.
-- 상품 이름에 "족보"가 들어간 키만 받습니다. 같은 스토어의 다른 상품(FindInside 등) 키로는 풀리지 않습니다.
+- 실제 판매 상품(Lemon Squeezy 상품 ID 1420186, `backend/license.py`의 `PRODUCT_ID`)의 키만 받습니다. 같은 스토어의 다른 상품(FindInside 등)과 테스트 모드 상품의 키로는 풀리지 않습니다.
+- [정식판 구매하기]는 `https://jocbo.pages.dev/buy`를 열고, 공유 사이트가 실제 결제 페이지로 넘깁니다. 결제 주소가 바뀌면 `share/build.mjs`의 `checkout` 한 줄만 고쳐 배포합니다.
 - 서버는 넘는 등록(인물 등록, 판독 결과 한꺼번에 등록, 예제 추가)을 402로 거절합니다. 무료 인원은 `backend/main.py`의 `FREE_PERSONS`입니다.
 - 정식판이 생기기 전에 만든 계정은 제한이 없습니다(`users.plan`이 빈 값).
 

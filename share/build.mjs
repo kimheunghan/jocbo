@@ -39,6 +39,10 @@ renameSync(join(dist, 'landing.html'), join(dist, 'index.html'));
 // 확장자 없는 주소로 넘기므로(308) .txt 로 두고 .html 주소를 그쪽으로 잇습니다.
 const verify = readdirSync(dist).filter(name => /^google[0-9a-f]+\.html$/.test(name));
 for (const name of verify) renameSync(join(dist, name), join(dist, name.replace(/\.html$/, '.txt')));
+// [정식판 구매하기]는 홈페이지와 프로그램 모두 /buy 로 갑니다. 결제 주소가 바뀌면 여기만
+// 고치면 되고, 이미 설치된 프로그램도 다시 빌드하지 않아도 새 주소로 갑니다.
+const checkout = 'https://findinside.lemonsqueezy.com/checkout/buy/4d6c9aac-24bf-4e7c-b881-3b66c96f5f3c';
 writeFileSync(join(dist, '_redirects'), '/s/* /app 200\n'
+  + `/buy ${checkout} 302\n`
   + verify.map(name => `/${name} /${name.replace(/\.html$/, '.txt')} 200\n`).join(''));
 console.log('dist 완료');

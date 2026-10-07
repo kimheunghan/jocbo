@@ -7,10 +7,13 @@ from tests.test_api import account, client  # noqa: F401 - fixture and helpers
 
 
 class FakeLemon:
-    """Two places per key, as the product is set up; one key for another product."""
+    """Two places per key, as the product is set up. Besides the live product there
+    is FindInside, and the test-mode copy of this product under the same name."""
+
+    PRODUCTS = {'JOCBO-KEY-1': paid.PRODUCT_ID, 'FINDINSIDE-KEY': 1420193, 'TEST-MODE-KEY': 1411131}
 
     def __init__(self):
-        self.instances = {'JOCBO-KEY-1': [], 'FINDINSIDE-KEY': []}
+        self.instances = {key: [] for key in self.PRODUCTS}
         self.down = False
 
     def __call__(self, action, **fields):
@@ -24,8 +27,9 @@ class FakeLemon:
             if len(used) >= 2:
                 return {'activated': False, 'error': 'This license key has reached the activation limit.'}
             used.append(f'inst-{len(used) + 1}')
-            product = '우리의 족보 정식판' if key.startswith('JOCBO') else 'FindInside'
-            return {'activated': True, 'instance': {'id': used[-1]}, 'meta': {'product_name': product}}
+            meta = {'product_id': self.PRODUCTS[key],
+                    'product_name': 'FindInside' if key.startswith('FINDINSIDE') else '우리의 족보 정식판'}
+            return {'activated': True, 'instance': {'id': used[-1]}, 'meta': meta}
         used.remove(fields['instance_id'])
         return {'deactivated': True}
 
@@ -58,10 +62,12 @@ def test_a_key_lifts_the_limit_and_frees_its_place_when_taken_out(client, lemon)
 
 def test_a_key_for_another_product_or_a_wrong_key_is_turned_down(client, lemon):
     account(client)
-    r = client.post('/api/license', json={'key': 'FINDINSIDE-KEY'})
-    assert r.status_code == 400 and '정식판 키가 아닙니다' in r.json()['detail']
-    # The place it took for a moment is given back.
-    assert lemon.instances['FINDINSIDE-KEY'] == []
+    # A test-mode key carries this product's name but not the live product's id.
+    for key in ('FINDINSIDE-KEY', 'TEST-MODE-KEY'):
+        r = client.post('/api/license', json={'key': key})
+        assert r.status_code == 400 and '정식판 키가 아닙니다' in r.json()['detail']
+        # The place it took for a moment is given back.
+        assert lemon.instances[key] == []
     r = client.post('/api/license', json={'key': 'NO-SUCH-KEY'})
     assert r.status_code == 400 and '키가 맞지 않습니다' in r.json()['detail']
     assert client.get('/api/me').json()['plan'] == 'free'
