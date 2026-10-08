@@ -1,6 +1,6 @@
 // 우리의 족보 - 설치 파일 내려받기 주소.
 //
-//   GET /download/<태그>/jocbo-setup.exe   설치 파일 (v…, store-v…)
+//   GET /download/<태그>/jocbo-setup.exe   설치 파일 (v…, store-v…), jocbo-setup_v26.10.16.exe 처럼 판을 붙인 이름으로 내려받습니다
 //   GET /download/<태그>/jocbo.msix        Store 용 MSIX 패키지 (msix-v…)
 //
 // GitHub Releases 의 주소는 실제 파일이 있는 다른 주소로 넘겨집니다(리디렉션).
@@ -20,9 +20,13 @@ export async function onRequest({ request, params }) {
   }
   const upstream = await fetch(`${REPO}/${tag}/${file}`, { method: request.method, redirect: 'follow' });
   if (!upstream.ok) return new Response('없는 파일입니다.', { status: 404 });
+  // 받은 설치 파일에 판이 보이도록 이름에 붙입니다. store-v2026.10.16 → jocbo-setup_v26.10.16.exe
+  const saveAs = file === 'jocbo-setup.exe'
+    ? `jocbo-setup_v${tag.replace(/^store-v/, '').replace(/^v/, '').replace(/^20/, '')}.exe`
+    : file;
   const headers = new Headers({
     'Content-Type': 'application/octet-stream',
-    'Content-Disposition': `attachment; filename="${file}"`,
+    'Content-Disposition': `attachment; filename="${saveAs}"`,
     'Cache-Control': 'public, max-age=86400',
   });
   const length = upstream.headers.get('content-length');
