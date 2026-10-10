@@ -1,0 +1,5 @@
+# 우리의 족보 - 이 주소에는 사이트맵만 있습니다. 정식 홈페이지는 https://jocbo.pages.dev 입니다.
+User-agent: *
+Allow: /
+
+Sitemap: https://jocbo.netlify.app/sitemap.xml

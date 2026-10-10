@@ -45,4 +45,8 @@ const checkout = 'https://findinside.lemonsqueezy.com/checkout/buy/4d6c9aac-24bf
 writeFileSync(join(dist, '_redirects'), '/s/* /app 200\n'
   + `/buy ${checkout} 302\n`
   + verify.map(name => `/${name} /${name.replace(/\.html$/, '.txt')} 200\n`).join(''));
+// jocbo.netlify.app 에 올리는 사이트맵 전용 폴더도 같은 사이트맵과 구글 확인 파일로 맞춥니다.
+const mirror = join(import.meta.dirname, 'sitemap-mirror');
+cpSync(join(web, 'sitemap.xml'), join(mirror, 'sitemap.xml'));
+for (const name of readdirSync(web).filter(name => /^google[0-9a-f]+\.html$/.test(name))) cpSync(join(web, name), join(mirror, name));
 console.log('dist 완료');

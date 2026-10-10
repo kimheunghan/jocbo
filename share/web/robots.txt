@@ -8,3 +8,5 @@ Disallow: /download/
 Allow: /
 
 Sitemap: https://jocbo.pages.dev/sitemap.xml
+# pages.dev 공용 주소는 구글 사이트맵 수집기가 막히는 일이 있어 같은 사이트맵을 Netlify 에도 둡니다.
+Sitemap: https://jocbo.netlify.app/sitemap.xml

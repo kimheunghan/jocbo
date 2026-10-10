@@ -41,6 +41,10 @@ curl -sI https://jocbo.pages.dev/download/store-v<버전>/jocbo-setup.exe | find
   node build.mjs
   npx wrangler pages deploy dist --project-name jocbo
   ```
+- 사이트맵(`share/web/sitemap.xml`)을 고쳤다면 Netlify 사이트맵 사본도 올립니다(구글은 이쪽에서 사이트맵을 가져갑니다).
+  ```
+  npx netlify-cli deploy --prod --no-build --dir sitemap-mirror --site jocbo
+  ```
 - 홈페이지의 "설치 파일 내려받기" 버튼을 직접 눌러, 받은 파일 이름이 `jocbo-setup_v<새 버전>.exe`인지 확인합니다.
 
 ## 5. Microsoft Store 제출

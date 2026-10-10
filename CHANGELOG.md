@@ -7,6 +7,11 @@
 
 ## 버전 없는 수정 (홈페이지·판매 페이지)
 
+### 2026.10.10
+- Google Search Console이 pages.dev 사이트맵을 계속 "가져올 수 없음"으로 두어(공용 pages.dev 주소의 Cloudflare 보안이 일부 수집기를 막음), 같은 사이트맵을 `jocbo.netlify.app`에 두었습니다. 사이트맵 안의 주소는 pages.dev 그대로이고, netlify.app의 다른 주소는 모두 pages.dev로 영구 이동(301)합니다. 폴더는 `share/sitemap-mirror/`이며 `node build.mjs`가 사이트맵을 맞춥니다.
+- pages.dev `robots.txt`에 netlify.app 사이트맵 줄을 더했습니다.
+- Netlify 새 사이트에 걸려 있던 팀 로그인 보호(401)를 껐습니다. GitHub 자동 배포는 쓰지 않고 손으로 배포합니다(크레딧 절약).
+
 ### 2026.10.09
 - 홈페이지에서 받는 설치 파일 이름에 버전을 붙였습니다(`jocbo-setup_v26.10.16.exe`). 내려받기 주소는 그대로입니다. (`a86a989`)
 - Lemon Squeezy 상품 이미지 띠를 "MS Store: 업데이트 날짜 2026. 10. 8. 또는 그 이후 판으로 설치"로 바꾸고, 상품 설명에 Store와 exe 각각의 최신 버전 안내를 넣었습니다.

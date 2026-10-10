@@ -1,0 +1,11 @@
+# 우리의 족보 - jocbo.netlify.app (사이트맵 전용).
+#
+# Cloudflare 의 공용 pages.dev 주소는 구글 사이트맵 수집기를 막는 일이 있어, 사이트맵만
+# 이곳에 두고 구글에 제출합니다. 사이트맵 안의 주소는 정식 홈페이지(jocbo.pages.dev) 그대로입니다.
+# sitemap.xml 은 share/build.mjs 가 share/web/sitemap.xml 을 복사해 둡니다.
+#
+# 배포는 손으로 합니다(크레딧을 아끼려고 GitHub 자동 배포는 쓰지 않습니다).
+#   cd share && node build.mjs
+#   npx netlify-cli deploy --prod --dir sitemap-mirror --site jocbo
+[build]
+  publish = "."
