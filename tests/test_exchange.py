@@ -87,6 +87,165 @@ def test_edited_file_goes_back_into_its_book(client, kind, tmp_path):
     assert len(client.get('/api/books').json()) == 1
 
 
+def add(client, bid, name, gender='남'):
+    r = client.post(f'/api/books/{bid}/persons', json={'korean_name': name, 'gender': gender})
+    assert r.status_code == 201
+    return r.json()['id']
+
+
+def link(client, a, b, kind='parent'):
+    assert client.post('/api/relations', json={'source_id': a, 'target_id': b, 'kind': kind}).status_code == 201
+
+
+def awkward_book(client):
+    """Links a tree cannot draw: a wife's child by an earlier marriage, and cousins who married."""
+    bid = client.post('/api/books', json={'title': '어려운 족보', 'clan_name': '김씨'}).json()['id']
+    gap, wife = add(client, bid, '김갑'), add(client, bid, '이씨', '여')
+    link(client, gap, wife, 'spouse')
+    son, daughter = add(client, bid, '김을'), add(client, bid, '김병녀', '여')
+    for child in (son, daughter):
+        link(client, gap, child)
+        link(client, wife, child)
+    son_wife, daughter_husband = add(client, bid, '박씨', '여'), add(client, bid, '최서방')
+    link(client, son, son_wife, 'spouse')
+    link(client, daughter, daughter_husband, 'spouse')
+    grandson, granddaughter = add(client, bid, '김정'), add(client, bid, '최희', '여')
+    link(client, son, grandson)
+    link(client, son_wife, grandson)
+    link(client, daughter, granddaughter)
+    link(client, daughter_husband, granddaughter)
+    link(client, grandson, granddaughter, 'spouse')
+    earlier = add(client, bid, '정아', '여')
+    link(client, wife, earlier)
+    return bid
+
+
+def sheets(content):
+    names = [x.TREE_SHEET, x.EXTRA_SHEET, x.INFO_SHEET]
+    return {name: x.read_xlsx(content, name, fallback=False) for name in names}
+
+
+def rebuild(parts):
+    return x.write_xlsx([(name, rows, [12] * 20, ()) for name, rows in parts.items()])
+
+
+def test_links_a_tree_cannot_draw_survive_excel(client):
+    account(client)
+    paid(client)
+    bid = awkward_book(client)
+    original = client.get(f'/api/books/{bid}').json()
+    sent = client.get(f'/api/books/{bid}/export', params={'format': 'xlsx'}).content
+    parts = sheets(sent)
+    assert len(parts[x.EXTRA_SHEET]) > 1
+    tree = [[v for v in row if v is not None] for row in parts[x.TREE_SHEET]]
+    assert any(isinstance(v, str) and '→ 번호' in v for row in tree for v in row)
+    # A row inserted near the top moves every row below it; the references must still hold.
+    parts[x.TREE_SHEET].insert(2, [None] * len(parts[x.TREE_SHEET][0]))
+    edited = rebuild(parts)
+    family = x.read_family('b.xlsx', edited)
+    assert family['errors'] == []
+    family, back = bring_in(client, 'b.xlsx', edited)
+    assert signature(back)[1] == signature(original)[1]
+
+
+def test_old_row_references_still_read():
+    # Cousins who married, written the 2026.11.1–11.5 way: → 7행.
+    rows = [['1세', '2세', '3세'], ['김갑', None, None], [None, '김을', None], [None, None, '김정'],
+            [None, None, '配 최희 → 7행'], [None, '김병', None], [None, None, '최희']]
+    family = x.tree_family(rows)
+    assert family['errors'] == []
+    assert family['spouses'] == [['r4', 'r7']]
+
+
+def find_row(rows, text):
+    return next(i for i, row in enumerate(rows) if any(isinstance(v, str) and v.startswith(text) for v in row))
+
+
+def test_excel_edits_go_back_into_the_book(client):
+    account(client)
+    paid(client)
+    bid = client.post('/api/books/sample').json()['id']
+    parts = sheets(client.get(f'/api/books/{bid}/export', params={'format': 'xlsx'}).content)
+    tree = parts[x.TREE_SHEET]
+    head = [x._cell_text(v) for v in tree[0]]
+    col = {name: head.index(name) for name in x.DETAIL_HEADS}
+    width = len(head)
+    # A new grandchild under 金民宰, typed into an inserted row without a number.
+    at = find_row(tree, '金道允')
+    new = [None] * width
+    new[next(i for i, v in enumerate(tree[at]) if isinstance(v, str))] = '김새손'
+    new[col['성별']], new[col['출생일']] = '남', '2018-04-05'
+    tree.insert(at + 1, new)
+    # A death date filled in.
+    tree[find_row(tree, '金志英')][col['사망일']] = '2015-10-13'
+    # A daughter moved from 金志勳 to his brother 金志英.
+    moved = tree.pop(find_row(tree, '金泰恩'))
+    tree.insert(find_row(tree, '配 姜淑子') + 1, moved)
+    # A row deleted.
+    tree.pop(find_row(tree, '金民瑞'))
+    # The book's branch renamed on the 족보 정보 sheet.
+    info = parts[x.INFO_SHEET]
+    info[next(i for i, r in enumerate(info) if r and r[0] == '파명')][1] = '例示二派'
+
+    family = client.post('/api/import/preview', files={'file': ('a.xlsx', rebuild(parts))}).json()
+    assert family['errors'] == []
+    plan = family['target']['plan']
+    assert plan['added'] == ['김새손'] and plan['missing'] == ['金民瑞(김민서)']
+    assert {c['name'] for c in plan['changed']} == {'金志英(김지영)'}
+    assert plan['book_changes'] == [['파명', '例示派', '例示二派']]
+    assert plan['links_added'] >= 3 and plan['links_removed'] >= 2
+
+    body = {k: family[k] for k in ('book', 'book_key', 'people', 'parents', 'spouses')}
+    assert client.post(f'/api/books/{bid}/merge', json=body).status_code == 200
+    back = client.get(f'/api/books/{bid}').json()
+    names = {p['korean_name']: p['id'] for p in back['persons']}
+    parents = lambda who: {r['source_id'] for r in back['relations'] if r['kind'] == 'parent' and r['target_id'] == names[who]}
+    assert back['branch_name'] == '例示二派'
+    assert parents('김태은') == {names['김지영'], names['강숙자']}
+    assert parents('김새손') == {names['김민재'], names['이서연']}
+    assert '김민서' in names and parents('김민서') == {names['김태호'], names['최미경']}
+
+    backups = client.get('/api/backups').json()
+    assert len(backups) == 1 and backups[0]['title'] == '金海金氏族譜'
+    restored = client.post('/api/import/backup', json={'name': backups[0]['name']})
+    assert restored.status_code == 200 and len(restored.json()['people']) == 20
+    assert client.post('/api/import/backup', json={'name': '../jocbo.db'}).status_code == 404
+
+
+def test_backups_belong_to_their_account(client):
+    account(client)
+    paid(client)
+    bid = client.post('/api/books/sample').json()['id']
+    sent = client.get(f'/api/books/{bid}/export', params={'format': 'ged'}).content
+    family = client.post('/api/import/preview', files={'file': ('a.ged', sent)}).json()
+    body = {k: family[k] for k in ('book', 'book_key', 'people', 'parents', 'spouses')}
+    assert client.post(f'/api/books/{bid}/merge', json=body).status_code == 200
+    name = client.get('/api/backups').json()[0]['name']
+    client.post('/api/logout')
+    account(client)
+    assert client.get('/api/backups').json() == []
+    assert client.post('/api/import/backup', json={'name': name}).status_code == 404
+
+
+def test_free_account_merge_keeps_the_limit(client):
+    account(client)
+    bid = client.post('/api/books/sample').json()['id']
+    sent = client.get(f'/api/books/{bid}/export', params={'format': 'ged'}).content
+    family = client.post('/api/import/preview', files={'file': ('a.ged', sent)}).json()
+    family['people'].append({**family['people'][-1], 'key': 'extra', 'id': None, 'korean_name': '한 명 더'})
+    body = {k: family[k] for k in ('book', 'book_key', 'people', 'parents', 'spouses')}
+    assert client.post(f'/api/books/{bid}/merge', json=body).status_code == 402
+    assert len(client.get(f'/api/books/{bid}').json()['persons']) == 20
+    assert client.get('/api/backups').json() == []
+
+
+def test_book_list_counts_people(client):
+    account(client)
+    client.post('/api/books/sample')
+    client.post('/api/books', json={'title': '빈 족보'})
+    assert [(b['title'], b['people']) for b in client.get('/api/books').json()] == [('金海金氏族譜', 20), ('빈 족보', 0)]
+
+
 def test_merge_refuses_a_file_from_another_book(client):
     account(client)
     paid(client)
@@ -178,6 +337,19 @@ def test_gedcom_tags_passed_on_by_gramps():
     person = x.read_family('g.ged', text.encode('utf-8'))['people'][0]
     assert (person['korean_name'], person['hanja_name']) == ('김영조', '金永祖')
     assert (person['generation'], person['bon_gwan']) == (25, '金海')
+
+
+def test_book_fields_old_and_new_header():
+    old = ('0 HEAD\n1 CHAR UTF-8\n1 _BOOK\n2 TITL 옛 족보\n2 _KEY abc\n2 _CLAN 金氏\n2 NOTE 첫 줄\n3 CONT 둘째 줄\n'
+           '0 @I1@ INDI\n1 NAME 김갑\n0 TRLR\n')
+    family = x.read_family('old.ged', old.encode('utf-8'))
+    assert (family['book']['title'], family['book']['clan_name'], family['book_key']) == ('옛 족보', '金氏', 'abc')
+    book = {'title': '새 족보', 'clan_name': '金氏', 'book_key': 'k1', 'description': '첫 줄\n둘째 줄: 콜론',
+            'persons': [{'id': 1, 'korean_name': '김갑', 'hanja_name': '', 'generation': 1, 'gender': '남',
+                         'bon_gwan': '', 'birth_date': '', 'death_date': '', 'note': ''}], 'relations': []}
+    family = x.read_family('new.ged', x.gedcom(book).encode('utf-8'))
+    assert family['book']['description'] == '첫 줄\n둘째 줄: 콜론' and family['book_key'] == 'k1'
+    assert '_BOOK' not in x.gedcom(book)
 
 
 def test_gedcom_dates():

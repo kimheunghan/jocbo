@@ -2452,6 +2452,11 @@ button {
 .link-button:hover { background: none; color: var(--green, #2f6b4f); }
 .dialog-foot { justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
 .export-note { margin: 0; }
+.export-book { display: block; margin: 0 0 14px; }
+.import-backups { margin: 8px 0 0; font-size: 13px; }
+.import-backups summary { color: var(--ink-soft); cursor: pointer; }
+.import-backups p { margin: 6px 0; }
+#importBackupList { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; max-height: 140px; overflow: auto; }
 .import-preview { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line-soft); }
 .import-mode { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--paper-raised); }
 .import-mode legend { padding: 0 4px; color: var(--ink-soft); font-size: 12px; font-weight: 700; }

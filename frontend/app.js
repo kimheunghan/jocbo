@@ -2027,16 +2027,21 @@ $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=tru
 // 족보를 엑셀 가계도나 GEDCOM 파일로 내려받고, 같은 파일을 새 족보로 불러옵니다.
 // 불러올 파일은 먼저 서버가 읽어 보여 주고, [새 족보로 저장]을 눌러야 저장됩니다.
 function download(path){const a=document.createElement('a');a.href='/api'+path;a.download='';document.body.append(a);a.click();a.remove();}
-$('#exportOpen').onclick=()=>{
- if(!book){message('내보낼 족보를 먼저 선택해 주십시오.','error');return;}
- $('#exportText').textContent=`${scriptText(book.title)} · 인물 ${book.persons.length}명`;
+// 내보낼 족보는 창 안에서 고릅니다. 처음에는 지금 보고 있는 족보가 골라져 있고,
+// 이름이 같은 족보도 구분되도록 인원을 함께 적습니다.
+$('#exportOpen').onclick=run(async()=>{
+ const all=await api('/books');
+ if(!all.length){message('내보낼 족보가 없습니다. 먼저 족보를 만들어 주십시오.','error');return;}
+ $('#exportBook').innerHTML=all.map(b=>`<option value="${b.id}">${esc(scriptText(b.title))} · ${b.people}명</option>`).join('');
+ if(book)$('#exportBook').value=String(book.id);
  $('#exportDialog').showModal();
-};
+});
 $('#closeExport').onclick=()=>$('#exportDialog').close();
 document.querySelectorAll('[data-export]').forEach(button=>button.onclick=()=>{
- download(`/books/${book.id}/export?format=${button.dataset.export}`);
+ const select=$('#exportBook'),title=select.selectedOptions[0]?.textContent.replace(/ · \d+명$/,'')||'';
+ download(`/books/${select.value}/export?format=${button.dataset.export}`);
  $('#exportDialog').close();
- message(button.dataset.export==='ged'?'GEDCOM 파일을 내려받았습니다.':'엑셀 가계도를 내려받았습니다.');
+ message(`「${title}」을(를) ${button.dataset.export==='ged'?'GEDCOM 파일':'엑셀 가계도'}로 내려받았습니다.`);
 });
 let importFamily=null;
 const IMPORT_FORMATS={gedcom:'GEDCOM',xlsx:'엑셀 가계도',csv:'CSV'};
@@ -2050,9 +2055,26 @@ $('#importFile').onchange=async()=>{
  importFamily=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').textContent='새 족보로 저장';importError('');
  if(!file)return;
  const data=new FormData();data.append('file',file);
- try{importFamily=await busy($('#importSave'),'읽는 중…',()=>api('/import/preview','POST',data));}
- catch(err){$('#importSave').disabled=true;importError(err.message);return;}
+ await readImport(()=>api('/import/preview','POST',data));
+};
+async function readImport(request){
+ try{importFamily=await busy($('#importSave'),'읽는 중…',request);}
+ catch(err){importFamily=null;$('#importSave').disabled=true;importError(err.message);return;}
  paintImport(importFamily);
+}
+// 반영 직전에 저장해 둔 백업. 펼칠 때 목록을 받아 오고, 고르면 파일을 고른 것처럼 미리보기로 읽습니다.
+$('#importBackups').ontoggle=async()=>{
+ if(!$('#importBackups').open)return;
+ const list=$('#importBackupList');
+ list.innerHTML='<p class="muted">읽는 중…</p>';
+ let backups=[];
+ try{backups=await api('/backups');}catch(err){list.innerHTML=`<p class="form-error">${esc(err.message)}</p>`;return;}
+ list.innerHTML=backups.length?backups.map(b=>`<button type="button" class="link-button" data-backup="${esc(b.name)}">${esc(scriptText(b.title))} · ${esc(b.time)}</button>`).join('')
+  :'<p class="muted">백업이 없습니다. 기존 족보에 반영할 때마다 하나씩 생깁니다.</p>';
+ list.querySelectorAll('[data-backup]').forEach(button=>button.onclick=async()=>{
+  $('#importFile').value='';importError('');
+  await readImport(()=>api('/import/backup','POST',{name:button.dataset.backup}));
+ });
 };
 // 미리보기는 가계도처럼 들여 써서 보여 줍니다. 배우자는 같은 줄에 配로 붙입니다.
 function importOutline(f,limit=400){
@@ -2125,14 +2147,18 @@ function paintImportMode(){
 document.querySelectorAll('[name="importMode"]').forEach(radio=>radio.onchange=paintImportMode);
 function importPlanHTML(plan){
  const shortValue=v=>v===''||v==null?'(없음)':esc(String(v));
- const change=c=>`<li><b>${esc(c.name)}</b> — `+c.fields.map(([word,old,now])=>word==='기록'?'기록 고침':`${esc(word)} ${shortValue(old)} → ${shortValue(now)}`).join(', ')+'</li>';
+ const change=c=>`<li><b>${esc(c.name)}</b> — `+c.fields.map(([word,old,now])=>word==='기록'||word==='설명'?`${word} 고침`:`${esc(word)} ${shortValue(old)} → ${shortValue(now)}`).join(', ')+'</li>';
  const limit=100;
  const parts=[`새로 추가 ${plan.added.length}명`,`고침 ${plan.changed.length}명`,`그대로 ${plan.same}명`];
  if(plan.links_added||plan.links_removed)parts.push(`관계 추가 ${plan.links_added}건 · 관계 삭제 ${plan.links_removed}건`);
+ const bookChanges=plan.book_changes||[];
+ if(bookChanges.length)parts.push('족보 정보 고침');
  let html=`<p class="import-summary"><strong>반영 내용</strong> · ${parts.join(' · ')}</p>`;
  if(plan.added.length)html+=`<p class="import-plan-line">추가: ${plan.added.slice(0,limit).map(esc).join(', ')}${plan.added.length>limit?` 외 ${plan.added.length-limit}명`:''}</p>`;
- if(plan.changed.length)html+=`<ul class="import-changes">${plan.changed.slice(0,limit).map(change).join('')}${plan.changed.length>limit?`<li>외 ${plan.changed.length-limit}명</li>`:''}</ul>`;
- if(!plan.added.length&&!plan.changed.length&&!plan.links_added&&!plan.links_removed)html+='<p class="import-plan-line">바뀌는 내용이 없습니다.</p>';
+ const bookLine=bookChanges.length?[{name:'족보 정보',fields:bookChanges}]:[];
+ const changes=[...bookLine,...plan.changed];
+ if(changes.length)html+=`<ul class="import-changes">${changes.slice(0,limit).map(change).join('')}${changes.length>limit?`<li>외 ${changes.length-limit}건</li>`:''}</ul>`;
+ if(!plan.added.length&&!changes.length&&!plan.links_added&&!plan.links_removed)html+='<p class="import-plan-line">바뀌는 내용이 없습니다.</p>';
  if(plan.missing.length)html+=`<p class="muted">파일에 없는 사람 ${plan.missing.length}명(${plan.missing.slice(0,10).map(esc).join(', ')}${plan.missing.length>10?' 등':''})은 지우지 않고 그대로 둡니다.</p>`;
  html+='<p class="muted">반영하기 전에 지금 족보를 백업 파일(.ged)로 저장해 둡니다.</p>';
  return html;

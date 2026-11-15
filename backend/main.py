@@ -270,8 +270,12 @@ def take_out_license(uid=Depends(auth)):
 
 @app.get('/api/books')
 def list_books(uid=Depends(auth)):
+    # people: how many each book holds, so books of the same name can be told apart.
+    counts = select(persons.c.book_id, func.count().label('people')).group_by(persons.c.book_id).subquery()
     with engine.connect() as c:
-        return list(c.execute(select(books).where(books.c.user_id == uid).order_by(books.c.id)).mappings())
+        return list(c.execute(select(books, func.coalesce(counts.c.people, 0).label('people'))
+                              .select_from(books.outerjoin(counts, counts.c.book_id == books.c.id))
+                              .where(books.c.user_id == uid).order_by(books.c.id)).mappings())
 
 @app.post('/api/books', status_code=201)
 def create_book(data: Book, uid=Depends(auth)):
@@ -424,8 +428,47 @@ async def import_preview(file: UploadFile, uid=Depends(auth)):
         raise HTTPException(413, '파일은 20MB까지 불러올 수 있습니다.')
     if not data:
         raise HTTPException(400, '빈 파일입니다.')
+    return preview_family(file.filename, data, uid)
+
+# ── 백업 ──
+# Before a file changes a book, the book is saved as GEDCOM in backups/, named
+# <book id>_<title>_<time>.ged. The id keeps one account from seeing another's
+# backups where several share a server.
+BACKUP_NAME = re.compile(r'(\d+)_(.+)_(\d{8})-(\d{6})\.ged')
+
+def backup_folder():
+    return UPLOADS.parent / 'backups'
+
+def own_backups(c, uid):
+    ids = set(c.execute(select(books.c.id).where(books.c.user_id == uid)).scalars())
+    found = []
+    if backup_folder().is_dir():
+        for path in backup_folder().iterdir():
+            match = BACKUP_NAME.fullmatch(path.name)
+            if match and int(match[1]) in ids:
+                day, clock = match[3], match[4]
+                found.append({'name': path.name, 'title': match[2], 'book_id': int(match[1]),
+                              'time': f'{day[:4]}-{day[4:6]}-{day[6:]} {clock[:2]}:{clock[2:4]}'})
+    return sorted(found, key=lambda b: (b['time'], b['name']), reverse=True)
+
+@app.get('/api/backups')
+def list_backups(uid=Depends(auth)):
+    with engine.connect() as c:
+        return own_backups(c, uid)
+
+class BackupName(Input):
+    name: str = Field(min_length=1, max_length=255)
+
+@app.post('/api/import/backup')
+def import_backup(data: BackupName, uid=Depends(auth)):
+    with engine.connect() as c:
+        if data.name not in {b['name'] for b in own_backups(c, uid)}:
+            raise HTTPException(404, '백업 파일을 찾을 수 없습니다.')
+    return preview_family(data.name, (backup_folder() / data.name).read_bytes(), uid)
+
+def preview_family(name, data, uid):
     try:
-        family = exchange.read_family(file.filename, data)
+        family = exchange.read_family(name, data)
     except exchange.ExchangeError as error:
         raise HTTPException(400, str(error))
     # A file this app sent out names its book; if that book is still here, the
@@ -475,9 +518,9 @@ PERSON_COLUMNS = [field for field, _ in exchange.PERSON_FIELDS]
 
 def write_backup(detail):
     """The book as it stands, saved as GEDCOM beside the uploads before a file changes it."""
-    folder = UPLOADS.parent / 'backups'
+    folder = backup_folder()
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{file_stem(detail['title'])}_{time.strftime('%Y%m%d-%H%M%S')}.ged"
+    path = folder / f"{detail['id']}_{file_stem(detail['title'])}_{time.strftime('%Y%m%d-%H%M%S')}.ged"
     path.write_text(exchange.gedcom(detail), encoding='utf-8')
     return path
 
@@ -494,9 +537,13 @@ def merge_into_book(bid: int, data: ImportFamily, uid=Depends(auth)):
         detail = book_detail(c, bid, uid)
         if not detail['book_key'] or data.book_key != detail['book_key']:
             raise HTTPException(400, '이 파일은 이 족보에서 내보낸 파일이 아닙니다. 새 족보로 불러와 주십시오.')
-        plan = exchange.merge_plan(detail, {'people': people, 'parents': parents, 'spouses': spouses})
+        book_values = data.book.model_dump()
+        plan = exchange.merge_plan(detail, {'book': book_values, 'people': people, 'parents': parents, 'spouses': spouses})
         room_for(c, uid, len(plan['added']))
         backup = write_backup(detail)
+        if plan['book_changes']:
+            book_values['volume'] = book_values['volume'] or '1'
+            c.execute(books.update().where(books.c.id == bid).values(**book_values))
         ids = dict(plan['matched'])
         for person in people:
             values = {field: person[field] for field in PERSON_COLUMNS}
