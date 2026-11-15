@@ -134,7 +134,16 @@ def fit_windows():
         width, height = fit_size(work.right - work.left, work.bottom - work.top)
         left = work.left + (work.right - work.left - width) // 2
         top = work.top + (work.bottom - work.top - height) // 2
-        user32.SetWindowPos(ctypes.c_void_p(handle), None, left, top, width, height, 0x0014)  # NOZORDER|NOACTIVATE
+        # A window stretched to full height (Windows snap) takes the first call as its
+        # size to restore to and stays stretched; the next call then applies. So the
+        # size is checked and set again until it holds.
+        for _ in range(3):
+            user32.SetWindowPos(ctypes.c_void_p(handle), None, left, top, width, height, 0x0014)  # NOZORDER|NOACTIVATE
+            time.sleep(0.3)
+            now = _Rect()
+            user32.GetWindowRect(ctypes.c_void_p(handle), ctypes.byref(now))
+            if (now.right - now.left, now.bottom - now.top) == (width, height):
+                break
 
 
 def splash():
