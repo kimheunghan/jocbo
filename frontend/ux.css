@@ -2439,3 +2439,16 @@ button {
 .scan-progress-bar span { position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 999px; background: #b89a5a; animation: scan-progress 1.4s ease-in-out infinite; }
 @keyframes scan-progress { 0% { left: -35%; } 100% { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .scan-progress-bar span { animation-duration: 4s; } }
+
+/* ── 내보내기 · 불러오기 ─────────────────────────────── */
+#exportDialog { width: min(560px, calc(100vw - 32px)); }
+.export-kinds button { min-width: 0; text-align: left; white-space: normal; }
+.export-kinds small { line-height: 1.5; }
+#importDialog { width: min(760px, calc(100vw - 32px)); }
+.import-source { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 12px 0; }
+.import-source label { flex: 1 1 260px; }
+.import-preview h3 { margin: 14px 0 6px; font-size: 14px; }
+.import-summary { margin: 10px 0 6px; }
+.import-notes { max-height: 160px; margin: 0; padding-left: 20px; overflow: auto; color: var(--ink-soft); font-size: 13px; }
+.import-notes li.error { color: #8f2d24; font-weight: 600; }
+.import-tree { max-height: 320px; margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--paper-sunk); font: 13px/1.6 "Noto Sans KR", "Malgun Gothic", sans-serif; white-space: pre; }

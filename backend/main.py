@@ -19,6 +19,7 @@ from sqlalchemy import (create_engine, MetaData, Table, Column, Integer, String,
                         inspect, text)
 from sqlalchemy.exc import IntegrityError
 
+from backend import exchange
 from backend import license as paid
 from backend import share as web_share
 
@@ -113,21 +114,8 @@ class Book(Input):
 # A book often knows only part of a date: the year alone, the year and month, or
 # the month and day a spouse is remembered on with no year at all. Each is kept
 # as far as it is known — 1956, 1956-03, 1956-03-02, or --03-02 without a year.
-def partial_date(value):
-    whole = re.fullmatch(r'(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?', value)
-    yearless = re.fullmatch(r'--(\d{2})-(\d{2})', value)
-    if whole:
-        year, month, day = whole.groups()
-    elif yearless:
-        # A leap year, so that 29 February stands when the year is not known.
-        year, (month, day) = '2000', yearless.groups()
-    else:
-        return False
-    try:
-        date(int(year), int(month or 1), int(day or 1))
-    except ValueError:
-        return False
-    return True
+# The check lives with the file readers, which hold dates to the same rule.
+from backend.exchange import partial_date  # noqa: E402
 
 class Person(Input):
     korean_name: str = Field(min_length=1, max_length=100)
@@ -391,6 +379,89 @@ def stop_share(bid: int, uid=Depends(auth)):
         with engine.begin() as c:
             c.execute(delete(shares).where(shares.c.book_id == bid))
     return {'shared': False}
+
+# ── 내보내기 · 불러오기 ─────────────────────────────────────
+# A book goes out as GEDCOM (for other genealogy programs) or as an Excel tree,
+# and comes in from either. A file is read first and shown; nothing is filed
+# until the reading is sent back, and then as a new book, all or nothing.
+
+def attachment(content, media_type, name):
+    from urllib.parse import quote
+    ascii_name = re.sub(r'[^A-Za-z0-9._-]', '_', name) or 'jocbo'
+    return Response(content, media_type=media_type, headers={
+        'Content-Disposition': f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"})
+
+def file_stem(title):
+    return re.sub(r'[\\/:*?"<>|\r\n]+', ' ', title or '').strip()[:80] or '족보'
+
+@app.get('/api/books/{bid}/export')
+def export_book(bid: int, format: Literal['xlsx', 'ged'] = 'xlsx', uid=Depends(auth)):
+    with engine.connect() as c:
+        detail = book_detail(c, bid, uid)
+    stem = file_stem(detail['title'])
+    if format == 'ged':
+        return attachment(exchange.gedcom(detail).encode('utf-8'), 'text/plain; charset=utf-8', stem + '.ged')
+    return attachment(exchange.tree_xlsx(detail), XLSX, stem + ' 가계도.xlsx')
+
+XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+@app.get('/api/import/template')
+def import_template(uid=Depends(auth)):
+    return attachment(exchange.template_xlsx(), XLSX, '가계도 양식.xlsx')
+
+@app.post('/api/import/preview')
+async def import_preview(file: UploadFile, uid=Depends(auth)):
+    data = await file.read(MAX_IMPORT + 1)
+    if len(data) > MAX_IMPORT:
+        raise HTTPException(413, '파일은 20MB까지 불러올 수 있습니다.')
+    if not data:
+        raise HTTPException(400, '빈 파일입니다.')
+    try:
+        return exchange.read_family(file.filename, data)
+    except exchange.ExchangeError as error:
+        raise HTTPException(400, str(error))
+
+MAX_IMPORT = 20 * 1024 * 1024
+
+class ImportPerson(Person):
+    key: str = Field(min_length=1, max_length=40)
+
+class ImportFamily(Input):
+    book: Book
+    people: list[ImportPerson] = Field(min_length=1, max_length=exchange.MAX_PEOPLE)
+    parents: list[tuple[str, str]] = Field(default=[], max_length=exchange.MAX_PEOPLE * 4)
+    spouses: list[tuple[str, str]] = Field(default=[], max_length=exchange.MAX_PEOPLE * 4)
+
+@app.post('/api/books/import', status_code=201)
+def import_book(data: ImportFamily, uid=Depends(auth)):
+    keys = [p.key for p in data.people]
+    if len(set(keys)) != len(keys):
+        raise HTTPException(400, '같은 번호의 인물이 둘 이상 있습니다.')
+    known = set(keys)
+    if any(a not in known or b not in known for a, b in data.parents + data.spouses):
+        raise HTTPException(400, '관계가 가리키는 인물을 찾지 못했습니다.')
+    people = [p.model_dump() for p in data.people]
+    parents = sorted({(a, b) for a, b in data.parents if a != b})
+    spouses = sorted({tuple(sorted((a, b))) for a, b in data.spouses if a != b})
+    try:
+        exchange.settle_generations(people, parents, spouses)
+    except exchange.ExchangeError as error:
+        raise HTTPException(400, str(error))
+    with engine.begin() as c:
+        room_for(c, uid, len(people))
+        values = data.book.model_dump()
+        values['volume'] = values['volume'] or '1'
+        bid = c.execute(books.insert().values(user_id=uid, **values)).inserted_primary_key[0]
+        ids = {}
+        for person in people:
+            key = person.pop('key')
+            ids[key] = c.execute(persons.insert().values(book_id=bid, **person)).inserted_primary_key[0]
+        for a, b in spouses:
+            x, y = sorted((ids[a], ids[b]))
+            c.execute(relations.insert().values(source_id=x, target_id=y, kind='spouse'))
+        for a, b in parents:
+            c.execute(relations.insert().values(source_id=ids[a], target_id=ids[b], kind='parent'))
+    return {'id': bid, 'people': len(people)}
 
 @app.post('/api/books/{bid}/persons', status_code=201)
 def add_person(bid: int, data: Person, uid=Depends(auth)):

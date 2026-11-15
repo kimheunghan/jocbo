@@ -2023,6 +2023,100 @@ window.addEventListener('afterprint',()=>{
  document.querySelector('.tree-print-pages')?.remove();
 });
 $('#sample').onclick=run(async()=>{const button=$('#sample');button.disabled=true;try{const b=await api('/books/sample','POST');await loadBooks(b.id);message('예제 족보 추가 완료 — 金海金氏族譜 (가상 인물 20명)');}finally{button.disabled=false;}});
+// ── 내보내기 · 불러오기 ────────────────────────────
+// 족보를 엑셀 가계도나 GEDCOM 파일로 내려받고, 같은 파일을 새 족보로 불러옵니다.
+// 불러올 파일은 먼저 서버가 읽어 보여 주고, [새 족보로 저장]을 눌러야 저장됩니다.
+function download(path){const a=document.createElement('a');a.href='/api'+path;a.download='';document.body.append(a);a.click();a.remove();}
+$('#exportOpen').onclick=()=>{
+ if(!book){message('내보낼 족보를 먼저 선택해 주십시오.','error');return;}
+ $('#exportText').textContent=`${scriptText(book.title)} · 인물 ${book.persons.length}명`;
+ $('#exportDialog').showModal();
+};
+$('#closeExport').onclick=()=>$('#exportDialog').close();
+document.querySelectorAll('[data-export]').forEach(button=>button.onclick=()=>{
+ download(`/books/${book.id}/export?format=${button.dataset.export}`);
+ $('#exportDialog').close();
+ message(button.dataset.export==='ged'?'GEDCOM 파일을 내려받았습니다.':'엑셀 가계도를 내려받았습니다.');
+});
+let importFamily=null;
+const IMPORT_FORMATS={gedcom:'GEDCOM',xlsx:'엑셀 가계도',csv:'CSV'};
+function importError(text=''){const el=$('#importError');el.textContent=text;el.hidden=!text;}
+function resetImport(){importFamily=null;$('#importFile').value='';$('#importPreview').hidden=true;$('#importSave').disabled=true;importError('');}
+$('#importOpen').onclick=()=>{resetImport();$('#importDialog').showModal();};
+$('#closeImport').onclick=$('#importCancel').onclick=()=>$('#importDialog').close();
+$('#importTemplate').onclick=()=>download('/import/template');
+$('#importFile').onchange=async()=>{
+ const file=$('#importFile').files[0];
+ importFamily=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;importError('');
+ if(!file)return;
+ const data=new FormData();data.append('file',file);
+ try{importFamily=await busy($('#importSave'),'읽는 중…',()=>api('/import/preview','POST',data));}
+ catch(err){$('#importSave').disabled=true;importError(err.message);return;}
+ paintImport(importFamily);
+};
+// 미리보기는 가계도처럼 들여 써서 보여 줍니다. 배우자는 같은 줄에 配로 붙입니다.
+function importOutline(f,limit=400){
+ const byKey=new Map(f.people.map(p=>[p.key,p]));
+ const parentsOf=new Map(),childrenOf=new Map(),matesOf=new Map();
+ const push=(map,key,value)=>{if(!map.has(key))map.set(key,[]);map.get(key).push(value);};
+ f.parents.forEach(([p,c])=>{push(parentsOf,c,p);push(childrenOf,p,c);});
+ f.spouses.forEach(([a,b])=>{push(matesOf,a,b);push(matesOf,b,a);});
+ const order=new Map(f.people.map((p,i)=>[p.key,i]));
+ // 혼인으로 들어온 사람: 부모가 기록에 없고, 배우자는 부모가 있거나 먼저 적힌 사람.
+ const guest=new Set();
+ f.spouses.forEach(([a,b])=>{
+  const pa=parentsOf.has(a),pb=parentsOf.has(b);
+  if(pa&&!pb)guest.add(b);else if(pb&&!pa)guest.add(a);else if(!pa&&!pb)guest.add(order.get(a)<order.get(b)?b:a);
+ });
+ const name=p=>p.hanja_name&&p.hanja_name!==p.korean_name?`${p.hanja_name}(${p.korean_name})`:p.korean_name;
+ const lines=[],seen=new Set(),base=Math.min(...f.people.map(p=>p.generation));
+ const walk=(key,depth)=>{
+  const stack=[[key,depth]];
+  while(stack.length&&lines.length<limit){
+   const [k,d]=stack.pop();
+   if(seen.has(k))continue;
+   seen.add(k);
+   const p=byKey.get(k),mates=(matesOf.get(k)||[]).filter(m=>guest.has(m)&&!seen.has(m));
+   mates.forEach(m=>seen.add(m));
+   const born=p.birth_date?` ${p.birth_date}`:'';
+   lines.push(`${'    '.repeat(d)}${p.generation}세 ${name(p)}${born}`+mates.map(m=>` · 配 ${name(byKey.get(m))}`).join(''));
+   const kids=[...new Set([k,...mates].flatMap(x=>childrenOf.get(x)||[]))].sort((a,b)=>order.get(a)-order.get(b));
+   kids.reverse().forEach(c=>stack.push([c,d+1]));
+  }
+ };
+ f.people.filter(p=>!parentsOf.has(p.key)&&!guest.has(p.key)).sort((a,b)=>a.generation-b.generation||order.get(a.key)-order.get(b.key)).forEach(p=>walk(p.key,p.generation-base));
+ f.people.forEach(p=>{if(!seen.has(p.key))walk(p.key,0);});
+ const rest=f.people.length-seen.size;
+ return lines.join('\n')+(rest>0?`\n… 외 ${rest}명`:'');
+}
+function paintImport(f){
+ $('#importTitle').value=f.book.title||'';
+ const gens=f.people.map(p=>p.generation);
+ const range=gens.length?` · ${Math.min(...gens)}세~${Math.max(...gens)}세`:'';
+ $('#importSummary').innerHTML=`<strong>${esc(IMPORT_FORMATS[f.format]||'')}</strong> · 인물 ${f.people.length}명 · 부모-자녀 ${f.parents.length}건 · 부부 ${f.spouses.length}건${range}`;
+ const shown=50;
+ $('#importNotes').innerHTML=f.errors.map(t=>`<li class="error">${esc(t)}</li>`).join('')
+  +f.warnings.slice(0,shown).map(t=>`<li>${esc(t)}</li>`).join('')
+  +(f.warnings.length>shown?`<li>외 알림 ${f.warnings.length-shown}건</li>`:'');
+ $('#importTree').textContent=f.people.length&&!f.errors.length?importOutline(f):'';
+ $('#importTree').hidden=$('#importTreeHead').hidden=!$('#importTree').textContent;
+ $('#importPreview').hidden=false;
+ $('#importSave').disabled=!!f.errors.length;
+ if(f.errors.length)importError('고칠 곳이 있어 저장할 수 없습니다. 아래에 적힌 행을 파일에서 고친 뒤 다시 골라 주십시오.');
+}
+$('#importSave').onclick=run(async()=>{
+ if(!importFamily)return;
+ const title=$('#importTitle').value.trim();
+ if(!title){importError('족보명을 적어 주십시오.');$('#importTitle').focus();return;}
+ importError('');
+ const body={book:{...importFamily.book,title},people:importFamily.people,parents:importFamily.parents,spouses:importFamily.spouses};
+ let r;
+ try{r=await busy($('#importSave'),'저장 중…',()=>api('/books/import','POST',body));}
+ catch(err){if(!err.quiet)importError(err.message);return;}
+ $('#importDialog').close();
+ await loadBooks(r.id);
+ message(`새 족보로 불러왔습니다. 인물 ${r.people}명`);
+});
 enter().catch(()=>{});
 
 // ── 스캔 보고 옮겨 적기 ────────────────────────
