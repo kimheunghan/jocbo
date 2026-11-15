@@ -2041,13 +2041,13 @@ document.querySelectorAll('[data-export]').forEach(button=>button.onclick=()=>{
 let importFamily=null;
 const IMPORT_FORMATS={gedcom:'GEDCOM',xlsx:'엑셀 가계도',csv:'CSV'};
 function importError(text=''){const el=$('#importError');el.textContent=text;el.hidden=!text;}
-function resetImport(){importFamily=null;$('#importFile').value='';$('#importPreview').hidden=true;$('#importSave').disabled=true;importError('');}
+function resetImport(){importFamily=null;$('#importFile').value='';$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').disabled=true;$('#importSave').textContent='새 족보로 저장';importError('');}
 $('#importOpen').onclick=()=>{resetImport();$('#importDialog').showModal();};
 $('#closeImport').onclick=$('#importCancel').onclick=()=>$('#importDialog').close();
 document.querySelectorAll('[data-template]').forEach(button=>button.onclick=()=>download('/import/template?format='+button.dataset.template));
 $('#importFile').onchange=async()=>{
  const file=$('#importFile').files[0];
- importFamily=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;importError('');
+ importFamily=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').textContent='새 족보로 저장';importError('');
  if(!file)return;
  const data=new FormData();data.append('file',file);
  try{importFamily=await busy($('#importSave'),'읽는 중…',()=>api('/import/preview','POST',data));}
@@ -2099,17 +2099,61 @@ function paintImport(f){
   +f.warnings.slice(0,shown).map(t=>`<li>${esc(t)}</li>`).join('')
   +(f.warnings.length>shown?`<li>외 알림 ${f.warnings.length-shown}건</li>`:'');
  $('#importTree').textContent=f.people.length&&!f.errors.length?importOutline(f):'';
- $('#importTree').hidden=$('#importTreeHead').hidden=!$('#importTree').textContent;
+ // 이 앱에서 내보낸 파일이고 그 족보가 아직 있으면, 원래 족보에 반영하는 것을 먼저 권합니다.
+ const target=f.target;
+ $('#importMode').hidden=!target;
+ if(target){
+  $('#importMergeLabel').textContent=`기존 족보 「${scriptText(target.title)}」에 반영`;
+  document.querySelector('[name="importMode"][value="merge"]').checked=true;
+  $('#importPlan').innerHTML=importPlanHTML(target.plan);
+ }
  $('#importPreview').hidden=false;
  $('#importSave').disabled=!!f.errors.length;
+ paintImportMode();
  if(f.errors.length)importError('고칠 곳이 있어 저장할 수 없습니다. 아래에 적힌 행을 파일에서 고친 뒤 다시 골라 주십시오.');
+}
+function importMode(){return importFamily?.target&&document.querySelector('[name="importMode"]:checked')?.value==='merge'?'merge':'new';}
+// 반영이면 바뀌는 내용을, 새 족보면 족보명과 가계도 미리보기를 보여 줍니다.
+function paintImportMode(){
+ const merge=importMode()==='merge';
+ $('#importTitleWrap').hidden=merge;
+ $('#importPlan').hidden=!merge;
+ const tree=!merge&&!!$('#importTree').textContent;
+ $('#importTree').hidden=$('#importTreeHead').hidden=!tree;
+ $('#importSave').textContent=merge?'기존 족보에 반영':'새 족보로 저장';
+}
+document.querySelectorAll('[name="importMode"]').forEach(radio=>radio.onchange=paintImportMode);
+function importPlanHTML(plan){
+ const shortValue=v=>v===''||v==null?'(없음)':esc(String(v));
+ const change=c=>`<li><b>${esc(c.name)}</b> — `+c.fields.map(([word,old,now])=>word==='기록'?'기록 고침':`${esc(word)} ${shortValue(old)} → ${shortValue(now)}`).join(', ')+'</li>';
+ const limit=100;
+ const parts=[`새로 추가 ${plan.added.length}명`,`고침 ${plan.changed.length}명`,`그대로 ${plan.same}명`];
+ if(plan.links_added||plan.links_removed)parts.push(`관계 추가 ${plan.links_added}건 · 관계 삭제 ${plan.links_removed}건`);
+ let html=`<p class="import-summary"><strong>반영 내용</strong> · ${parts.join(' · ')}</p>`;
+ if(plan.added.length)html+=`<p class="import-plan-line">추가: ${plan.added.slice(0,limit).map(esc).join(', ')}${plan.added.length>limit?` 외 ${plan.added.length-limit}명`:''}</p>`;
+ if(plan.changed.length)html+=`<ul class="import-changes">${plan.changed.slice(0,limit).map(change).join('')}${plan.changed.length>limit?`<li>외 ${plan.changed.length-limit}명</li>`:''}</ul>`;
+ if(!plan.added.length&&!plan.changed.length&&!plan.links_added&&!plan.links_removed)html+='<p class="import-plan-line">바뀌는 내용이 없습니다.</p>';
+ if(plan.missing.length)html+=`<p class="muted">파일에 없는 사람 ${plan.missing.length}명(${plan.missing.slice(0,10).map(esc).join(', ')}${plan.missing.length>10?' 등':''})은 지우지 않고 그대로 둡니다.</p>`;
+ html+='<p class="muted">반영하기 전에 지금 족보를 백업 파일(.ged)로 저장해 둡니다.</p>';
+ return html;
 }
 $('#importSave').onclick=run(async()=>{
  if(!importFamily)return;
+ importError('');
+ const base={people:importFamily.people,parents:importFamily.parents,spouses:importFamily.spouses};
+ if(importMode()==='merge'){
+  const target=importFamily.target;
+  let r;
+  try{r=await busy($('#importSave'),'반영 중…',()=>api(`/books/${target.id}/merge`,'POST',{...base,book:importFamily.book,book_key:importFamily.book_key}));}
+  catch(err){if(!err.quiet)importError(err.message);return;}
+  $('#importDialog').close();
+  await loadBooks(target.id);
+  message(`「${scriptText(target.title)}」에 반영했습니다. 추가 ${r.added}명 · 고침 ${r.changed}명 · 백업 ${r.backup}`);
+  return;
+ }
  const title=$('#importTitle').value.trim();
  if(!title){importError('족보명을 적어 주십시오.');$('#importTitle').focus();return;}
- importError('');
- const body={book:{...importFamily.book,title},people:importFamily.people,parents:importFamily.parents,spouses:importFamily.spouses};
+ const body={...base,book:{...importFamily.book,title}};
  let r;
  try{r=await busy($('#importSave'),'저장 중…',()=>api('/books/import','POST',body));}
  catch(err){if(!err.quiet)importError(err.message);return;}

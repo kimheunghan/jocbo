@@ -68,7 +68,8 @@ def link(row):
 
 def snapshot(book):
     """What the family sees: the book without the scans of its pages."""
-    book = {key: value for key, value in book.items() if key not in ('scans', 'user_id')}
+    # book_key only ties exported files back to this book on this PC; the site has no use for it.
+    book = {key: value for key, value in book.items() if key not in ('scans', 'user_id', 'book_key')}
     book['files'] = [dict(f) for f in book['files']]
     book['relations'] = [dict(r) for r in book['relations']]
     return book

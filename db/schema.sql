@@ -21,6 +21,7 @@ CREATE TABLE family_books (
 	lineage VARCHAR(200) DEFAULT '' NOT NULL,
 	page_breaks VARCHAR(200) DEFAULT '' NOT NULL,
 	description TEXT NOT NULL,
+	book_key VARCHAR(32) DEFAULT '' NOT NULL,
 	PRIMARY KEY (id),
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 );

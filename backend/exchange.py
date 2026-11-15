@@ -231,8 +231,59 @@ FIELD_NAMES = {'korean_name': '한글명', 'hanja_name': '한자명', 'bon_gwan'
 
 
 def blank_person(key):
-    return {'key': key, 'korean_name': '', 'hanja_name': '', 'bon_gwan': '', 'generation': None,
+    # id: the person's number in the book the file came from, when the file says so.
+    return {'key': key, 'id': None, 'korean_name': '', 'hanja_name': '', 'bon_gwan': '', 'generation': None,
             'gender': '미상', 'birth_date': '', 'death_date': '', 'note': ''}
+
+
+def person_number(value):
+    text = _cell_text(value) if not isinstance(value, str) else value.strip()
+    return int(text) if re.fullmatch(r'\d{1,12}', text or '') else None
+
+
+# ── 기존 족보에 반영 ──────────────────────────────────────────────────
+
+PERSON_FIELDS = [('korean_name', '한글명'), ('hanja_name', '한자명'), ('bon_gwan', '본관'), ('generation', '세'),
+                 ('gender', '성별'), ('birth_date', '출생일'), ('death_date', '사망일'), ('note', '기록')]
+
+
+def merge_plan(book, family):
+    """What bringing a file back into the book it came from would change.
+
+    A person is matched by their number in the book. Anyone in the file without
+    a number (or with one the book does not have) is added. Nobody is taken out:
+    people the file leaves out stay, and are only named. Among the people the
+    file matches, its parent and spouse links replace the book's.
+    """
+    current = {p['id']: p for p in book['persons']}
+    matched, added, changed, same = {}, [], [], 0
+    for person in family['people']:
+        number = person.get('id')
+        if number in current and number not in matched.values():
+            matched[person['key']] = number
+            old = current[number]
+            fields = [[word, old[field], person[field]] for field, word in PERSON_FIELDS
+                      if (old[field] if old[field] is not None else '') != (person[field] if person[field] is not None else '')]
+            if fields:
+                changed.append({'name': label(person), 'fields': fields})
+            else:
+                same += 1
+        else:
+            added.append(label(person))
+    missing = [label(p) for number, p in current.items() if number not in matched.values()]
+    inside = set(matched.values())
+
+    def link(kind, a, b):
+        return (kind, *sorted((a, b))) if kind == 'spouse' else (kind, a, b)
+
+    before = {link(r['kind'], r['source_id'], r['target_id']) for r in book['relations']
+              if r['source_id'] in inside and r['target_id'] in inside}
+    after = {link(kind, matched[a], matched[b]) for kind, pairs in (('parent', family['parents']), ('spouse', family['spouses']))
+             for a, b in pairs if a in matched and b in matched}
+    new_people_links = sum(1 for pairs in (family['parents'], family['spouses']) for a, b in pairs
+                           if a not in matched or b not in matched)
+    return {'matched': matched, 'added': added, 'changed': changed, 'same': same, 'missing': missing,
+            'links_added': len(after - before) + new_people_links, 'links_removed': len(before - after)}
 
 
 GENDER = {'남': '남', '男': '남', 'M': '남', 'MALE': '남', '여': '여', '女': '여', 'F': '여', 'FEMALE': '여'}
@@ -556,7 +607,9 @@ def write_xlsx(sheets):
 
 # ── 엑셀 가계도 내보내기 ──────────────────────────────────────────────
 
-DETAIL_HEADS = ['세', '성별', '본관', '출생일', '사망일', '다른 부모', '기록']
+# 번호 is the person's number in the book: it lets a sheet sent out and edited
+# come back into the same book, matching each row to the person it came from.
+DETAIL_HEADS = ['세', '성별', '본관', '출생일', '사망일', '다른 부모', '기록', '번호']
 TREE_SHEET = '가계도'
 
 
@@ -587,11 +640,12 @@ def tree_xlsx(book):
             other = row.get('other')
             other_text = other if isinstance(other, str) else (label(by_id[other]) if other is not None else '')
             details = [person['generation'], person['gender'] if person['gender'] != '미상' else '',
-                       person['bon_gwan'], person['birth_date'], person['death_date'], other_text, person['note']]
+                       person['bon_gwan'], person['birth_date'], person['death_date'], other_text, person['note'],
+                       (person['id'], 'ref')]
             for offset, value in enumerate(details):
                 cells[depth + offset] = (value, 'text') if isinstance(value, str) else value
         sheet.append(cells)
-    widths = [16] * depth + [6, 6, 10, 12, 12, 16, 50]
+    widths = [16] * depth + [6, 6, 10, 12, 12, 16, 50, 7]
     text_columns = {depth + 3, depth + 4}
 
     # A plain list beside it, for sorting and filtering; it is not read back.
@@ -607,6 +661,8 @@ def tree_xlsx(book):
                         ', '.join(label(by_id[x]) for x in spouses_of[p['id']]),
                         (p['birth_date'], 'text'), (p['death_date'], 'text'), p['note']])
     info = [[('항목', 'head'), ('내용', 'head')]] + [[word, (book.get(field) or '', 'text')] for field, word in BOOK_WORDS]
+    if book.get('book_key'):
+        info.append([KEY_WORD, (book['book_key'], 'ref')])
     return write_xlsx([(TREE_SHEET, sheet, widths, text_columns),
                        ('인물 목록', listing, [6, 6, 10, 12, 6, 10, 16, 16, 20, 12, 12, 50], {9, 10}),
                        (INFO_SHEET, info, [14, 60], {1})])
@@ -620,14 +676,24 @@ BOOK_WORDS = [('title', '족보명'), ('clan_name', '성씨/가문'), ('bon_gwan
               ('lineage', '계통'), ('description', '설명')]
 
 
+# The key that ties a file to the book it came from (see main.export_book).
+KEY_WORD = '족보 번호 (고치지 마십시오)'
+
+
 def book_info(rows):
+    """The book's fields from the 족보 정보 sheet, and the book's key if the sheet has one."""
     words = {word: field for field, word in BOOK_WORDS}
-    book = {}
+    book, key = {}, ''
     for row in rows[1:]:
-        if len(row) >= 2 and _cell_text(row[0]) in words:
-            value = row[1]
-            book[words[_cell_text(row[0])]] = value.strip() if isinstance(value, str) else _cell_text(value)
-    return book
+        if len(row) < 2:
+            continue
+        word, value = _cell_text(row[0]), row[1]
+        value = value.strip() if isinstance(value, str) else _cell_text(value)
+        if word in words:
+            book[words[word]] = value
+        elif word == KEY_WORD:
+            key = value
+    return book, key
 
 
 def template_gedcom():
@@ -771,7 +837,8 @@ HEAD_FIELDS = {'세': 'generation', '세대': 'generation', '世': 'generation',
                '출생일': 'birth_date', '출생': 'birth_date', '생년월일': 'birth_date', '생일': 'birth_date',
                '사망일': 'death_date', '사망': 'death_date', '졸': 'death_date',
                '다른부모': 'other', '어머니': 'other', '배우자부모': 'other',
-               '기록': 'note', '메모': 'note', '비고': 'note', '한자명': 'hanja_name', '한자': 'hanja_name'}
+               '기록': 'note', '메모': 'note', '비고': 'note', '한자명': 'hanja_name', '한자': 'hanja_name',
+               '번호': 'id'}
 SPOUSE_MARK = re.compile(r'^\s*(?:配|배\s*[):.]|배\s+)\s*')
 REFERENCE = re.compile(r'\s*(?:→|->)\s*(\d+)\s*행\s*$')
 
@@ -790,7 +857,7 @@ def _head_name(value):
 
 def tree_family(rows):
     """Read the tree sheet into a family; row numbers in messages are the sheet's own."""
-    family = {'book': {}, 'people': [], 'parents': [], 'spouses': [], 'warnings': [], 'errors': []}
+    family = {'book': {}, 'book_key': '', 'people': [], 'parents': [], 'spouses': [], 'warnings': [], 'errors': []}
     rows = [list(row) for row in rows]
     if not rows:
         family['errors'].append('엑셀 시트가 비어 있습니다.')
@@ -864,6 +931,7 @@ def tree_family(rows):
         person['generation'] = int(gen_number[1]) if gen_number else base + column
         person['gender'] = GENDER.get(_cell_text(cells.get('gender')).upper(), '미상')
         person['bon_gwan'] = _cell_text(cells.get('bon_gwan'))
+        person['id'] = person_number(cells.get('id'))
         note = cells.get('note')
         person['note'] = str(note).strip() if isinstance(note, str) else _cell_text(note)
         for field, word in (('birth_date', '출생'), ('death_date', '사망')):
@@ -1025,6 +1093,8 @@ def gedcom(book, version='2026'):
     # comes back as the same book. Other programs pass over tags that begin with _.
     add(1, '_BOOK')
     add(2, 'TITL', book.get('title', ''))
+    if book.get('book_key'):
+        add(2, '_KEY', book['book_key'])
     for field, tag in BOOK_TAGS:
         if book.get(field):
             add(2, tag, book[field])
@@ -1053,6 +1123,9 @@ def gedcom(book, version='2026'):
             add(2, 'DATE', to_gedcom_date(p['death_date']))
         if p['note']:
             add(1, 'NOTE', p['note'])
+        # The person's number in this book, so the file can come back into it (REFN is standard).
+        add(1, 'REFN', str(p['id']))
+        add(2, 'TYPE', 'jocbo')
         add(1, '_GEN', str(p['generation']))
         if p['bon_gwan']:
             add(1, '_BONGWAN', p['bon_gwan'])
@@ -1168,7 +1241,7 @@ EVENT_NOTES = {'OCCU': '직업', 'EDUC': '학력', 'TITL': '관직·칭호', 'RE
 
 
 def gedcom_family(data):
-    family = {'book': {}, 'people': [], 'parents': [], 'spouses': [], 'warnings': [], 'errors': []}
+    family = {'book': {}, 'book_key': '', 'people': [], 'parents': [], 'spouses': [], 'warnings': [], 'errors': []}
     text = decode_gedcom(data)
     roots, bad = parse_gedcom_lines(text)
     if not roots or roots[0]['tag'] != 'HEAD':
@@ -1188,6 +1261,7 @@ def gedcom_family(data):
     book_node = _sub(head, '_BOOK')
     if book_node:
         family['book']['title'] = (_sub(book_node, 'TITL') or {}).get('value', '')
+        family['book_key'] = (_sub(book_node, '_KEY') or {}).get('value', '').strip()
         for field, tag in BOOK_TAGS:
             family['book'][field] = (_sub(book_node, tag) or {}).get('value', '')
         description = _sub(book_node, 'NOTE')
@@ -1254,6 +1328,10 @@ def gedcom_family(data):
         if generation.isdigit() and 1 <= int(generation) <= 200:
             person['generation'] = int(generation)
         person['bon_gwan'] = _custom(node, '_BONGWAN')
+        for ref in _subs(node, 'REFN'):
+            kind = _sub(ref, 'TYPE')
+            if kind and kind['value'].strip().lower() == 'jocbo':
+                person['id'] = person_number(ref['value'])
         settle_dates(person, f'{person["korean_name"] or key}', family['warnings'])
         fit(person, f'{person["korean_name"] or key}', family['warnings'])
         keys[node['xref']] = key
@@ -1291,9 +1369,10 @@ def read_family(name, data):
     elif data[:2] == b'PK':
         family = tree_family(read_xlsx(data))
         family['format'] = 'xlsx'
-        info = book_info(read_xlsx(data, INFO_SHEET, fallback=False))
+        info, key = book_info(read_xlsx(data, INFO_SHEET, fallback=False))
         if info:
             family['book'] = tidy_book(info)
+        family['book_key'] = key
     elif lower.endswith('.csv'):
         family = tree_family(read_csv(data))
         family['format'] = 'csv'

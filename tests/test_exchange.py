@@ -48,6 +48,57 @@ def test_sample_book_comes_back_the_same(client, kind):
         assert back[field] == original[field]
 
 
+@pytest.mark.parametrize('kind', ['xlsx', 'ged'])
+def test_edited_file_goes_back_into_its_book(client, kind, tmp_path):
+    account(client)
+    paid(client)
+    bid = client.post('/api/books/sample').json()['id']
+    sent = client.get(f'/api/books/{bid}/export', params={'format': kind}).content
+    family = client.post('/api/import/preview', files={'file': (f'a.{kind}', sent)}).json()
+    target = family['target']
+    assert target['id'] == bid
+    assert target['plan']['same'] == 20 and not target['plan']['added'] and not target['plan']['changed']
+    # Edit as a person would: a new grandchild, a death date, one person left out.
+    people = family['people']
+    father = next(p for p in people if p['korean_name'] == '김민재')
+    people.append({**father, 'key': 'new1', 'id': None, 'korean_name': '김새손', 'hanja_name': '', 'birth_date': '2018-04-05',
+                   'death_date': '', 'note': '', 'generation': 30})
+    family['parents'].append([father['key'], 'new1'])
+    jiyoung = next(p for p in people if p['korean_name'] == '김지영')
+    jiyoung['death_date'] = '2015-10-13'
+    dropped = next(p for p in people if p['korean_name'] == '김도윤')
+    people.remove(dropped)
+    family['parents'] = [l for l in family['parents'] if dropped['key'] not in l]
+    body = {k: family[k] for k in ('book', 'book_key', 'people', 'parents', 'spouses')}
+    saved = client.post(f'/api/books/{bid}/merge', json=body)
+    assert saved.status_code == 200, saved.text
+    assert (saved.json()['added'], saved.json()['changed']) == (1, 1)
+    back = client.get(f'/api/books/{bid}').json()
+    names = {p['korean_name']: p for p in back['persons']}
+    assert len(back['persons']) == 21 and '김도윤' in names
+    assert names['김지영']['death_date'] == '2015-10-13'
+    assert names['김새손']['generation'] == 30
+    child_parents = {r['source_id'] for r in back['relations'] if r['kind'] == 'parent' and r['target_id'] == names['김새손']['id']}
+    assert names['김민재']['id'] in child_parents
+    # 김도윤 was left out of the file: kept, with the parents he had.
+    assert any(r['target_id'] == names['김도윤']['id'] for r in back['relations'] if r['kind'] == 'parent')
+    from backend import main as m
+    assert list((m.UPLOADS.parent / 'backups').glob('*.ged'))
+    assert len(client.get('/api/books').json()) == 1
+
+
+def test_merge_refuses_a_file_from_another_book(client):
+    account(client)
+    paid(client)
+    first = client.post('/api/books/sample').json()['id']
+    second = client.post('/api/books/sample').json()['id']
+    sent = client.get(f'/api/books/{first}/export', params={'format': 'ged'}).content
+    family = client.post('/api/import/preview', files={'file': ('a.ged', sent)}).json()
+    assert family['target']['id'] == first
+    body = {k: family[k] for k in ('book', 'book_key', 'people', 'parents', 'spouses')}
+    assert client.post(f'/api/books/{second}/merge', json=body).status_code == 400
+
+
 def test_free_account_keeps_its_limit_on_import(client):
     account(client)
     bid = client.post('/api/books/sample').json()['id']
