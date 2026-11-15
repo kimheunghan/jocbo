@@ -199,3 +199,9 @@ def test_template_reads_back(client):
     family = x.read_family('가계도 양식.xlsx', sheet.content)
     assert family['errors'] == [] and len(family['people']) == 7
     assert family['book']['title'] == '가계도 양식'
+    sheet = client.get('/api/import/template', params={'format': 'ged'})
+    assert sheet.status_code == 200 and sheet.content.startswith(b'0 HEAD')
+    family = x.read_family('GEDCOM 양식.ged', sheet.content)
+    assert family['errors'] == [] and len(family['people']) == 7
+    assert len(family['parents']) == 8 and len(family['spouses']) == 2
+    assert sorted(p['generation'] for p in family['people']) == [1, 1, 2, 2, 2, 3, 3]

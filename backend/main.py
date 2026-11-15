@@ -406,7 +406,9 @@ def export_book(bid: int, format: Literal['xlsx', 'ged'] = 'xlsx', uid=Depends(a
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 @app.get('/api/import/template')
-def import_template(uid=Depends(auth)):
+def import_template(format: Literal['xlsx', 'ged'] = 'xlsx', uid=Depends(auth)):
+    if format == 'ged':
+        return attachment(exchange.template_gedcom().encode('utf-8'), 'text/plain; charset=utf-8', 'GEDCOM 양식.ged')
     return attachment(exchange.template_xlsx(), XLSX, '가계도 양식.xlsx')
 
 @app.post('/api/import/preview')

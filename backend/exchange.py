@@ -630,6 +630,27 @@ def book_info(rows):
     return book
 
 
+def template_gedcom():
+    """The same made-up family as the Excel template, as a GEDCOM file."""
+    rows = [  # id, 한글명, 한자명, 世, 성별, 본관, 출생, 사망, 기록
+        (1, '김시조', '金始祖', 1, '남', '金海', '1820', '1885-03', '字 ○○ · 예시 인물입니다'),
+        (2, '이씨', '李氏', 1, '여', '全州', '', '', ''),
+        (3, '김일남', '金一男', 2, '남', '', '1845-05-02', '', ''),
+        (4, '박씨', '朴氏', 2, '여', '密陽', '', '', ''),
+        (5, '김장손', '', 3, '남', '', '', '', ''),
+        (6, '김차손', '', 3, '남', '', '', '', ''),
+        (7, '김이남', '金二男', 2, '남', '', '', '', ''),
+    ]
+    keys = ['id', 'korean_name', 'hanja_name', 'generation', 'gender', 'bon_gwan', 'birth_date', 'death_date', 'note']
+    links = [(1, 2, 'spouse'), (3, 4, 'spouse'), (1, 3, 'parent'), (2, 3, 'parent'), (1, 7, 'parent'), (2, 7, 'parent'),
+             (3, 5, 'parent'), (4, 5, 'parent'), (3, 6, 'parent'), (4, 6, 'parent')]
+    book = {'title': 'GEDCOM 양식', 'clan_name': '金氏', 'bon_gwan': '金海', 'volume': '1',
+            'description': '불러오기 예시입니다. 모든 인물은 가상 인물입니다.',
+            'persons': [dict(zip(keys, row)) for row in rows],
+            'relations': [{'source_id': a, 'target_id': b, 'kind': kind} for a, b, kind in links]}
+    return gedcom(book)
+
+
 def template_xlsx():
     """An empty tree with a made-up family, to show how the sheet is filled in."""
     head = [(h, 'head') for h in ['1세', '2세', '3세', *DETAIL_HEADS]]

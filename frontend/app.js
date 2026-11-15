@@ -2044,7 +2044,7 @@ function importError(text=''){const el=$('#importError');el.textContent=text;el.
 function resetImport(){importFamily=null;$('#importFile').value='';$('#importPreview').hidden=true;$('#importSave').disabled=true;importError('');}
 $('#importOpen').onclick=()=>{resetImport();$('#importDialog').showModal();};
 $('#closeImport').onclick=$('#importCancel').onclick=()=>$('#importDialog').close();
-$('#importTemplate').onclick=()=>download('/import/template');
+document.querySelectorAll('[data-template]').forEach(button=>button.onclick=()=>download('/import/template?format='+button.dataset.template));
 $('#importFile').onchange=async()=>{
  const file=$('#importFile').files[0];
  importFamily=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;importError('');

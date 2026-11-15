@@ -2447,6 +2447,7 @@ button {
 #importDialog { width: min(760px, calc(100vw - 32px)); }
 .import-source { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 12px 0; }
 .import-source label { flex: 1 1 260px; }
+.import-templates { display: flex; flex-wrap: wrap; gap: 8px; }
 .import-preview h3 { margin: 14px 0 6px; font-size: 14px; }
 .import-summary { margin: 10px 0 6px; }
 .import-notes { max-height: 160px; margin: 0; padding-left: 20px; overflow: auto; color: var(--ink-soft); font-size: 13px; }
