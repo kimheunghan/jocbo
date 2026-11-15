@@ -120,6 +120,15 @@ def test_gedcom_from_another_program():
     assert any('찾지 못해' in w for w in family['warnings'])
 
 
+def test_gedcom_tags_passed_on_by_gramps():
+    # Gramps keeps tags it does not know as typed events.
+    text = ('0 HEAD\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME 영조 /김/\n1 NAME 永祖 /金/\n'
+            '1 EVEN 25\n2 TYPE _GEN\n1 EVEN 金海\n2 TYPE _BONGWAN\n0 TRLR\n')
+    person = x.read_family('g.ged', text.encode('utf-8'))['people'][0]
+    assert (person['korean_name'], person['hanja_name']) == ('김영조', '金永祖')
+    assert (person['generation'], person['bon_gwan']) == (25, '金海')
+
+
 def test_gedcom_dates():
     for ours in ('1956', '1956-03', '1956-03-02', '--03-02'):
         assert x.from_gedcom_date(x.to_gedcom_date(ours)) == ours

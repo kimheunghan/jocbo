@@ -1151,6 +1151,19 @@ def _name_text(node):
     return ' '.join(part for part in (given, surname) if part)
 
 
+def _custom(node, tag):
+    """A tag of this app's own, as written (1 _GEN 25) or as Gramps passes it on
+    (1 EVEN 25 / 2 TYPE _GEN): it keeps tags it does not know as typed events."""
+    direct = _sub(node, tag)
+    if direct and direct['value'].strip():
+        return direct['value'].strip()
+    for event in _subs(node, 'EVEN') + _subs(node, 'FACT'):
+        kind = _sub(event, 'TYPE')
+        if kind and kind['value'].strip().upper() == tag and event['value'].strip():
+            return event['value'].strip()
+    return ''
+
+
 EVENT_NOTES = {'OCCU': '직업', 'EDUC': '학력', 'TITL': '관직·칭호', 'RELI': '종교', 'GRAD': '졸업'}
 
 
@@ -1237,10 +1250,10 @@ def gedcom_family(data):
                     add_note(person, f'{word} {event["value"].strip()}')
         for note in _subs(node, 'NOTE') + _subs(node, 'SNOTE'):
             add_note(person, note_text(note).strip())
-        generation = (_sub(node, '_GEN') or {}).get('value', '').strip()
+        generation = _custom(node, '_GEN')
         if generation.isdigit() and 1 <= int(generation) <= 200:
             person['generation'] = int(generation)
-        person['bon_gwan'] = (_sub(node, '_BONGWAN') or {}).get('value', '').strip()
+        person['bon_gwan'] = _custom(node, '_BONGWAN')
         settle_dates(person, f'{person["korean_name"] or key}', family['warnings'])
         fit(person, f'{person["korean_name"] or key}', family['warnings'])
         keys[node['xref']] = key
