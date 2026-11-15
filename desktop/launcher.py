@@ -88,8 +88,53 @@ def open_window(path, url=URL):
     안내를 띄우므로, 프로필은 그대로 두고 창만 앱 창으로 엽니다.
     """
     # 세로가 짧은 노트북(배율 125%)에서도 창 아래가 화면 밖으로 내려가지 않는 크기입니다.
-    # 그다음부터는 쓰는 사람이 늘리고 줄인 크기를 브라우저가 기억합니다.
+    # 브라우저가 예전 크기를 기억하고 있으면 이 값은 무시되므로, 창이 뜬 뒤 fit_windows()가
+    # 화면에 맞춰 다시 잡습니다.
     subprocess.Popen([path, f'--app={url}', '--window-size=1280,806'])
+
+
+class _Rect(ctypes.Structure):
+    _fields_ = [('left', ctypes.c_long), ('top', ctypes.c_long), ('right', ctypes.c_long), ('bottom', ctypes.c_long)]
+
+
+class _MonitorInfo(ctypes.Structure):
+    _fields_ = [('size', ctypes.c_ulong), ('monitor', _Rect), ('work', _Rect), ('flags', ctypes.c_ulong)]
+
+
+# 가로:세로. 왼쪽 목록과 오른쪽 족보 화면이 나란히 서는 모양입니다.
+WINDOW_RATIO = 1.6
+
+
+def fit_size(work_width, work_height):
+    """작업 표시줄을 뺀 화면 안에서 가로 90%, 세로 95%를 넘지 않는 16:10 크기."""
+    width, height = work_width * 0.9, work_height * 0.95
+    if width / height > WINDOW_RATIO:
+        width = height * WINDOW_RATIO
+    else:
+        height = width / WINDOW_RATIO
+    return int(width), int(height)
+
+
+def fit_windows():
+    """앱 창을 그 창이 놓인 화면에 맞춰 가로로 넓게(16:10) 가운데에 놓습니다.
+
+    크롬·엣지는 앱 창의 예전 크기를 기억해 두었다가 --window-size 를 무시하고
+    그 크기로 엽니다. 그 값이 세로로 긴 모양이면 매번 정사각형에 가까운 창이
+    뜨므로, 창이 뜬 뒤 여기서 다시 잡습니다. 최대화해 둔 창은 그대로 둡니다.
+    """
+    user32 = ctypes.windll.user32
+    for handle in windows():
+        if user32.IsZoomed(handle) or user32.IsIconic(handle):
+            continue
+        info = _MonitorInfo(size=ctypes.sizeof(_MonitorInfo))
+        monitor = user32.MonitorFromWindow(ctypes.c_void_p(handle), 2)  # MONITOR_DEFAULTTONEAREST
+        if not user32.GetMonitorInfoW(ctypes.c_void_p(monitor), ctypes.byref(info)):
+            continue
+        work = info.work
+        width, height = fit_size(work.right - work.left, work.bottom - work.top)
+        left = work.left + (work.right - work.left - width) // 2
+        top = work.top + (work.bottom - work.top - height) // 2
+        user32.SetWindowPos(ctypes.c_void_p(handle), None, left, top, width, height, 0x0014)  # NOZORDER|NOACTIVATE
 
 
 def splash():
@@ -161,6 +206,11 @@ def main():
         elif browser():
             allow_forward()
             open_window(browser())
+            for _ in range(20):
+                if windows():
+                    fit_windows()
+                    break
+                time.sleep(0.5)
         else:
             webbrowser.open(URL)
         return
@@ -198,6 +248,12 @@ def main():
             time.sleep(0.5)
         else:
             message(RUNNING)
+        # 화면이 늦게 바뀌어 제목이 아직 없으면 잠깐 더 기다렸다가 크기를 맞춥니다.
+        for _ in range(10):
+            if windows():
+                break
+            time.sleep(0.5)
+        fit_windows()
         # 첫 클릭에 창이 다른 창 뒤에 떴더라도 한 번 앞으로 가져옵니다.
         bring_forward()
         missing = 0
@@ -212,6 +268,12 @@ def main():
 
 
 if __name__ == '__main__':
+    # 창 크기를 실제 화면 픽셀로 다룹니다. 이것이 없으면 배율 125% 화면에서
+    # 윈도가 좌표를 늘려 잡아 창이 화면보다 커집니다.
+    try:
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # PER_MONITOR_AWARE_V2
+    except (AttributeError, OSError):
+        pass
     DATA.mkdir(parents=True, exist_ok=True)
     # pythonw 로 뜨면 출력할 곳이 없으므로 기록 파일로 보냅니다.
     log = open(DATA / 'jocbo.log', 'a', encoding='utf-8', buffering=1)
