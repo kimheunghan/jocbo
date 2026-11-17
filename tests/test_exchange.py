@@ -138,7 +138,7 @@ def test_templates(client):
     assert ('김일남', '김계손', 1) in parents and ('김시조', '김정', 1) in parents
     orders = {tuple(sorted((key[a], key[b]))): order for a, b, order in family['spouses']}
     assert orders[('김시조', '이정숙')] == 1 and orders[('김시조', '박영순')] == 2
-    assert people['정모']['gender'] == '남' and people['김정']['gender'] == '여'
+    assert people['정재덕']['gender'] == '남' and people['김정']['gender'] == '여'
     guide = x.read_xlsx(sheet.content, x.GUIDE_SHEET, fallback=False)
     text = '\n'.join(x._cell_text(row[0]) for row in guide if row)
     assert '칸을 비우면 족보의 기존 내용이 지워집니다' in text and '① 구분' in text and '⑨ 번호' in text
