@@ -87,7 +87,8 @@ def text_date(value):
     found = re.fullmatch(r'(\d{4})(?:\s*[-./년]\s*(\d{1,2})(?:\s*[-./월]\s*(\d{1,2})\s*일?)?\s*월?)?\s*[.년]?', text)
     if found:
         return _ymd(*found.groups())
-    found = re.fullmatch(r'(\d{1,2})\s*월\s*(\d{1,2})\s*일?', text)
+    found = (re.fullmatch(r'(\d{1,2})\s*월\s*(\d{1,2})\s*일?', text)
+             or re.fullmatch(r'(?:미상|\?{2,4}|0000)\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})', text))
     if found:
         return f'--{int(found[1]):02d}-{int(found[2]):02d}'
     return None
@@ -235,9 +236,9 @@ def bongwan_cell(text):
 
 
 def sheet_date(value):
-    """엑셀 칸에 적는 날짜. 연도를 모르는 --09-19는 9월 19일로 적습니다(불러올 때 다시 --09-19)."""
+    """엑셀 칸에 적는 날짜. 연도를 모르는 --09-19는 다른 날짜와 같은 모양으로 미상-09-19라고 적습니다."""
     found = re.fullmatch(r'--(\d{2})-(\d{2})', value or '')
-    return f'{int(found[1])}월 {int(found[2])}일' if found else value
+    return f'미상-{found[1]}-{found[2]}' if found else value
 
 
 def bongwan_value(text):
@@ -721,7 +722,8 @@ def _sheet_xml(rows, widths, text_columns=(), heights=None, freeze=1):
                 text = escape(_BAD_XML.sub('', str(value)))
                 out.append(f'<c r="{ref}" s="{STYLE[style]}" t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>')
         out.append('</row>')
-    out.append('</sheetData></worksheet>')
+    # 1820처럼 연도만 적은 날짜에 "텍스트로 저장된 숫자" 초록 삼각형이 뜨지 않게 합니다.
+    out.append('</sheetData><ignoredErrors><ignoredError sqref="A1:XFD1048576" numberStoredAsText="1"/></ignoredErrors></worksheet>')
     return ''.join(out)
 
 
@@ -736,10 +738,13 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
            '<fill><patternFill patternType="solid"><fgColor rgb="FFEFE6D4"/><bgColor indexed="64"/></patternFill></fill>'
            '<fill><patternFill patternType="solid"><fgColor rgb="FFF1F1F1"/><bgColor indexed="64"/></patternFill></fill></fills>'
-           '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border>'
+           '<borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border>'
            '<border><left/><right/><top/><bottom style="thin"><color rgb="FF9C8A6A"/></bottom><diagonal/></border>'
-           '<border diagonalDown="1"><left/><right/><top/><bottom style="thin"><color rgb="FF9C8A6A"/></bottom>'
-           '<diagonal style="thin"><color rgb="FF9C8A6A"/></diagonal></border></borders>'
+           # 2: 대각선 칸, 3: 칸 제목. 네 변 모두 선을 긋습니다.
+           '<border diagonalDown="1"><left style="thin"><color rgb="FF9C8A6A"/></left><right style="thin"><color rgb="FF9C8A6A"/></right><top style="thin"><color rgb="FF9C8A6A"/></top>'
+           '<bottom style="thin"><color rgb="FF9C8A6A"/></bottom><diagonal style="thin"><color rgb="FF9C8A6A"/></diagonal></border>'
+           '<border><left style="thin"><color rgb="FF9C8A6A"/></left><right style="thin"><color rgb="FF9C8A6A"/></right><top style="thin"><color rgb="FF9C8A6A"/></top>'
+           '<bottom style="thin"><color rgb="FF9C8A6A"/></bottom><diagonal/></border></borders>'
            '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
            '<cellXfs count="15"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
            '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1"/>'
@@ -754,7 +759,7 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<xf numFmtId="49" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
            '<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
            # colhead: 가계도 표의 칸 제목(가로·세로 가운데). kind·gkind: 구분 칸(가운데, gkind는 회색 바탕).
-           '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyNumberFormat="1">'
+           '<xf numFmtId="49" fontId="1" fillId="2" borderId="3" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyNumberFormat="1">'
            '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
            '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1" applyNumberFormat="1">'
            '<alignment horizontal="center" vertical="center"/></xf>'
@@ -1005,8 +1010,8 @@ GUIDE_TEXT = [
     ('', ''),
     ('head', '⑤ 출생일, ⑥ 사망일'),
     ('', '날짜는 아는 만큼만 적습니다. 연도만 알면 1956, 연도와 달을 알면 1956-03, 날짜까지 알면 1956-03-02처럼 적습니다.'),
-    ('', '1956.3.2나 1956년 3월 2일처럼 적어도 읽습니다. 연도를 모르고 달과 날만 알면 3월 2일처럼 적습니다.'),
-    ('', '출생일을 모르면 비워 두고 사망일만 적어도 됩니다. 예시의 朴英順은 출생일을 몰라 사망일만 적었고, 李貞淑은 돌아가신 해도 몰라 제삿날인 9월 19일만 사망일에 적었습니다.'),
+    ('', '1956.3.2나 1956년 3월 2일처럼 적어도 읽습니다. 연도를 모르고 달과 날만 알면 미상-03-02처럼 연도 자리에 미상이라고 적습니다. 3월 2일처럼 적어도 읽습니다.'),
+    ('', '출생일을 모르면 비워 두고 사망일만 적어도 됩니다. 예시의 朴英順은 출생일을 몰라 사망일만 적었고, 李貞淑은 돌아가신 해도 몰라 제삿날만 알아 사망일에 미상-09-19라고 적었습니다.'),
     ('', ''),
     ('head', '⑦ 생모(生母)'),
     ('', '생모는 그 자녀를 낳은 어머니를 말합니다.'),
