@@ -234,6 +234,12 @@ def bongwan_cell(text):
     return text
 
 
+def sheet_date(value):
+    """엑셀 칸에 적는 날짜. 연도를 모르는 --09-19는 9월 19일로 적습니다(불러올 때 다시 --09-19)."""
+    found = re.fullmatch(r'--(\d{2})-(\d{2})', value or '')
+    return f'{int(found[1])}월 {int(found[2])}일' if found else value
+
+
 def bongwan_value(text):
     """엑셀 칸의 金海(김해)·김해(金海) → 저장할 본관(괄호 앞의 말)."""
     text = re.sub(r'\s+', ' ', text or '').strip()
@@ -816,7 +822,7 @@ INFO_SHEET = '족보 정보'
 LISTING_SHEET = '인물 목록'
 
 # 대각선을 그은 첫 칸: 오른쪽 위에 "세대", 왼쪽 아래에 "구분".
-CORNER = '          세대\n구분'
+CORNER = '             세대\n구분'
 # 이름 열 오른쪽의 칸. 번호는 사람을 구별하는 번호로, 새로 추가하는 사람은 비워 둡니다.
 DETAIL_HEADS = ['세', '본관', '출생일', '사망일', '생모(生母)', '기록', '번호']
 DETAIL_WIDTHS = [6, 14, 12, 12, 16, 70, 7]
@@ -889,14 +895,14 @@ def tree_xlsx(book):
         if row['kind'] in ('spouse-ref', 'child-ref'):
             name = f'{name} → 번호 {row["pid"]}'
         if row['kind'] in ('person', 'spouse'):
-            details = [person['generation'], bongwan_cell(person['bon_gwan']), person['birth_date'], person['death_date'],
+            details = [person['generation'], bongwan_cell(person['bon_gwan']), sheet_date(person['birth_date']), sheet_date(person['death_date']),
                        None, person['note'], person['id']]
         if row['kind'] in ('person', 'child-ref'):
             other = row.get('other')
             details[DETAIL_HEADS.index('생모(生母)')] = (
                 other if isinstance(other, str) else (label(by_id[other]) if other is not None else ''))
         sheet.append(_tree_row(depth, row['gubun'], row['depth'], name, details, guest))
-    widths = [12] + [16] * depth + DETAIL_WIDTHS
+    widths = [14] + [16] * depth + DETAIL_WIDTHS
     text_columns = {1 + depth + 2, 1 + depth + 3}
 
     # 트리로 그릴 수 없는 관계(배우자의 전혼 자녀, 집안끼리의 혼인 등)는 숨김 시트에 번호로 적습니다.
@@ -930,8 +936,8 @@ EXTRA_HEAD = '추가 관계'
 EXAMPLE = [
     ('子', 0, '金始祖(김시조)', 25, '金海', '1820', '1885-03-12', '',
      '字 景仁(경인) · 號 松溪(송계) · 通政大夫 · 墓 竹谷後山(죽곡후산) 酉坐(유좌) · 碑石 있음'),
-    ('配', 0, '李貞淑(이정숙)', 25, '全州', '', '', '', '父 文煥(문환) · 忌 九月十九日 · 墓 合墳(합분)'),
-    ('繼配', 0, '朴英順(박영순)', 25, '密陽', '', '', '', '父 泰俊(태준) · 墓 同原(동원) 子坐(자좌)'),
+    ('配', 0, '李貞淑(이정숙)', 25, '全州', '', '--09-19', '', '父 文煥(문환) · 忌 九月十九日 · 墓 合墳(합분)'),
+    ('繼配', 0, '朴英順(박영순)', 25, '密陽', '', '1890-11-02', '', '父 泰俊(태준) · 墓 同原(동원) 子坐(자좌)'),
     ('子', 1, '金一男(김일남)', 26, '金海', '1845-05-02', '1910', '李貞淑(이정숙)',
      '初名 一坤(일곤) · 字 聲遠(성원) · 墓 竹谷後山(죽곡후산) 亥坐(해좌)'),
     ('配', 1, '崔氏(최씨)', 26, '慶州', '', '', '', '父 鎭國(진국) · 墓 雙墳(쌍분)'),
@@ -950,12 +956,12 @@ def _example_rows(numbered=False):
     head = _tree_head(25, 3)
     if numbered:
         marks = '①②③④⑤⑥⑦⑧⑨⑩'
-        head = [('① 구분', 'corner'), ('② 25세', 'colhead'), ('26세', 'colhead'), ('27세', 'colhead')] + [
+        head = [(CORNER.replace('구분', '① 구분'), 'corner'), ('② 25세', 'colhead'), ('26세', 'colhead'), ('27세', 'colhead')] + [
             (f'{marks[2 + i]} {h}', 'colhead') for i, h in enumerate(DETAIL_HEADS)]
     rows = [head]
     for gubun, column, name, gen, bon, born, died, other, note in EXAMPLE:
         guest = KINDS[gubun][0] == 'spouse'
-        rows.append(_tree_row(3, gubun, column, name, [gen, bongwan_cell(bon), born, died, other, note, None], guest))
+        rows.append(_tree_row(3, gubun, column, name, [gen, bongwan_cell(bon), sheet_date(born), sheet_date(died), other, note, None], guest))
     return rows
 
 
@@ -1000,6 +1006,7 @@ GUIDE_TEXT = [
     ('head', '⑤ 출생일, ⑥ 사망일'),
     ('', '날짜는 아는 만큼만 적습니다. 연도만 알면 1956, 연도와 달을 알면 1956-03, 날짜까지 알면 1956-03-02처럼 적습니다.'),
     ('', '1956.3.2나 1956년 3월 2일처럼 적어도 읽습니다. 연도를 모르고 달과 날만 알면 3월 2일처럼 적습니다.'),
+    ('', '출생일을 모르면 비워 두고 사망일만 적어도 됩니다. 예시의 朴英順은 출생일을 몰라 사망일만 적었고, 李貞淑은 돌아가신 해도 몰라 제삿날인 9월 19일만 사망일에 적었습니다.'),
     ('', ''),
     ('head', '⑦ 생모(生母)'),
     ('', '생모는 그 자녀를 낳은 어머니를 말합니다.'),
@@ -1042,11 +1049,11 @@ def guide_sheet():
         if kind == 'example':
             start = len(rows) + 1
             rows += _example_rows(numbered=True)
-            heights[start] = 34
+            heights[start] = 40
             continue
         style = {'warn': 'warn', 'title': 'title', 'head': 'head'}.get(kind, 'plain')
         rows.append([(text, style)] if text else [])
-    return rows, [12, 16, 16, 16] + DETAIL_WIDTHS, (), {'heights': heights, 'freeze': 0}
+    return rows, [14, 16, 16, 16] + DETAIL_WIDTHS, (), {'heights': heights, 'freeze': 0}
 
 
 def template_gedcom():
@@ -1066,7 +1073,7 @@ def template_gedcom():
 
 def template_xlsx():
     """엑셀 양식: 작성 예시가 채워진 가계도 시트와 작성 안내 시트."""
-    return write_xlsx([(TREE_SHEET, _example_rows(), [12, 16, 16, 16] + DETAIL_WIDTHS, {7, 8}, {'heights': {1: 40}}),
+    return write_xlsx([(TREE_SHEET, _example_rows(), [14, 16, 16, 16] + DETAIL_WIDTHS, {7, 8}, {'heights': {1: 40}}),
                        (GUIDE_SHEET, *guide_sheet())])
 
 # The book's own fields on a sheet of their own, so a sheet sent out comes back
