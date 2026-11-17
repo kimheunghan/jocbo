@@ -688,7 +688,8 @@ def column_index(name):
 # 셀 모양. gfill·gref: 부인·사위 줄(옅은 회색 바탕), corner: 대각선을 그은 "세대/구분" 칸,
 # warn: 붉은 굵은 경고 글씨, title: 큰 굵은 제목.
 STYLE = {'plain': 0, 'head': 1, 'text': 2, 'guest': 3, 'ref': 4, 'gfill': 5, 'gref': 6, 'corner': 7,
-         'warn': 8, 'title': 9, 'gnum': 10, 'colhead': 11, 'kind': 12, 'gkind': 13, 'num': 14}
+         'warn': 8, 'title': 9, 'gnum': 10, 'colhead': 11, 'kind': 12, 'gkind': 13, 'num': 14,
+         'b_text': 15, 'b_ref': 16, 'b_gfill': 17, 'b_gref': 18, 'b_gnum': 19, 'b_kind': 20, 'b_gkind': 21, 'b_num': 22}
 
 
 def _sheet_xml(rows, widths, text_columns=(), heights=None, freeze=1):
@@ -741,12 +742,12 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border>'
            '<border><left/><right/><top/><bottom style="thin"><color rgb="FF9C8A6A"/></bottom><diagonal/></border>'
            # 2: 대각선 칸, 3: 칸 제목. 네 변 모두 선을 긋습니다.
-           '<border diagonalDown="1"><left style="thin"><color rgb="FF9C8A6A"/></left><right style="thin"><color rgb="FF9C8A6A"/></right><top style="thin"><color rgb="FF9C8A6A"/></top>'
-           '<bottom style="thin"><color rgb="FF9C8A6A"/></bottom><diagonal style="thin"><color rgb="FF9C8A6A"/></diagonal></border>'
-           '<border><left style="thin"><color rgb="FF9C8A6A"/></left><right style="thin"><color rgb="FF9C8A6A"/></right><top style="thin"><color rgb="FF9C8A6A"/></top>'
-           '<bottom style="thin"><color rgb="FF9C8A6A"/></bottom><diagonal/></border></borders>'
+           '<border diagonalDown="1"><left style="thin"><color rgb="FFD0C8B8"/></left><right style="thin"><color rgb="FFD0C8B8"/></right><top style="thin"><color rgb="FFD0C8B8"/></top>'
+           '<bottom style="thin"><color rgb="FFD0C8B8"/></bottom><diagonal style="thin"><color rgb="FF9C8A6A"/></diagonal></border>'
+           '<border><left style="thin"><color rgb="FFD0C8B8"/></left><right style="thin"><color rgb="FFD0C8B8"/></right><top style="thin"><color rgb="FFD0C8B8"/></top>'
+           '<bottom style="thin"><color rgb="FFD0C8B8"/></bottom><diagonal/></border></borders>'
            '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-           '<cellXfs count="15"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+           '<cellXfs count="23"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
            '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
@@ -766,7 +767,14 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<xf numFmtId="49" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1" applyNumberFormat="1">'
            '<alignment horizontal="center" vertical="center"/></xf>'
            # num: 세(世) 같은 숫자 칸, 가운데 맞춤.
-           '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs>'
+           '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>'
+           # 15~22: 가계도 표 안의 칸. 위 모양에 칸 제목과 같은 네 변 테두리(borderId 3)를 더한 것입니다.
+           + ''.join(f'<xf numFmtId="{fmt}" fontId="{font}" fillId="{fill}" borderId="3" xfId="0" applyFont="1" applyFill="1" '
+                     f'applyBorder="1" applyAlignment="1" applyNumberFormat="1"><alignment{align} vertical="center"/></xf>'
+                     for fmt, font, fill, align in ((49, 0, 0, ''), (49, 3, 0, ''), (49, 0, 3, ''), (49, 3, 3, ''),
+                                                    (0, 0, 3, ' horizontal="center"'), (49, 0, 0, ' horizontal="center"'),
+                                                    (49, 0, 3, ' horizontal="center"'), (0, 0, 0, ' horizontal="center"')))
+           + '</cellXfs>'
            '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
 
 
@@ -874,13 +882,14 @@ def _tree_head(base, depth):
 
 def _tree_row(depth, gubun, column, name, details, guest):
     """가계도 시트의 한 줄. 부인·사위 줄은 옅은 회색 바탕입니다."""
-    fill, faint = ('gfill', 'gref') if guest else ('text', 'ref')
-    cells = [(KIND_LABEL.get(gubun, gubun), 'gkind' if guest else 'kind')] +[('', fill) if guest else None for _ in range(depth)] + [('', fill) if guest else None for _ in DETAIL_HEADS]
+    # 표 안의 칸은 빈 칸까지 모두 칸 제목과 같은 테두리를 긋습니다(b_ 모양).
+    fill, faint = ('b_gfill', 'b_gref') if guest else ('b_text', 'b_ref')
+    cells = [(KIND_LABEL.get(gubun, gubun), 'b_gkind' if guest else 'b_kind')] + [('', fill) for _ in range(depth)] + [('', fill) for _ in DETAIL_HEADS]
     cells[1 + column] = (name, fill)
     for offset, value in enumerate(details):
         if value is None or value == '':
             continue
-        style = faint if DETAIL_HEADS[offset] == '번호' else (('gfill' if isinstance(value, str) else 'gnum') if guest else ('text' if isinstance(value, str) else 'num'))
+        style = faint if DETAIL_HEADS[offset] == '번호' else (('b_gfill' if isinstance(value, str) else 'b_gnum') if guest else ('b_text' if isinstance(value, str) else 'b_num'))
         cells[1 + depth + offset] = (value, style)
     return cells
 
