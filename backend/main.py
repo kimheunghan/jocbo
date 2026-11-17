@@ -38,7 +38,7 @@ users = Table('users', meta, Column('id', Integer, primary_key=True), Column('em
 sessions = Table('sessions', meta, Column('token_hash', String(64), primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('expires', Integer, nullable=False))
 books = Table('family_books', meta, Column('id', Integer, primary_key=True), Column('user_id', ForeignKey('users.id', ondelete='CASCADE'), nullable=False), Column('title', String(200), nullable=False), Column('clan_name', String(200), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('branch_name', String(200), nullable=False, server_default=''), Column('volume', String(50), nullable=False, server_default=''), Column('founder', String(200), nullable=False, server_default=''), Column('page', String(50), nullable=False, server_default=''), Column('lineage', String(200), nullable=False, server_default=''), Column('page_breaks', String(200), nullable=False, server_default=''), Column('description', Text, nullable=False), Column('book_key', String(32), nullable=False, server_default=''))
 persons = Table('persons', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('korean_name', String(100), nullable=False), Column('hanja_name', String(100), nullable=False), Column('bon_gwan', String(200), nullable=False, server_default=''), Column('generation', Integer, nullable=False), Column('gender', String(10), nullable=False), Column('birth_date', String(10), nullable=False), Column('death_date', String(10), nullable=False), Column('note', Text, nullable=False), CheckConstraint('generation > 0'))
-relations = Table('relations', meta, Column('id', Integer, primary_key=True), Column('source_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('target_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('kind', String(20), nullable=False), UniqueConstraint('source_id', 'target_id', 'kind'), CheckConstraint('source_id <> target_id'), CheckConstraint("kind IN ('parent', 'spouse')"))
+relations = Table('relations', meta, Column('id', Integer, primary_key=True), Column('source_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('target_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('kind', String(20), nullable=False), Column('marriage_order', Integer, nullable=False, server_default='0'), Column('adopted', Integer, nullable=False, server_default='0'), UniqueConstraint('source_id', 'target_id', 'kind'), CheckConstraint('source_id <> target_id'), CheckConstraint("kind IN ('parent', 'spouse')"))
 scans = Table('scans', meta, Column('id', Integer, primary_key=True), Column('book_id', ForeignKey('family_books.id', ondelete='CASCADE'), nullable=False, index=True), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
 files = Table('files', meta, Column('id', Integer, primary_key=True), Column('person_id', ForeignKey('persons.id', ondelete='CASCADE'), nullable=False), Column('name', String(255), nullable=False), Column('storage_key', String(80), nullable=False, unique=True))
 # A book shown on the share site: where it went, the key to send to it, and
@@ -55,13 +55,16 @@ async def lifespan(app):
         'persons': {'bon_gwan': 'VARCHAR(200)'},
         # Accounts already here take '' — no limit — since they began before it.
         'users': {'plan': 'VARCHAR(10)', 'license_key': 'VARCHAR(100)', 'license_instance': 'VARCHAR(100)'},
+        # 혼인 순서(0: 등록 순서를 따름)와 입양 여부. 지금 있는 관계는 0으로 시작합니다.
+        'relations': {'marriage_order': 'INTEGER', 'adopted': 'INTEGER'},
     }
     with engine.begin() as connection:
         for table, columns in additions.items():
             existing = {column['name'] for column in inspect(engine).get_columns(table)}
             for name, column_type in columns.items():
                 if name not in existing:
-                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {column_type} NOT NULL DEFAULT ''"))
+                    default = '0' if column_type == 'INTEGER' else "''"
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {column_type} NOT NULL DEFAULT {default}"))
     UPLOADS.mkdir(parents=True, exist_ok=True)
     # Shared books go up on their own; anything changed while offline goes now.
     web_share.worker.start()
@@ -309,7 +312,7 @@ def book_detail(c, bid, uid):
     book = dict(own_book(c, bid, uid))
     book['persons'] = [dict(row) for row in c.execute(select(persons).where(persons.c.book_id == bid).order_by(persons.c.generation, persons.c.id)).mappings()]
     ids = [p['id'] for p in book['persons']]
-    book['relations'] = list(c.execute(select(relations).where(relations.c.source_id.in_(ids))).mappings())
+    book['relations'] = list(c.execute(select(relations).where(relations.c.source_id.in_(ids)).order_by(relations.c.id)).mappings())
     book['files'] = list(c.execute(select(files.c.id, files.c.person_id, files.c.name).where(files.c.person_id.in_(ids))).mappings())
     book['scans'] = list(c.execute(select(scans.c.id, scans.c.name).where(scans.c.book_id == bid).order_by(scans.c.id)).mappings())
     # Legacy records may still have the default generation (1).  Derive the
@@ -471,95 +474,130 @@ def preview_family(name, data, uid):
         family = exchange.read_family(name, data)
     except exchange.ExchangeError as error:
         raise HTTPException(400, str(error))
-    # A file this app sent out names its book; if that book is still here, the
-    # file can go back into it, and what that would change is shown first.
+    # 이 프로그램에서 내보낸 파일이면 원래 족보를 찾아, 반영하면 무엇이 바뀌는지 먼저 계산해 둡니다.
+    # 다른 파일은 화면에서 반영할 족보를 고르면 그때 계산합니다(merge_preview).
     family['target'] = None
     if family.get('book_key') and not family['errors']:
         with engine.connect() as c:
             bid = c.execute(select(books.c.id).where(books.c.user_id == uid, books.c.book_key == family['book_key'])).scalar()
             if bid is not None:
                 detail = book_detail(c, bid, uid)
-                plan = exchange.merge_plan(detail, family)
+                plan = exchange.merge_plan(detail, family, by_number=True)
                 plan.pop('matched')
                 family['target'] = {'id': bid, 'title': detail['title'], 'plan': plan}
     return family
 
 MAX_IMPORT = 20 * 1024 * 1024
+PERSON_COLUMNS = [field for field, _ in exchange.PERSON_FIELDS]
 
 class ImportPerson(Person):
     key: str = Field(min_length=1, max_length=40)
     id: int | None = None
+    # 파일에 실제로 있는 칸. None이면 모든 칸이 있는 것으로 봅니다.
+    present: list[Literal[tuple(PERSON_COLUMNS)]] | None = None
 
 class ImportFamily(Input):
     book: Book
     book_key: str = Field(default='', max_length=32)
     people: list[ImportPerson] = Field(min_length=1, max_length=exchange.MAX_PEOPLE)
-    parents: list[tuple[str, str]] = Field(default=[], max_length=exchange.MAX_PEOPLE * 4)
-    spouses: list[tuple[str, str]] = Field(default=[], max_length=exchange.MAX_PEOPLE * 4)
+    # 부모-자녀: [부모, 자녀, 입양 0/1]. 배우자: [한 사람, 다른 사람, 혼인 순서(0은 모름)].
+    parents: list[tuple[str, str] | tuple[str, str, int]] = Field(default=[], max_length=exchange.MAX_PEOPLE * 4)
+    spouses: list[tuple[str, str] | tuple[str, str, int]] = Field(default=[], max_length=exchange.MAX_PEOPLE * 4)
 
 def checked_family(data):
-    """The people and links of an import, checked and with 世 settled."""
+    """불러올 사람과 관계를 검사하고 세를 맞춥니다."""
     keys = [p.key for p in data.people]
     if len(set(keys)) != len(keys):
         raise HTTPException(400, '같은 번호의 인물이 둘 이상 있습니다.')
     known = set(keys)
-    if any(a not in known or b not in known for a, b in data.parents + data.spouses):
+    if any(link[0] not in known or link[1] not in known for link in data.parents + data.spouses):
         raise HTTPException(400, '관계가 가리키는 인물을 찾지 못했습니다.')
     people = [p.model_dump() for p in data.people]
-    parents = sorted({(a, b) for a, b in data.parents if a != b})
-    spouses = sorted({tuple(sorted((a, b))) for a, b in data.spouses if a != b})
+    parents, spouses = {}, {}
+    for a, b, *rest in data.parents:
+        if a != b:
+            parents[(a, b)] = max(parents.get((a, b), 0), int(bool(rest and rest[0])))
+    for a, b, *rest in data.spouses:
+        if a != b:
+            pair = tuple(sorted((a, b)))
+            order = int(rest[0]) if rest else 0
+            if pair not in spouses or (not spouses[pair] and order):
+                spouses[pair] = order
+    parents = [(a, b, adopted) for (a, b), adopted in sorted(parents.items())]
+    spouses = [(a, b, order) for (a, b), order in sorted(spouses.items())]
     try:
         exchange.settle_generations(people, parents, spouses)
     except exchange.ExchangeError as error:
         raise HTTPException(400, str(error))
     return people, parents, spouses
 
-PERSON_COLUMNS = [field for field, _ in exchange.PERSON_FIELDS]
-
 def write_backup(detail):
-    """The book as it stands, saved as GEDCOM beside the uploads before a file changes it."""
+    """반영하기 직전의 족보를 GEDCOM으로 저장해 둡니다."""
     folder = backup_folder()
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{detail['id']}_{file_stem(detail['title'])}_{time.strftime('%Y%m%d-%H%M%S')}.ged"
     path.write_text(exchange.gedcom(detail), encoding='utf-8')
     return path
 
+def plan_for(c, bid, uid, data, people, parents, spouses):
+    detail = book_detail(c, bid, uid)
+    # 이 족보에서 내보낸 파일이면 번호로, 아니면 이름·세·부모로 같은 사람을 찾습니다.
+    by_number = bool(detail['book_key']) and data.book_key == detail['book_key']
+    plan = exchange.merge_plan(detail, {'people': people, 'parents': parents, 'spouses': spouses}, by_number=by_number)
+    return detail, plan
+
+@app.post('/api/books/{bid}/merge/preview')
+def merge_preview(bid: int, data: ImportFamily, uid=Depends(auth)):
+    """고른 족보에 이 파일을 반영하면 무엇이 바뀌는지(저장하지 않음)."""
+    people, parents, spouses = checked_family(data)
+    with engine.connect() as c:
+        detail, plan = plan_for(c, bid, uid, data, people, parents, spouses)
+    plan.pop('matched')
+    return {'id': bid, 'title': detail['title'], 'plan': plan}
+
 @app.post('/api/books/{bid}/merge')
 def merge_into_book(bid: int, data: ImportFamily, uid=Depends(auth)):
-    """Bring a file this book sent out, edited since, back into it.
+    """파일의 내용을 기존 족보에 반영합니다.
 
-    People are matched by their number; new rows are added; nobody is removed.
-    Among the matched people the file's links replace the book's. The book is
-    saved to a backup file first, and the whole change goes in or none of it.
+    같은 사람은 번호(또는 이름·세·부모)로 찾습니다. 같은 내용은 그대로, 다른 내용은 파일대로
+    고치고, 파일에 있는 칸이 비어 있으면 지웁니다. 족보에 없는 사람은 추가하고, 파일에 없는
+    사람은 지우지 않습니다. 파일에 있는 사람끼리의 관계(혼인 순서, 입양 포함)는 파일대로
+    맞춥니다. 반영 직전의 족보는 백업하고, 전부 반영되거나 하나도 반영되지 않습니다.
     """
     people, parents, spouses = checked_family(data)
     with engine.begin() as c:
-        detail = book_detail(c, bid, uid)
-        if not detail['book_key'] or data.book_key != detail['book_key']:
-            raise HTTPException(400, '이 파일은 이 족보에서 내보낸 파일이 아닙니다. 새 족보로 불러와 주십시오.')
-        book_values = data.book.model_dump()
-        plan = exchange.merge_plan(detail, {'book': book_values, 'people': people, 'parents': parents, 'spouses': spouses})
+        detail, plan = plan_for(c, bid, uid, data, people, parents, spouses)
         room_for(c, uid, len(plan['added']))
         backup = write_backup(detail)
-        if plan['book_changes']:
-            book_values['volume'] = book_values['volume'] or '1'
-            c.execute(books.update().where(books.c.id == bid).values(**book_values))
         ids = dict(plan['matched'])
         for person in people:
-            values = {field: person[field] for field in PERSON_COLUMNS}
+            fields = PERSON_COLUMNS if person['key'] not in ids or person.get('present') is None else person['present']
+            values = {field: person[field] for field in PERSON_COLUMNS if field in fields}
             if person['key'] in ids:
-                c.execute(persons.update().where(persons.c.id == ids[person['key']]).values(**values))
+                if values.get('gender') == '미상':
+                    values.pop('gender')  # 모른다는 뜻이지 지우라는 뜻이 아닙니다.
+                if values:
+                    c.execute(persons.update().where(persons.c.id == ids[person['key']]).values(**values))
             else:
+                values = {field: person[field] for field in PERSON_COLUMNS}
                 ids[person['key']] = c.execute(persons.insert().values(book_id=bid, **values)).inserted_primary_key[0]
         inside = list(plan['matched'].values())
         if inside:
             c.execute(delete(relations).where(relations.c.source_id.in_(inside), relations.c.target_id.in_(inside)))
+        all_ids = list(ids.values())
         kept = {(r['kind'], r['source_id'], r['target_id'])
-                for r in c.execute(select(relations).where(relations.c.source_id.in_(list(ids.values())) | relations.c.target_id.in_(list(ids.values())))).mappings()}
-        wanted = {('spouse', *sorted((ids[a], ids[b]))) for a, b in spouses} | {('parent', ids[a], ids[b]) for a, b in parents}
-        for kind, source, target in sorted(wanted - kept):
-            c.execute(relations.insert().values(source_id=source, target_id=target, kind=kind))
-        # The book as a whole must still hold together: no loops, children below parents.
+                for r in c.execute(select(relations).where(relations.c.source_id.in_(all_ids) | relations.c.target_id.in_(all_ids))).mappings()}
+        for a, b, order in spouses:
+            x, y = sorted((ids[a], ids[b]))
+            if ('spouse', x, y) not in kept:
+                c.execute(relations.insert().values(source_id=x, target_id=y, kind='spouse', marriage_order=order))
+            elif order:
+                c.execute(relations.update().where(relations.c.source_id == x, relations.c.target_id == y,
+                                                   relations.c.kind == 'spouse').values(marriage_order=order))
+        for a, b, adopted in parents:
+            if ('parent', ids[a], ids[b]) not in kept:
+                c.execute(relations.insert().values(source_id=ids[a], target_id=ids[b], kind='parent', adopted=adopted))
+        # 반영한 뒤에도 족보 전체가 맞아야 합니다: 순환이 없고, 자녀는 부모보다 아래 세대.
         everyone = [{'key': str(p['id']), 'generation': p['generation']}
                     for p in c.execute(select(persons.c.id, persons.c.generation).where(persons.c.book_id == bid)).mappings()]
         links = list(c.execute(select(relations).where(relations.c.source_id.in_([int(p['key']) for p in everyone]))).mappings())
@@ -572,7 +610,8 @@ def merge_into_book(bid: int, data: ImportFamily, uid=Depends(auth)):
         for p in everyone:
             if p['generation'] != before[p['key']]:
                 c.execute(persons.update().where(persons.c.id == int(p['key'])).values(generation=p['generation']))
-    return {'id': bid, 'added': len(plan['added']), 'changed': len(plan['changed']), 'backup': backup.name}
+    return {'id': bid, 'added': len(plan['added']), 'changed': len(plan['changed']), 'erased': len(plan['erased']),
+            'backup': backup.name}
 
 @app.post('/api/books/import', status_code=201)
 def import_book(data: ImportFamily, uid=Depends(auth)):
@@ -584,14 +623,13 @@ def import_book(data: ImportFamily, uid=Depends(auth)):
         bid = c.execute(books.insert().values(user_id=uid, **values)).inserted_primary_key[0]
         ids = {}
         for person in people:
-            key = person.pop('key')
-            person.pop('id', None)
-            ids[key] = c.execute(persons.insert().values(book_id=bid, **person)).inserted_primary_key[0]
-        for a, b in spouses:
+            ids[person['key']] = c.execute(persons.insert().values(
+                book_id=bid, **{field: person[field] for field in PERSON_COLUMNS})).inserted_primary_key[0]
+        for a, b, order in spouses:
             x, y = sorted((ids[a], ids[b]))
-            c.execute(relations.insert().values(source_id=x, target_id=y, kind='spouse'))
-        for a, b in parents:
-            c.execute(relations.insert().values(source_id=ids[a], target_id=ids[b], kind='parent'))
+            c.execute(relations.insert().values(source_id=x, target_id=y, kind='spouse', marriage_order=order))
+        for a, b, adopted in parents:
+            c.execute(relations.insert().values(source_id=ids[a], target_id=ids[b], kind='parent', adopted=adopted))
     return {'id': bid, 'people': len(people)}
 
 @app.post('/api/books/{bid}/persons', status_code=201)
@@ -717,6 +755,31 @@ def add_relation(data: Relation, uid=Depends(auth)):
         except IntegrityError:
             raise HTTPException(409, '이미 등록된 관계입니다.')
     return {'id': rid}
+
+class RelationDetail(Input):
+    # 배우자 관계: 혼인 순서(1 본처, 2 이후 후처, 0 등록 순서). 부모-자녀 관계: 입양 여부.
+    marriage_order: int | None = Field(default=None, ge=0, le=20)
+    adopted: bool | None = None
+
+@app.put('/api/relations/{rid}')
+def edit_relation(rid: int, data: RelationDetail, uid=Depends(auth)):
+    with engine.begin() as c:
+        row = c.execute(select(relations).where(relations.c.id == rid)).mappings().first()
+        if not row:
+            raise HTTPException(404, '관계가 없습니다.')
+        own_person(c, row['source_id'], uid)
+        values = {}
+        if data.marriage_order is not None:
+            if row['kind'] != 'spouse':
+                raise HTTPException(400, '혼인 순서는 배우자 관계에만 정할 수 있습니다.')
+            values['marriage_order'] = data.marriage_order
+        if data.adopted is not None:
+            if row['kind'] != 'parent':
+                raise HTTPException(400, '입양 여부는 부모-자녀 관계에만 정할 수 있습니다.')
+            values['adopted'] = int(data.adopted)
+        if values:
+            c.execute(relations.update().where(relations.c.id == rid).values(**values))
+    return {'ok': True}
 
 @app.delete('/api/relations/{rid}')
 def remove_relation(rid: int, uid=Depends(auth)):

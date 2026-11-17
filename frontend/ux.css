@@ -2452,6 +2452,15 @@ button {
 .link-button:hover { background: none; color: var(--green, #2f6b4f); }
 .dialog-foot { justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
 .export-note { margin: 0; }
+.tree-role { margin-left: 4px; padding: 0 4px; border-radius: 4px; background: var(--paper-sunk); color: var(--ink-soft); font-size: 11px; font-style: normal; font-weight: 600; vertical-align: 2px; }
+.relation-detail { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 13px; white-space: nowrap; }
+.relation-detail select { width: auto; min-height: 0; padding: 2px 6px; }
+.relation-detail input { width: auto; min-height: 0; margin: 0; }
+.import-warning { margin: 10px 0; padding: 10px 14px; border: 1px solid #dfaaa4; border-left: 4px solid #b3372a; border-radius: 8px; background: #fff2f0; color: #8f2d24; }
+.import-warning strong { display: block; margin-bottom: 4px; }
+.import-warning ul { margin: 4px 0; padding-left: 20px; }
+.import-warning p { margin: 4px 0 0; }
+.import-target { display: block; margin: 8px 0 0; }
 .export-book { display: block; margin: 0 0 14px; }
 .import-backups { margin: 8px 0 0; font-size: 13px; }
 .import-backups summary { color: var(--ink-soft); cursor: pointer; }

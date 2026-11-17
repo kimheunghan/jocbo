@@ -572,7 +572,7 @@ function lineageScore(person,parentTargets,surname){
  if(surname.korean&&person.korean_name?.[0]===surname.korean)score+=2;
  return score;
 }
-function spousePhrase(spouse){
+function spousePhrase(spouse,index=0){
  const hanja=spouse.hanja_name||'',surname=hanja.slice(0,1),given=hanja.slice(1);
  const born=bookDate(spouse.birth_date,'生'),died=bookDate(spouse.death_date,'卒');
  const note=scriptMode==='hangul'?(readingOf(spouse.note)||spouse.note):spouse.note;
@@ -582,12 +582,13 @@ function spousePhrase(spouse){
   const name=scriptMode==='hangul'?spouse.korean_name:`${hanja||spouse.korean_name}(${spouse.korean_name})`;
   return `${bookWord('夫','남편 ')}${name} ${origin} ${tail}`.replace(/\s+/g,' ').trim();
  }
+ // 둘째 이후의 부인은 繼配(후처)로 적습니다.
  if(scriptMode==='hangul'){
   const clan=spouse.bon_gwan?`${readingOf(spouse.bon_gwan)||spouse.bon_gwan} `:'';
-  return `배우자 ${clan}${spouse.korean_name} ${tail}`.replace(/\s+/g,' ').trim();
+  return `${index>0?'후처':'배우자'} ${clan}${spouse.korean_name} ${tail}`.replace(/\s+/g,' ').trim();
  }
  const body=spouse.bon_gwan&&given?`${spouse.bon_gwan}${surname}氏${given}`:(hanja||spouse.korean_name);
- return `配${body}(${spouse.korean_name}) ${tail}`.replace(/\s+/g,' ').trim();
+ return `${index>0?'繼配':'配'}${body}(${spouse.korean_name}) ${tail}`.replace(/\s+/g,' ').trim();
 }
 // The book drops the clan surname from a lineage member's own name and keeps it
 // only for a married-in spouse, who belongs to another clan.
@@ -600,16 +601,21 @@ function lineName(person,surname){
 // 一 is a single stroke in a full square, so in a column it leaves a wider gap
 // around it than its neighbours do; it is marked so the sheet can close the gap.
 function evenText(text){return esc(text).replace(/一/g,'<b class="thin-one">一</b>');}
-function personEntry(person,spouses,surname){
+function personEntry(person,spouses,surname,adopted=adoptedIds()){
  const hangul=scriptMode==='hangul';
- const prefix=person.gender==='여'?bookWord('女','딸'):bookWord('子','아들'),name=lineName(person,surname);
+ // 입양된 사람은 系子(양자)·養女(양녀)로 적습니다.
+ const prefix=adopted.has(person.id)
+  ?(person.gender==='여'?bookWord('養女','양녀'):bookWord('系子','양자'))
+  :(person.gender==='여'?bookWord('女','딸'):bookWord('子','아들'));
+ const name=lineName(person,surname);
  const lines=[bookDate(person.birth_date,'生'),bookDate(person.death_date,'卒')].filter(Boolean);
  const note=hangul?(readingOf(person.note)||person.note):person.note;
  return `<section class="genealogy-person" data-book-person="${person.id}"><strong><i>${prefix}</i>`
   +`${esc(hangul?name.korean:name.hanja)}<em>${esc(hangul?name.hanja:name.korean)}</em></strong>`
   +lines.map(line=>`<span>${evenText(line)}</span>`).join('')
   +(note?`<span class="genealogy-note">${evenText(note)}</span>`:'')
-  +spouses.map(spouse=>`<span>${evenText(spousePhrase(spouse))}</span>`).join('')
+  +spouses.filter(spouse=>spouse.gender!=='남').map((spouse,index)=>`<span>${evenText(spousePhrase(spouse,index))}</span>`).join('')
+  +spouses.filter(spouse=>spouse.gender==='남').map(spouse=>`<span>${evenText(spousePhrase(spouse))}</span>`).join('')
   +'</section>';
 }
 // Columns are printed in the book's own order: each father's children stand under
@@ -639,10 +645,34 @@ function spouseHosts(){
   const scoreA=lineageScore(a,parentTargets,surname),scoreB=lineageScore(b,parentTargets,surname);
   const [host,guest]=scoreA===scoreB?(a.id<b.id?[a,b]:[b,a]):(scoreA>scoreB?[a,b]:[b,a]);
   if(!married.has(host.id))married.set(host.id,[]);
-  married.get(host.id).push(guest);
+  married.get(host.id).push({link,guest});
   hostOf.set(guest.id,host.id);
  }
+ // 배우자는 혼인 순서대로: 본처가 먼저, 후처가 다음입니다.
+ for(const [hostId,items] of married){
+  const guestOf=new Map(items.map(item=>[item.link.id,item.guest]));
+  married.set(hostId,inMarriageOrder(items.map(item=>item.link)).map(link=>guestOf.get(link.id)));
+ }
  return {byId,surname,married,hostOf};
+}
+// 족보에서 그 사람의 구분: 혼인으로 들어온 사람(配·繼配·壻)과 입양된 사람(系子·養女).
+// 이 집안에서 태어난 사람은 비워 둡니다. 족보책과 가계도에 함께 씁니다.
+function personRoles(){
+ const {byId,married}=spouseHosts(),roles=new Map(),adopted=adoptedIds();
+ const hangul=scriptMode==='hangul';
+ for(const [hostId,guests] of married){
+  const host=byId.get(hostId);
+  guests.forEach((guest,index)=>{
+   const husband=guest.gender==='남'||(guest.gender==='미상'&&host&&host.gender==='여');
+   roles.set(guest.id,husband?(hangul?'사위':'壻'):index===0?(hangul?'본처':'配'):(hangul?'후처':'繼配'));
+  });
+ }
+ for(const id of adopted){
+  if(roles.has(id))continue;
+  const person=byId.get(id);
+  roles.set(id,person&&person.gender==='여'?(hangul?'양녀':'養女'):(hangul?'양자':'系子'));
+ }
+ return roles;
 }
 // The list is read the way the book is: generation by generation, and within
 // one each father's children together, sons before daughters, eldest first.
@@ -784,7 +814,8 @@ function bookHTML(people){
  const origin=book.founder?bookWord('始祖 '+book.founder,'시조 '+scriptText(book.founder)):'';
  const pages=[],sheetTops=[];
  const jumps=pageBreaks(book.page_breaks);
- const entryHTML=new Map(columns.map(p=>[p.id,personEntry(p,married.get(p.id)||[],surname)]));
+ const adopted=adoptedIds();
+ const entryHTML=new Map(columns.map(p=>[p.id,personEntry(p,married.get(p.id)||[],surname,adopted)]));
  const {widths,room}=measureBookEntries(entryHTML);
  // Whose column each one hangs under: the father, or else the parent on record
  // — through the one they married where that parent married into the line.
@@ -1363,6 +1394,8 @@ function renderTree(people){
   const label=unavailable?'형제자매 추가 — 부모 등록 먼저':RELATIVE_LABELS[kind]+' 추가';
   return `<button type="button" class="tree-add ${kind}${unavailable?' off':''}" data-add="${kind}" data-person="${id}" title="${label}" aria-label="${label}">${glyph}</button>`;
  };
+ // 혼인으로 들어온 사람(配·繼配·壻)과 입양된 사람(系子·養女)은 이름 옆에 작게 표시합니다.
+ const roles=personRoles();
  const cards=people.filter(p=>pos.has(p.id)).map(p=>{
   const at=pos.get(p.id),photo=photoOf(p.id);
   const tone=(treeOptions.gender&&p.gender!=='미상'?(p.gender==='남'?' male':' female'):'')
@@ -1370,7 +1403,7 @@ function renderTree(people){
   return `<div class="tree-node" style="left:${at.x}px;top:${at.y}px;width:${nodeW}px;height:${nodeH}px">`
    +`<div class="tree-card${tone}" data-tree-person="${p.id}" role="button" tabindex="0">`
    +(treeOptions.photo?`<span class="tree-photo">${photo?`<img src="/api/files/${photo.id}?size=240" alt="">`:''}</span>`:'')
-   +`<strong>${esc(displayName(p).primary)}</strong>`
+   +`<strong>${esc(displayName(p).primary)}${roles.has(p.id)?`<em class="tree-role">${esc(roles.get(p.id))}</em>`:''}</strong>`
    +treeDetails(p,outside.has(p.id)).map(row=>`<span class="tree-line">${esc(row)}</span>`).join('')
    +(treeOptions.note?`<small>${esc(scriptText(p.note||''))}</small>`:'')
    +'</div>'
@@ -1856,7 +1889,21 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
  });
  $('#relationScope').hidden=!chosen;
  if(chosen)$('#relationScope').textContent=`${displayName(chosen).primary} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
- $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span><button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));}
+ // 배우자 관계에는 혼인 순서(본처·후처)를, 부모-자녀 관계에는 입양 여부를 정하는 칸을 둡니다.
+ const ORDER_WORDS=['등록한 순서','첫째(본처)','둘째(후처)','셋째(후처)','넷째(후처)'];
+ const detail=r=>r.kind==='spouse'
+  ?`<label class="relation-detail">혼인 순서<select data-order="${r.id}">${ORDER_WORDS.map((word,n)=>`<option value="${n}"${(r.marriage_order||0)===n?' selected':''}>${word}</option>`).join('')}</select></label>`
+  :`<label class="relation-detail"><input type="checkbox" data-adopted="${r.id}"${r.adopted?' checked':''}> 양자·양녀(입양)</label>`;
+ $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span>${detail(r)}<button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));
+ document.querySelectorAll('[data-order]').forEach(select=>select.onchange=run(async()=>{await api('/relations/'+select.dataset.order,'PUT',{marriage_order:Number(select.value)});await refresh();message('혼인 순서를 고쳤습니다.');}));
+ document.querySelectorAll('[data-adopted]').forEach(box=>box.onchange=run(async()=>{await api('/relations/'+box.dataset.adopted,'PUT',{adopted:box.checked});await refresh();message(box.checked?'입양으로 표시했습니다.':'입양 표시를 없앴습니다.');}));}
+// 한 사람의 배우자 관계들을 혼인 순서대로 세웁니다(backend/exchange.py in_marriage_order와 같은 규칙).
+// 혼인 순서를 정한 관계는 그 순서를, 정하지 않은 관계(0)는 그 사람의 배우자 가운데 등록한 순서를 씁니다.
+function inMarriageOrder(links){
+ return links.slice().sort((a,b)=>a.id-b.id).map((link,index)=>({link,rank:link.marriage_order||index+1}))
+  .sort((a,b)=>a.rank-b.rank||a.link.id-b.link.id).map(item=>item.link);
+}
+function adoptedIds(){return new Set(book.relations.filter(r=>r.kind==='parent'&&r.adopted).map(r=>r.target_id));}
 // One person's line: up through their forebears, down through their issue, and
 // whoever married into either. Not their forebears' other children, which is
 // where a separate branch of the book would come in.
@@ -2046,13 +2093,13 @@ document.querySelectorAll('[data-export]').forEach(button=>button.onclick=()=>{
 let importFamily=null;
 const IMPORT_FORMATS={gedcom:'GEDCOM',xlsx:'엑셀 가계도',csv:'CSV'};
 function importError(text=''){const el=$('#importError');el.textContent=text;el.hidden=!text;}
-function resetImport(){importFamily=null;$('#importFile').value='';$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').disabled=true;$('#importSave').textContent='새 족보로 저장';importError('');}
+function resetImport(){importFamily=null;importPlan=null;$('#importFile').value='';$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').disabled=true;$('#importSave').textContent='새 족보로 저장';importError('');}
 $('#importOpen').onclick=()=>{resetImport();$('#importDialog').showModal();};
 $('#closeImport').onclick=$('#importCancel').onclick=()=>$('#importDialog').close();
 document.querySelectorAll('[data-template]').forEach(button=>button.onclick=()=>download('/import/template?format='+button.dataset.template));
 $('#importFile').onchange=async()=>{
  const file=$('#importFile').files[0];
- importFamily=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').textContent='새 족보로 저장';importError('');
+ importFamily=null;importPlan=null;$('#importSave').disabled=true;$('#importPreview').hidden=true;$('#importMode').hidden=true;$('#importSave').textContent='새 족보로 저장';importError('');
  if(!file)return;
  const data=new FormData();data.append('file',file);
  await readImport(()=>api('/import/preview','POST',data));
@@ -2111,7 +2158,14 @@ function importOutline(f,limit=400){
  const rest=f.people.length-seen.size;
  return lines.join('\n')+(rest>0?`\n… 외 ${rest}명`:'');
 }
-function paintImport(f){
+// 반영할 족보와 그 족보에 반영하면 바뀌는 내용. 이 프로그램에서 내보낸 파일이면 미리 정해져 오고,
+// 다른 파일은 "반영할 족보"를 고르면 그때 서버에 물어 받습니다.
+let importPlan=null;
+function importBody(extra={}){
+ return {people:importFamily.people,parents:importFamily.parents,spouses:importFamily.spouses,
+  book:importFamily.book,book_key:importFamily.book_key||'',...extra};
+}
+async function paintImport(f){
  $('#importTitle').value=f.book.title||'';
  const gens=f.people.map(p=>p.generation);
  const range=gens.length?` · ${Math.min(...gens)}세~${Math.max(...gens)}세`:'';
@@ -2121,71 +2175,116 @@ function paintImport(f){
   +f.warnings.slice(0,shown).map(t=>`<li>${esc(t)}</li>`).join('')
   +(f.warnings.length>shown?`<li>외 알림 ${f.warnings.length-shown}건</li>`:'');
  $('#importTree').textContent=f.people.length&&!f.errors.length?importOutline(f):'';
- // 이 앱에서 내보낸 파일이고 그 족보가 아직 있으면, 원래 족보에 반영하는 것을 먼저 권합니다.
- const target=f.target;
- $('#importMode').hidden=!target;
- if(target){
-  $('#importMergeLabel').textContent=`기존 족보 「${scriptText(target.title)}」에 반영`;
-  document.querySelector('[name="importMode"][value="merge"]').checked=true;
-  $('#importPlan').innerHTML=importPlanHTML(target.plan);
- }
+ importPlan=f.target||null;
+ $('#importMode').hidden=!!f.errors.length;
+ // 이 프로그램에서 내보낸 파일이고 그 족보가 아직 있으면 "기존 족보에 반영"을 먼저 골라 둡니다.
+ document.querySelector(`[name="importMode"][value="${importPlan?'merge':'new'}"]`).checked=true;
+ let all=[];
+ try{all=await api('/books');}catch{}
+ $('#importTarget').innerHTML='<option value="">반영할 족보를 고르십시오</option>'
+  +all.map(b=>`<option value="${b.id}">${esc(scriptText(b.title))} · ${b.people}명</option>`).join('');
+ $('#importTarget').value=importPlan?String(importPlan.id):'';
  $('#importPreview').hidden=false;
- $('#importSave').disabled=!!f.errors.length;
  paintImportMode();
- if(f.errors.length)importError('고칠 곳이 있어 저장할 수 없습니다. 아래에 적힌 행을 파일에서 고친 뒤 다시 골라 주십시오.');
+ if(f.errors.length)importError('고칠 곳이 있어 저장할 수 없습니다. 아래에 적힌 줄을 파일에서 고친 뒤 다시 골라 주십시오.');
 }
-function importMode(){return importFamily?.target&&document.querySelector('[name="importMode"]:checked')?.value==='merge'?'merge':'new';}
-// 반영이면 바뀌는 내용을, 새 족보면 족보명과 가계도 미리보기를 보여 줍니다.
+function importMode(){return document.querySelector('[name="importMode"]:checked')?.value==='merge'?'merge':'new';}
+// 반영이면 반영할 족보와 바뀌는 내용을, 새 족보면 족보명과 가계도 미리보기를 보여 줍니다.
 function paintImportMode(){
- const merge=importMode()==='merge';
+ const merge=importMode()==='merge',ready=importFamily&&!importFamily.errors.length;
+ $('#importTargetWrap').hidden=!merge;
  $('#importTitleWrap').hidden=merge;
  $('#importPlan').hidden=!merge;
+ $('#importPlan').innerHTML=merge?(importPlan?importPlanHTML(importPlan.plan,importPlan.title):'<p class="muted">반영할 족보를 고르면, 반영했을 때 바뀌는 내용을 여기에 보여 드립니다.</p>'):'';
  const tree=!merge&&!!$('#importTree').textContent;
  $('#importTree').hidden=$('#importTreeHead').hidden=!tree;
  $('#importSave').textContent=merge?'기존 족보에 반영':'새 족보로 저장';
+ $('#importSave').disabled=!ready||(merge&&!importPlan);
 }
 document.querySelectorAll('[name="importMode"]').forEach(radio=>radio.onchange=paintImportMode);
-function importPlanHTML(plan){
- const shortValue=v=>v===''||v==null?'(없음)':esc(String(v));
- const change=c=>`<li><b>${esc(c.name)}</b> — `+c.fields.map(([word,old,now])=>word==='기록'||word==='설명'?`${word} 고침`:`${esc(word)} ${shortValue(old)} → ${shortValue(now)}`).join(', ')+'</li>';
- const limit=100;
- const parts=[`새로 추가 ${plan.added.length}명`,`고침 ${plan.changed.length}명`,`그대로 ${plan.same}명`];
- if(plan.links_added||plan.links_removed)parts.push(`관계 추가 ${plan.links_added}건 · 관계 삭제 ${plan.links_removed}건`);
- const bookChanges=plan.book_changes||[];
- if(bookChanges.length)parts.push('족보 정보 고침');
- let html=`<p class="import-summary"><strong>반영 내용</strong> · ${parts.join(' · ')}</p>`;
- if(plan.added.length)html+=`<p class="import-plan-line">추가: ${plan.added.slice(0,limit).map(esc).join(', ')}${plan.added.length>limit?` 외 ${plan.added.length-limit}명`:''}</p>`;
- const bookLine=bookChanges.length?[{name:'족보 정보',fields:bookChanges}]:[];
- const changes=[...bookLine,...plan.changed];
- if(changes.length)html+=`<ul class="import-changes">${changes.slice(0,limit).map(change).join('')}${changes.length>limit?`<li>외 ${changes.length-limit}건</li>`:''}</ul>`;
- if(!plan.added.length&&!changes.length&&!plan.links_added&&!plan.links_removed)html+='<p class="import-plan-line">바뀌는 내용이 없습니다.</p>';
- if(plan.missing.length)html+=`<p class="muted">파일에 없는 사람 ${plan.missing.length}명(${plan.missing.slice(0,10).map(esc).join(', ')}${plan.missing.length>10?' 등':''})은 지우지 않고 그대로 둡니다.</p>`;
- html+='<p class="muted">반영하기 전에 지금 족보를 백업 파일(.ged)로 저장해 둡니다.</p>';
+$('#importTarget').onchange=async()=>{
+ const id=$('#importTarget').value;
+ importPlan=null;importError('');
+ if(id){
+  try{importPlan=await busy($('#importSave'),'계산 중…',()=>api(`/books/${id}/merge/preview`,'POST',importBody()));}
+  catch(err){if(!err.quiet)importError(err.message);}
+ }
+ paintImportMode();
+};
+// "…으로/…로": 마지막 글자에 받침이 있으면(ㄹ 받침은 빼고) "으로"를 붙입니다. 숫자는 읽는 소리로 봅니다.
+function ro(text){
+ const last=String(text).trim().slice(-1),digits={'0':1,'1':0,'2':0,'3':1,'4':0,'5':0,'6':1,'7':0,'8':0,'9':0};
+ if(last in digits)return text+(digits[last]?'으로':'로');
+ const code=last.charCodeAt(0)-0xAC00;
+ if(code<0||code>11171)return text+'(으)로';
+ const final=code%28;
+ return text+(final===0||final===8?'로':'으로');
+}
+function subject(word){return word+(word==='세'?'가':'이');}
+// 반영 미리보기. 짧게 끊지 않고 문장으로 적습니다. 지워지는 내용이 있으면 붉은 경고를 맨 위에 둡니다.
+function importPlanHTML(plan,title){
+ const limit=100,names=list=>list.slice(0,limit).map(name=>esc(name)+' 님').join(', ')+(list.length>limit?` 외 ${list.length-limit}명`:'');
+ const longText=word=>word==='기록';
+ let html='';
+ if(plan.erased.length){
+  html+=`<div class="import-warning" role="alert"><strong>⚠ 주의: 파일에 비어 있는 칸이 있어, 족보의 기존 내용 ${plan.erased.length}건이 지워집니다.</strong><ul>`
+   +plan.erased.slice(0,limit).map(e=>`<li>${esc(e.name)} 님의 ${esc(e.word)}${longText(e.word)?'':' '+esc(e.old)}</li>`).join('')
+   +`</ul><p>지우려는 것이 아니라면 [닫기]를 누르고, 파일에서 그 칸을 다시 채운 뒤 불러오십시오.</p></div>`;
+ }
+ const sentences=[];
+ if(plan.added.length)sentences.push(`새로 추가되는 사람은 ${plan.added.length}명입니다.`);
+ if(plan.changed.length)sentences.push(`기록이 바뀌는 사람은 ${plan.changed.length}명입니다.`);
+ if(plan.erased.length)sentences.push(`지워지는 내용은 ${plan.erased.length}건입니다.`);
+ if(plan.same)sentences.push(`나머지 ${plan.same}명은 그대로입니다.`);
+ const nothing=!plan.added.length&&!plan.changed.length&&!plan.erased.length&&!plan.links_added&&!plan.links_removed;
+ html+=`<p class="import-summary">이 파일을 「${esc(scriptText(title))}」에 반영하면 다음과 같이 바뀝니다. ${sentences.join(' ')}</p>`;
+ if(nothing)html='<p class="import-summary">이 파일과 「'+esc(scriptText(title))+'」의 내용이 같아서, 반영해도 바뀌는 내용이 없습니다.</p>';
+ const lines=[];
+ if(plan.added.length)lines.push(`새로 추가되는 사람: ${plan.added.slice(0,limit).map(esc).join(', ')}${plan.added.length>limit?` 외 ${plan.added.length-limit}명`:''}`);
+ for(const c of plan.changed.slice(0,limit)){
+  for(const [word,old,now] of c.fields){
+   if(longText(word))lines.push(`${esc(c.name)} 님의 기록이 바뀝니다.`);
+   else if(old===''||old==null)lines.push(`${esc(c.name)} 님의 ${esc(subject(word))} ${esc(ro(String(now)))} 새로 적힙니다.`);
+   else lines.push(`${esc(c.name)} 님의 ${esc(subject(word))} ${esc(String(old))}에서 ${esc(ro(String(now)))} 바뀝니다.`);
+  }
+ }
+ if(plan.links_added&&plan.links_removed)lines.push(`가족 관계 ${plan.links_added}건이 새로 이어지고, ${plan.links_removed}건이 끊어집니다.`);
+ else if(plan.links_added)lines.push(`가족 관계 ${plan.links_added}건이 새로 이어집니다.`);
+ else if(plan.links_removed)lines.push(`가족 관계 ${plan.links_removed}건이 끊어집니다.`);
+ if(lines.length)html+=`<ul class="import-changes">${lines.map(line=>`<li>${line}</li>`).join('')}</ul>`;
+ if(plan.ambiguous&&plan.ambiguous.length)html+=`<p class="import-plan-line">${names(plan.ambiguous)}은(는) 족보에 이름과 세가 같은 사람이 여럿 있어 같은 사람인지 알 수 없으므로, 새 사람으로 추가됩니다. 같은 사람이라면 [닫기]를 누르고, 파일에서 그 사람의 부모를 족보와 같게 적은 뒤 다시 불러오십시오.</p>`;
+ // 다른 프로그램의 일부만 담긴 파일이면 거의 모두가 "파일에 없는 사람"이라, 이름은 다섯까지만 적습니다.
+ if(plan.missing.length){
+  const few=plan.missing.slice(0,5).map(name=>esc(name)+' 님').join(', ');
+  const rest=plan.missing.length>5?` 외 ${plan.missing.length-5}명`:'';
+  html+=`<p class="muted">${few}${rest}은(는) 파일에 없지만 족보에서 지우지 않습니다.</p>`;
+ }
+ html+='<p class="muted">반영하기 직전에 지금의 족보를 백업 파일로 저장해 둡니다.</p>';
  return html;
 }
 $('#importSave').onclick=run(async()=>{
  if(!importFamily)return;
  importError('');
- const base={people:importFamily.people,parents:importFamily.parents,spouses:importFamily.spouses};
  if(importMode()==='merge'){
-  const target=importFamily.target;
+  if(!importPlan){importError('반영할 족보를 골라 주십시오.');return;}
+  const target=importPlan;
   let r;
-  try{r=await busy($('#importSave'),'반영 중…',()=>api(`/books/${target.id}/merge`,'POST',{...base,book:importFamily.book,book_key:importFamily.book_key}));}
+  try{r=await busy($('#importSave'),'반영 중…',()=>api(`/books/${target.id}/merge`,'POST',importBody()));}
   catch(err){if(!err.quiet)importError(err.message);return;}
   $('#importDialog').close();
   await loadBooks(target.id);
-  message(`「${scriptText(target.title)}」에 반영했습니다. 추가 ${r.added}명 · 고침 ${r.changed}명 · 백업 ${r.backup}`);
+  const done=[r.added?`${r.added}명을 추가했고`:'',r.changed?`${r.changed}명의 기록을 고쳤고`:'',r.erased?`${r.erased}건을 지웠고`:''].filter(Boolean);
+  message(`「${scriptText(target.title)}」에 반영했습니다. ${done.length?done.join(' ').replace(/고$/,'습니다.'):'바뀐 내용은 없습니다.'} 반영 전의 족보는 백업(${r.backup})에 있습니다.`);
   return;
  }
  const title=$('#importTitle').value.trim();
  if(!title){importError('족보명을 적어 주십시오.');$('#importTitle').focus();return;}
- const body={...base,book:{...importFamily.book,title}};
  let r;
- try{r=await busy($('#importSave'),'저장 중…',()=>api('/books/import','POST',body));}
+ try{r=await busy($('#importSave'),'저장 중…',()=>api('/books/import','POST',importBody({book:{...importFamily.book,title}})));}
  catch(err){if(!err.quiet)importError(err.message);return;}
  $('#importDialog').close();
  await loadBooks(r.id);
- message(`새 족보로 불러왔습니다. 인물 ${r.people}명`);
+ message(`새 족보로 불러왔습니다. 인물은 ${r.people}명입니다.`);
 });
 enter().catch(()=>{});
 

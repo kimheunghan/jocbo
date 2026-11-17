@@ -65,6 +65,8 @@ CREATE TABLE relations (
 	source_id INTEGER NOT NULL,
 	target_id INTEGER NOT NULL,
 	kind VARCHAR(20) NOT NULL,
+	marriage_order INTEGER DEFAULT 0 NOT NULL,
+	adopted INTEGER DEFAULT 0 NOT NULL,
 	PRIMARY KEY (id),
 	UNIQUE (source_id, target_id, kind),
 	CHECK (source_id <> target_id),
