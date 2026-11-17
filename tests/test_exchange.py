@@ -111,8 +111,11 @@ def test_wives_mothers_and_adoption_survive(client, kind):
         tree = x.read_xlsx(sent, x.TREE_SHEET, fallback=False)
         assert x._cell_text(tree[0][0]) == x.CORNER.strip()
         kinds = {x.split_name(next(v for v in row[1:] if isinstance(v, str)))[0]: row[0] for row in tree[1:]}
-        assert kinds == {'김갑': '子', '이씨': '配', '박씨': '繼配', '김을': '子', '김계': '系子',
-                         '김병': '子', '김순': '女', '정모': '壻'}
+        assert kinds == {'김갑': '子(아들)', '이씨': '配(본처)', '박씨': '繼配(후처)', '김을': '子(아들)',
+                         '김계': '系子(양자)', '김병': '子(아들)', '김순': '女(딸)', '정모': '壻(사위)'}
+        for text in ('子', '아들', '子(아들)', '子 (아들)', '子（아들）'):
+            assert x.kind_meaning(text) == x.KINDS['子']
+        assert x.kind_meaning('子(딸)') is None
     family, back = bring_in(client, f'재혼.{kind}', sent)
     assert signature(back) == signature(original)
 
@@ -533,3 +536,31 @@ def test_loops_are_refused():
     people = [x.blank_person(k) for k in 'abc']
     with pytest.raises(x.ExchangeError, match='순환'):
         x.settle_generations(people, [('a', 'b'), ('b', 'c'), ('c', 'a')], [])
+
+
+# 본관은 한자 옆에 한글, 한글 옆에 한자를 괄호로 적고, 다시 불러와도 바뀐 것으로 보지 않습니다.
+def test_bongwan_written_with_its_pair():
+    assert x.bongwan_cell('金海') == '金海(김해)'
+    assert x.bongwan_cell('김해') == '김해(金海)'
+    assert x.bongwan_cell('昌寧') == '昌寧(창녕)'
+    assert x.bongwan_cell('') == ''
+    assert x.bongwan_value('金海(김해)') == '金海'
+    assert x.bongwan_value('김해 (金海)') == '김해'
+    assert x.same_bongwan('金海', '김해') and x.same_bongwan('金海', '金海(김해)')
+    assert not x.same_bongwan('金海', '全州') and not x.same_bongwan('金海', '')
+
+
+def test_bongwan_in_either_script_comes_back_unchanged(client):
+    account(client)
+    bid = client.post('/api/books', json={'title': '본관'}).json()['id']
+    for name, bon in (('김갑', '金海'), ('김을', '김해')):
+        client.post(f'/api/books/{bid}/persons', json={'korean_name': name, 'generation': 1, 'bon_gwan': bon})
+    sent = client.get(f'/api/books/{bid}/export', params={'format': 'xlsx'}).content
+    cells = {v for row in x.read_xlsx(sent, x.TREE_SHEET, fallback=False) for v in row if isinstance(v, str)}
+    assert {'金海(김해)', '김해(金海)'} <= cells
+    family = client.post('/api/import/preview', files={'file': ('a.xlsx', sent)}).json()
+    plan = client.post(f'/api/books/{bid}/merge/preview', json=body(family)).json()['plan']
+    assert plan['changed'] == [] and plan['erased'] == [] and plan['same'] == 2
+    assert client.post(f'/api/books/{bid}/merge', json=body(family)).status_code == 200
+    kept = {p['korean_name']: p['bon_gwan'] for p in client.get(f'/api/books/{bid}').json()['persons']}
+    assert kept == {'김갑': '金海', '김을': '김해'}

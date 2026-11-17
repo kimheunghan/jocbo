@@ -194,6 +194,69 @@ def hangul_of(text):
     return ''.join(out)
 
 
+# 흔한 본관의 한자와 한글. 같은 한글에 한자가 여럿이면 앞의 것을 씁니다.
+BONGWAN = dict(pair.split(':') for pair in (
+    '金海:김해 密陽:밀양 全州:전주 慶州:경주 晉州:진주 晋州:진주 安東:안동 光山:광산 坡平:파평 南陽:남양 '
+    '淸州:청주 清州:청주 延安:연안 昌寧:창녕 豊山:풍산 豐山:풍산 驪興:여흥 靑松:청송 青松:청송 東萊:동래 '
+    '尙州:상주 尚州:상주 天安:천안 晉陽:진양 淸道:청도 清道:청도 潘南:반남 瑞興:서흥 金寧:김녕 全義:전의 '
+    '平山:평산 海州:해주 順興:순흥 漢陽:한양 光州:광주 羅州:나주 文化:문화 原州:원주 驪州:여주 水原:수원 '
+    '仁同:인동 星州:성주 義城:의성 陜川:합천 咸安:함안 咸陽:함양 咸從:함종 慶山:경산 達城:달성 大邱:대구 '
+    '草溪:초계 宜寧:의령 寧越:영월 寧海:영해 礪山:여산 長興:장흥 長水:장수 濟州:제주 高靈:고령 恩津:은진 '
+    '德水:덕수 杞溪:기계 交河:교하 豐壤:풍양 豊壤:풍양 楊州:양주 開城:개성 南原:남원 海南:해남 靈光:영광 '
+    '牙山:아산 溫陽:온양 善山:선산 一善:일선 仁川:인천 江陵:강릉 三陟:삼척 平海:평해 蔚山:울산 固城:고성 '
+    '河東:하동 昌原:창원 金浦:김포 鎭川:진천 忠州:충주 公州:공주 扶安:부안 潭陽:담양 寶城:보성 竹山:죽산 '
+    '驪陽:여양 載寧:재령 平壤:평양 延日:연일 迎日:영일 興德:흥덕 淸風:청풍 丹陽:단양 安城:안성 利川:이천 '
+    '新平:신평 長淵:장연 谷城:곡성 南平:남평 綾城:능성 和順:화순 光陽:광양 豐川:풍천 豊川:풍천 鐵原:철원 '
+    '碧珍:벽진 錦山:금산 瑞山:서산 洪州:홍주 結城:결성 白川:백천 密城:밀성 文義:문의 求禮:구례 平昌:평창 '
+    '玄風:현풍 咸平:함평 長城:장성 靈山:영산 慶源:경원 晉山:진산 宜春:의춘 高興:고흥 康津:강진 靈巖:영암 '
+    '務安:무안 珍島:진도 寧山:영산 原城:원성 江華:강화 坡州:파주 驪江:여강 林川:임천 韓山:한산 舒川:서천 '
+    '扶餘:부여 禮山:예산 唐津:당진 沔川:면천 洪城:홍성 保寧:보령 藍浦:남포 鴻山:홍산 恩山:은산 連山:연산 '
+    '慶興:경흥 安岳:안악 遂安:수안 谷山:곡산 祥原:상원 中和:중화 順天:순천 麗水:여수 樂安:낙안 興陽:흥양 '
+    '靈巖:영암 長澤:장택 晉原:진원 茂長:무장 高敞:고창 井邑:정읍 泰仁:태인 益山:익산 沃川:옥천 報恩:보은 '
+    '永同:영동 黃澗:황간 淸安:청안 槐山:괴산 延豐:연풍 堤川:제천 寧川:영천 永川:영천 榮川:영천 醴泉:예천 '
+    '奉化:봉화 榮州:영주 順天:순천 聞慶:문경 咸昌:함창 開寧:개령 金山:김산 漆原:칠원 居昌:거창 安陰:안음 '
+    '晉陽:진양 泗川:사천 南海:남해 巨濟:거제 熊川:웅천 金堤:김제 萬頃:만경 臨陂:임피 沃溝:옥구').split())
+BONGWAN_HANJA = {}
+for _hanja, _hangul in BONGWAN.items():
+    BONGWAN_HANJA.setdefault(_hangul, _hanja)
+
+
+def bongwan_cell(text):
+    """본관을 엑셀 칸에 적는 모양: 한자는 金海(김해), 한글은 김해(金海). 짝을 모르면 그대로."""
+    text = (text or '').strip()
+    if not text or '(' in text or '（' in text:
+        return text
+    if HANJA.search(text) and not HANGUL.search(text):
+        reading = BONGWAN.get(text) or hangul_of(text)
+        return f'{text}({reading})' if reading and reading != text and not HANJA.search(reading) else text
+    if HANGUL.search(text) and not HANJA.search(text) and text in BONGWAN_HANJA:
+        return f'{text}({BONGWAN_HANJA[text]})'
+    return text
+
+
+def bongwan_value(text):
+    """엑셀 칸의 金海(김해)·김해(金海) → 저장할 본관(괄호 앞의 말)."""
+    text = re.sub(r'\s+', ' ', text or '').strip()
+    found = re.fullmatch(r'(.+?)\s*[(（]\s*(.*?)\s*[)）]', text)
+    return found[1] if found else text
+
+
+def same_bongwan(a, b):
+    """金海, 김해, 金海(김해)처럼 적는 모양만 다르고 같은 본관인가."""
+    def forms(text):
+        text = (text or '').strip()
+        found = re.fullmatch(r'(.+?)\s*[(（]\s*(.*?)\s*[)）]', text)
+        words = {found[1], found[2]} if found else {text}
+        out = set()
+        for word in words:
+            out |= {word, BONGWAN.get(word, ''), BONGWAN_HANJA.get(word, '')}
+            if HANJA.search(word) and not HANGUL.search(word):
+                out.add(hangul_of(word))
+        return out - {''}
+    a, b = (a or '').strip(), (b or '').strip()
+    return a == b or (bool(a) and bool(b) and bool(forms(a) & forms(b)))
+
+
 def split_name(text):
     """'金永祖(김영조)', '김영조(金永祖)', '김영조' or '金永祖' → (한글명, 한자명)."""
     text = re.sub(r'\s+', ' ', str(text)).strip()
@@ -323,7 +386,7 @@ def merge_plan(book, family, by_number=True):
             before = old[field] if old[field] is not None else ''
             after = person[field] if person[field] is not None else ''
             # 성별 '미상'은 모른다는 뜻이지 지우라는 뜻이 아닙니다.
-            if before == after or (field == 'gender' and after == '미상'):
+            if before == after or (field == 'gender' and after == '미상') or (field == 'bon_gwan' and same_bongwan(before, after)):
                 continue
             if after == '':
                 erased.append({'name': label(old), 'word': word, 'old': before})
@@ -618,7 +681,7 @@ def column_index(name):
 # 셀 모양. gfill·gref: 부인·사위 줄(옅은 회색 바탕), corner: 대각선을 그은 "세대/구분" 칸,
 # warn: 붉은 굵은 경고 글씨, title: 큰 굵은 제목.
 STYLE = {'plain': 0, 'head': 1, 'text': 2, 'guest': 3, 'ref': 4, 'gfill': 5, 'gref': 6, 'corner': 7,
-         'warn': 8, 'title': 9, 'gnum': 10}
+         'warn': 8, 'title': 9, 'gnum': 10, 'colhead': 11, 'kind': 12, 'gkind': 13}
 
 
 def _sheet_xml(rows, widths, text_columns=(), heights=None, freeze=1):
@@ -672,7 +735,7 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<border diagonalDown="1"><left/><right/><top/><bottom style="thin"><color rgb="FF9C8A6A"/></bottom>'
            '<diagonal style="thin"><color rgb="FF9C8A6A"/></diagonal></border></borders>'
            '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-           '<cellXfs count="11"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+           '<cellXfs count="14"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
            '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
@@ -683,7 +746,14 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<alignment wrapText="1" vertical="center"/></xf>'
            '<xf numFmtId="49" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
-           '<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/></cellXfs>'
+           '<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/>'
+           # colhead: 가계도 표의 칸 제목(가로·세로 가운데). kind·gkind: 구분 칸(가운데, gkind는 회색 바탕).
+           '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyNumberFormat="1">'
+           '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+           '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1" applyNumberFormat="1">'
+           '<alignment horizontal="center" vertical="center"/></xf>'
+           '<xf numFmtId="49" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1" applyNumberFormat="1">'
+           '<alignment horizontal="center" vertical="center"/></xf></cellXfs>'
            '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
 
 
@@ -746,8 +816,8 @@ LISTING_SHEET = '인물 목록'
 # 대각선을 그은 첫 칸: 오른쪽 위에 "세대", 왼쪽 아래에 "구분".
 CORNER = '      세대\n구분'
 # 이름 열 오른쪽의 칸. 번호는 사람을 구별하는 번호로, 새로 추가하는 사람은 비워 둡니다.
-DETAIL_HEADS = ['세', '본관', '출생일', '사망일', '어머니(아버지)', '기록', '번호']
-DETAIL_WIDTHS = [6, 10, 12, 12, 16, 50, 7]
+DETAIL_HEADS = ['세', '본관', '출생일', '사망일', '생모(生母)', '기록', '번호']
+DETAIL_WIDTHS = [6, 14, 12, 12, 16, 50, 7]
 
 # 구분: 칸에 적힌 말 → (집안 사람인가, 성별, 입양인가, 첫 배우자인가)
 KINDS = {}
@@ -762,6 +832,23 @@ for words, meaning in (
     for word in words:
         KINDS[word] = meaning
 KIND_NAMES = '子(아들), 女(딸), 配(본처), 繼配(후처), 壻(사위), 系子(양자), 養女(양녀)'
+# 구분 칸에 쓰는 말: 한자 뒤 괄호 안에 한글 뜻. 예: 子(아들)
+KIND_LABEL = {word.split('(')[0]: word for word in KIND_NAMES.split(', ')}
+_KIND_PAIR = re.compile(r'([^()（）]+)[(（]([^()（）]*)[)）]')
+
+
+def kind_meaning(text):
+    """구분 칸의 말 → KINDS의 뜻. 子, 아들, 子(아들) 모두 읽습니다. 모르는 말이거나 앞뒤가 다르면 None."""
+    text = re.sub(r'\s+', '', text or '')
+    if text in KINDS:
+        return KINDS[text]
+    pair = _KIND_PAIR.fullmatch(text)
+    if not pair:
+        return None
+    outer, inner = KINDS.get(pair.group(1)), KINDS.get(pair.group(2))
+    if outer and inner and outer != inner:
+        return None
+    return outer or inner
 
 
 def _plain(rows):
@@ -769,13 +856,13 @@ def _plain(rows):
 
 
 def _tree_head(base, depth):
-    return [(CORNER, 'corner')] + [(f'{base + d}세', 'head') for d in range(depth)] + [(h, 'head') for h in DETAIL_HEADS]
+    return [(CORNER, 'corner')] + [(f'{base + d}세', 'colhead') for d in range(depth)] + [(h, 'colhead') for h in DETAIL_HEADS]
 
 
 def _tree_row(depth, gubun, column, name, details, guest):
     """가계도 시트의 한 줄. 부인·사위 줄은 옅은 회색 바탕입니다."""
     fill, faint = ('gfill', 'gref') if guest else ('text', 'ref')
-    cells = [(gubun, fill)] + [('', fill) if guest else None for _ in range(depth)] + [('', fill) if guest else None for _ in DETAIL_HEADS]
+    cells = [(KIND_LABEL.get(gubun, gubun), 'gkind' if guest else 'kind')] +[('', fill) if guest else None for _ in range(depth)] + [('', fill) if guest else None for _ in DETAIL_HEADS]
     cells[1 + column] = (name, fill)
     for offset, value in enumerate(details):
         if value is None or value == '':
@@ -800,14 +887,14 @@ def tree_xlsx(book):
         if row['kind'] in ('spouse-ref', 'child-ref'):
             name = f'{name} → 번호 {row["pid"]}'
         if row['kind'] in ('person', 'spouse'):
-            details = [person['generation'], person['bon_gwan'], person['birth_date'], person['death_date'],
+            details = [person['generation'], bongwan_cell(person['bon_gwan']), person['birth_date'], person['death_date'],
                        None, person['note'], person['id']]
         if row['kind'] in ('person', 'child-ref'):
             other = row.get('other')
-            details[DETAIL_HEADS.index('어머니(아버지)')] = (
+            details[DETAIL_HEADS.index('생모(生母)')] = (
                 other if isinstance(other, str) else (label(by_id[other]) if other is not None else ''))
         sheet.append(_tree_row(depth, row['gubun'], row['depth'], name, details, guest))
-    widths = [10] + [16] * depth + DETAIL_WIDTHS
+    widths = [12] + [16] * depth + DETAIL_WIDTHS
     text_columns = {1 + depth + 2, 1 + depth + 3}
 
     # 트리로 그릴 수 없는 관계(배우자의 전혼 자녀, 집안끼리의 혼인 등)는 숨김 시트에 번호로 적습니다.
@@ -837,19 +924,19 @@ def tree_xlsx(book):
 EXTRA_HEAD = '추가 관계'
 
 # 작성 안내 시트와 엑셀 양식에 쓰는 가상의 한 집안. 일곱 가지 구분이 모두 들어 있습니다.
-# (구분, 세대 열, 이름, 세, 본관, 출생일, 사망일, 어머니(아버지), 기록)
+# (구분, 세대 열, 이름, 세, 본관, 출생일, 사망일, 생모, 기록)
 EXAMPLE = [
     ('子', 0, '金始祖(김시조)', 25, '金海', '1820', '1885-03', '', '字 景仁. 예시 인물입니다.'),
     ('配', 0, '李氏(이씨)', 25, '全州', '', '', '', '첫 부인'),
     ('繼配', 0, '朴氏(박씨)', 25, '密陽', '', '', '', '둘째 부인'),
-    ('子', 1, '金一男(김일남)', 26, '金海', '1845-05-02', '', '李氏', '본처 李氏의 아들'),
+    ('子', 1, '金一男(김일남)', 26, '金海', '1845-05-02', '', '李氏(이씨)', '본처 李氏의 아들'),
     ('配', 1, '崔氏(최씨)', 26, '慶州', '', '', '', ''),
     ('子', 2, '金長孫(김장손)', 27, '金海', '1870', '', '', ''),
     ('系子', 2, '金繼孫(김계손)', 27, '金海', '', '', '', '生父 金某. 다른 집에서 양자로 들어옴'),
-    ('女', 1, '金順(김순)', 26, '金海', '', '', '朴氏', '후처 朴氏의 딸'),
+    ('女', 1, '金順(김순)', 26, '金海', '', '', '朴氏(박씨)', '후처 朴氏의 딸'),
     ('壻', 1, '鄭某(정모)', 26, '東萊', '', '', '', ''),
-    ('子', 1, '金二男(김이남)', 26, '金海', '', '', '朴氏', '후처 朴氏의 아들'),
-    ('養女', 1, '金貞(김정)', 26, '金海', '', '', '朴氏', '生父 李某. 다른 집에서 양녀로 들어옴'),
+    ('子', 1, '金二男(김이남)', 26, '金海', '', '', '朴氏(박씨)', '후처 朴氏의 아들'),
+    ('養女', 1, '金貞(김정)', 26, '金海', '', '', '朴氏(박씨)', '生父 李某. 다른 집에서 양녀로 들어옴'),
 ]
 EXAMPLE_NAMES = {split_name(row[2])[1] for row in EXAMPLE} | {split_name(row[2])[0] for row in EXAMPLE}
 
@@ -858,12 +945,12 @@ def _example_rows(numbered=False):
     head = _tree_head(25, 3)
     if numbered:
         marks = '①②③④⑤⑥⑦⑧⑨⑩'
-        head = [('① 구분', 'corner'), ('② 25세', 'head'), ('26세', 'head'), ('27세', 'head')] + [
-            (f'{marks[2 + i]} {h}', 'head') for i, h in enumerate(DETAIL_HEADS)]
+        head = [('① 구분', 'corner'), ('② 25세', 'colhead'), ('26세', 'colhead'), ('27세', 'colhead')] + [
+            (f'{marks[2 + i]} {h}', 'colhead') for i, h in enumerate(DETAIL_HEADS)]
     rows = [head]
     for gubun, column, name, gen, bon, born, died, other, note in EXAMPLE:
         guest = KINDS[gubun][0] == 'spouse'
-        rows.append(_tree_row(3, gubun, column, name, [gen, bon, born, died, other, note, None], guest))
+        rows.append(_tree_row(3, gubun, column, name, [gen, bongwan_cell(bon), born, died, other, note, None], guest))
     return rows
 
 
@@ -886,7 +973,8 @@ GUIDE_TEXT = [
     ('', '이 집안 남자의 첫 부인은 配(본처), 둘째 이후의 부인은 繼配(후처)라고 적습니다.'),
     ('', '이 집안 여자의 남편은 壻(사위)라고 적습니다.'),
     ('', '다른 집에서 태어나 이 집안으로 입양된 아들은 系子(양자), 딸은 養女(양녀)라고 적습니다.'),
-    ('', '한자 대신 괄호 안의 한글로 적어도 됩니다. 구분 칸을 비우면 이 집안에서 태어났고 성별을 모르는 사람으로 봅니다.'),
+    ('', '구분 칸에는 예시처럼 子(아들)과 같이 한자를 적고 그 뒤 괄호 안에 한글 뜻을 적습니다. 한자만 적거나 한글만 적어도 프로그램이 읽습니다.'),
+    ('', '구분 칸을 비우면 이 집안에서 태어났고 성별을 모르는 사람으로 봅니다.'),
     ('', ''),
     ('head', '② 세대 열(25세, 26세, 27세 …)'),
     ('', '이름은 그 사람의 세대에 해당하는 열에 적습니다. 예를 들어 25세인 사람은 "25세" 열에 적고, 그 사람의 자녀는 바로 오른쪽 "26세" 열에 적습니다.'),
@@ -900,15 +988,19 @@ GUIDE_TEXT = [
     ('', ''),
     ('head', '④ 본관'),
     ('', '그 사람의 본관을 적습니다. 부인과 사위는 친정 또는 본가의 본관을 적습니다.'),
+    ('', '본관도 이름처럼 金海(김해)와 같이 한자 옆 괄호 안에 한글을 적습니다. 한자만 적거나 한글만 적어도 됩니다.'),
+    ('', '프로그램이 파일을 만들 때는 한자로 저장된 본관은 金海(김해)로, 한글로 저장된 본관은 김해(金海)로 적습니다. 다시 불러올 때는 괄호 앞의 말을 본관으로 저장합니다.'),
     ('', ''),
     ('head', '⑤ 출생일, ⑥ 사망일'),
     ('', '날짜는 아는 만큼만 적습니다. 연도만 알면 1956, 연도와 달을 알면 1956-03, 날짜까지 알면 1956-03-02처럼 적습니다.'),
     ('', '1956.3.2나 1956년 3월 2일처럼 적어도 읽습니다. 연도를 모르고 달과 날만 알면 3월 2일처럼 적습니다.'),
     ('', ''),
-    ('head', '⑦ 어머니(아버지)'),
-    ('', '한 사람에게 부인이 두 명 이상이면, 자녀의 줄에 그 자녀를 낳은 어머니의 이름을 적습니다. 예시에서 金一男은 본처 李氏의 아들이므로 李氏라고 적었습니다.'),
-    ('', '이 집안 여자에게 남편이 둘 이상이면, 자녀의 줄에 아버지의 이름을 적습니다.'),
-    ('', '배우자가 한 명뿐이면 이 칸은 비워 둡니다. 비워 두면 그 배우자의 자녀로 봅니다. 어머니를 모르면 (미상)이라고 적습니다.'),
+    ('head', '⑦ 생모(生母)'),
+    ('', '생모는 그 자녀를 낳은 어머니를 말합니다.'),
+    ('', '아버지에게 부인이 두 명 이상일 때에만, 자녀의 줄에 그 자녀를 낳은 어머니의 이름을 적습니다.'),
+    ('', '예시에서 金始祖에게는 본처 李氏와 후처 朴氏가 있습니다. 金一男은 李氏가 낳았으므로 李氏(이씨)라고 적었고, 金順과 金二男은 朴氏가 낳았으므로 朴氏(박씨)라고 적었습니다.'),
+    ('', '아버지의 부인이 한 명뿐이면 이 칸은 비워 둡니다. 비워 두면 그 부인이 낳은 자녀로 봅니다.'),
+    ('', '부인의 줄과 사위의 줄에는 이 칸을 적지 않습니다. 어머니가 누구인지 모르면 (미상)이라고 적습니다.'),
     ('', ''),
     ('head', '⑧ 기록'),
     ('', '字, 號, 관직, 학력, 묘소처럼 그 사람에 대해 남길 내용을 적습니다. 양자와 양녀는 친부모의 이름을 여기에 적습니다(예: 生父 金某).'),
@@ -942,7 +1034,7 @@ def guide_sheet():
             continue
         style = {'warn': 'warn', 'title': 'title', 'head': 'head'}.get(kind, 'plain')
         rows.append([(text, style)] if text else [])
-    return rows, [10, 16, 16, 16] + DETAIL_WIDTHS, (), {'heights': heights, 'freeze': 0}
+    return rows, [12, 16, 16, 16] + DETAIL_WIDTHS, (), {'heights': heights, 'freeze': 0}
 
 
 def template_gedcom():
@@ -962,7 +1054,7 @@ def template_gedcom():
 
 def template_xlsx():
     """엑셀 양식: 작성 예시가 채워진 가계도 시트와 작성 안내 시트."""
-    return write_xlsx([(TREE_SHEET, _example_rows(), [10, 16, 16, 16] + DETAIL_WIDTHS, {7, 8}, {'heights': {1: 40}}),
+    return write_xlsx([(TREE_SHEET, _example_rows(), [12, 16, 16, 16] + DETAIL_WIDTHS, {7, 8}, {'heights': {1: 40}}),
                        (GUIDE_SHEET, *guide_sheet())])
 
 # The book's own fields on a sheet of their own, so a sheet sent out comes back
@@ -1086,7 +1178,7 @@ def read_csv(data):
 HEAD_FIELDS = {'세': 'generation', '세대': 'generation', '世': 'generation', '성별': 'gender', '본관': 'bon_gwan',
                '출생일': 'birth_date', '출생': 'birth_date', '생년월일': 'birth_date', '생일': 'birth_date',
                '사망일': 'death_date', '사망': 'death_date', '졸': 'death_date',
-               '어머니(아버지)': 'other', '어머니': 'other', '아버지': 'other', '다른부모': 'other', '배우자부모': 'other',
+               '생모(生母)': 'other', '생모': 'other', '生母': 'other', '어머니(아버지)': 'other', '어머니': 'other', '아버지': 'other', '다른부모': 'other', '배우자부모': 'other',
                '기록': 'note', '메모': 'note', '비고': 'note', '한자명': 'hanja_name', '한자': 'hanja_name',
                '번호': 'id', '번호(고치지않음)': 'id'}
 # 2026.11.1~11.6 양식은 구분 열 없이 배우자 이름 앞에 "配 "를 붙였습니다. 그 모양도 읽습니다.
@@ -1178,7 +1270,7 @@ def tree_family(rows, extra=()):
         if marked:
             text = SPOUSE_MARK.sub('', text, count=1)
         if kind_text:
-            meaning = KINDS.get(kind_text)
+            meaning = kind_meaning(kind_text)
             if meaning is None:
                 errors.append(f'{number}행: 구분 "{kind_text}"은(는) 쓸 수 없는 말입니다. {KIND_NAMES} 가운데 하나를 적어 주십시오.')
                 continue
@@ -1226,7 +1318,7 @@ def tree_family(rows, extra=()):
         gen_number = re.match(r'(\d+)', _cell_text(cells.get('generation')))
         person['generation'] = int(gen_number[1]) if gen_number else base + column
         person['gender'] = gender or GENDER.get(_cell_text(cells.get('gender')).upper(), '미상')
-        person['bon_gwan'] = _cell_text(cells.get('bon_gwan'))
+        person['bon_gwan'] = bongwan_value(_cell_text(cells.get('bon_gwan')))
         person['id'] = person_number(cells.get('id'))
         note = cells.get('note')
         person['note'] = str(note).strip() if isinstance(note, str) else _cell_text(note)
@@ -1300,12 +1392,12 @@ def _link_child(family, parent, child, other, mates, number, people, adopted=Fal
         if found:
             family['parents'].append([found[0], child, adopted])
         else:
-            family['warnings'].append(f'{number}행: 어머니(아버지) 칸의 "{other}"을(를) 그 부모의 배우자 가운데서 찾지 못해, 한쪽 부모만 이었습니다.')
+            family['warnings'].append(f'{number}행: 생모 칸에 적힌 "{other}"을(를) 아버지의 부인 가운데서 찾지 못했습니다. 그래서 이 자녀는 아버지와만 이었습니다.')
         return
     if len(spouses) == 1:
         family['parents'].append([spouses[0], child, adopted])
     elif len(spouses) > 1:
-        family['warnings'].append(f'{number}행: 부모의 배우자가 둘 이상인데 어머니(아버지) 칸이 비어 있어, 한쪽 부모만 이었습니다. 이 자녀를 낳은 배우자의 이름을 적어 주십시오.')
+        family['warnings'].append(f'{number}행: 아버지의 부인이 둘 이상인데 생모 칸이 비어 있습니다. 그래서 이 자녀는 아버지와만 이었습니다. 이 자녀를 낳은 어머니의 이름을 생모 칸에 적어 주십시오.')
 
 
 # ── GEDCOM 내보내기 ───────────────────────────────────────────────────

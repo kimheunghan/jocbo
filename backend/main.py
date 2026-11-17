@@ -119,7 +119,7 @@ class Book(Input):
 # the month and day a spouse is remembered on with no year at all. Each is kept
 # as far as it is known — 1956, 1956-03, 1956-03-02, or --03-02 without a year.
 # The check lives with the file readers, which hold dates to the same rule.
-from backend.exchange import partial_date  # noqa: E402
+from backend.exchange import partial_date, same_bongwan  # noqa: E402
 
 class Person(Input):
     korean_name: str = Field(min_length=1, max_length=100)
@@ -570,7 +570,11 @@ def merge_into_book(bid: int, data: ImportFamily, uid=Depends(auth)):
         room_for(c, uid, len(plan['added']))
         backup = write_backup(detail)
         ids = dict(plan['matched'])
+        old_bongwan = {p['id']: p['bon_gwan'] for p in detail['persons']}
         for person in people:
+            # 金海와 김해(金海)처럼 적는 모양만 다른 본관은 족보에 적힌 그대로 둡니다.
+            if person['key'] in ids and same_bongwan(old_bongwan.get(ids[person['key']]), person['bon_gwan']):
+                person['bon_gwan'] = old_bongwan[ids[person['key']]]
             fields = PERSON_COLUMNS if person['key'] not in ids or person.get('present') is None else person['present']
             values = {field: person[field] for field in PERSON_COLUMNS if field in fields}
             if person['key'] in ids:
