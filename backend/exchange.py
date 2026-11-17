@@ -681,7 +681,7 @@ def column_index(name):
 # 셀 모양. gfill·gref: 부인·사위 줄(옅은 회색 바탕), corner: 대각선을 그은 "세대/구분" 칸,
 # warn: 붉은 굵은 경고 글씨, title: 큰 굵은 제목.
 STYLE = {'plain': 0, 'head': 1, 'text': 2, 'guest': 3, 'ref': 4, 'gfill': 5, 'gref': 6, 'corner': 7,
-         'warn': 8, 'title': 9, 'gnum': 10, 'colhead': 11, 'kind': 12, 'gkind': 13}
+         'warn': 8, 'title': 9, 'gnum': 10, 'colhead': 11, 'kind': 12, 'gkind': 13, 'num': 14}
 
 
 def _sheet_xml(rows, widths, text_columns=(), heights=None, freeze=1):
@@ -735,7 +735,7 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<border diagonalDown="1"><left/><right/><top/><bottom style="thin"><color rgb="FF9C8A6A"/></bottom>'
            '<diagonal style="thin"><color rgb="FF9C8A6A"/></diagonal></border></borders>'
            '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-           '<cellXfs count="14"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+           '<cellXfs count="15"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
            '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
@@ -746,14 +746,16 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '<alignment wrapText="1" vertical="center"/></xf>'
            '<xf numFmtId="49" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
            '<xf numFmtId="49" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>'
-           '<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/>'
+           '<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
            # colhead: 가계도 표의 칸 제목(가로·세로 가운데). kind·gkind: 구분 칸(가운데, gkind는 회색 바탕).
            '<xf numFmtId="49" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyNumberFormat="1">'
            '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
            '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1" applyNumberFormat="1">'
            '<alignment horizontal="center" vertical="center"/></xf>'
            '<xf numFmtId="49" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1" applyNumberFormat="1">'
-           '<alignment horizontal="center" vertical="center"/></xf></cellXfs>'
+           '<alignment horizontal="center" vertical="center"/></xf>'
+           # num: 세(世) 같은 숫자 칸, 가운데 맞춤.
+           '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs>'
            '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
 
 
@@ -867,7 +869,7 @@ def _tree_row(depth, gubun, column, name, details, guest):
     for offset, value in enumerate(details):
         if value is None or value == '':
             continue
-        style = faint if DETAIL_HEADS[offset] == '번호' else (('gfill' if isinstance(value, str) else 'gnum') if guest else ('text' if isinstance(value, str) else 'plain'))
+        style = faint if DETAIL_HEADS[offset] == '번호' else (('gfill' if isinstance(value, str) else 'gnum') if guest else ('text' if isinstance(value, str) else 'num'))
         cells[1 + depth + offset] = (value, style)
     return cells
 
@@ -927,16 +929,16 @@ EXTRA_HEAD = '추가 관계'
 # (구분, 세대 열, 이름, 세, 본관, 출생일, 사망일, 생모, 기록)
 EXAMPLE = [
     ('子', 0, '金始祖(김시조)', 25, '金海', '1820', '1885-03', '', '字 景仁. 예시 인물입니다.'),
-    ('配', 0, '李氏(이씨)', 25, '全州', '', '', '', '첫 부인'),
-    ('繼配', 0, '朴氏(박씨)', 25, '密陽', '', '', '', '둘째 부인'),
-    ('子', 1, '金一男(김일남)', 26, '金海', '1845-05-02', '', '李氏(이씨)', '본처 李氏의 아들'),
+    ('配', 0, '李貞淑(이정숙)', 25, '全州', '', '', '', '첫 부인'),
+    ('繼配', 0, '朴英順(박영순)', 25, '密陽', '', '', '', '둘째 부인'),
+    ('子', 1, '金一男(김일남)', 26, '金海', '1845-05-02', '', '李貞淑(이정숙)', '본처 李貞淑의 아들'),
     ('配', 1, '崔氏(최씨)', 26, '慶州', '', '', '', ''),
     ('子', 2, '金長孫(김장손)', 27, '金海', '1870', '', '', ''),
     ('系子', 2, '金繼孫(김계손)', 27, '金海', '', '', '', '生父 金某. 다른 집에서 양자로 들어옴'),
-    ('女', 1, '金順(김순)', 26, '金海', '', '', '朴氏(박씨)', '후처 朴氏의 딸'),
+    ('女', 1, '金順(김순)', 26, '金海', '', '', '朴英順(박영순)', '후처 朴英順의 딸'),
     ('壻', 1, '鄭某(정모)', 26, '東萊', '', '', '', ''),
-    ('子', 1, '金二男(김이남)', 26, '金海', '', '', '朴氏(박씨)', '후처 朴氏의 아들'),
-    ('養女', 1, '金貞(김정)', 26, '金海', '', '', '朴氏(박씨)', '生父 李某. 다른 집에서 양녀로 들어옴'),
+    ('子', 1, '金二男(김이남)', 26, '金海', '', '', '朴英順(박영순)', '후처 朴英順의 아들'),
+    ('養女', 1, '金貞(김정)', 26, '金海', '', '', '朴英順(박영순)', '生父 李某. 다른 집에서 양녀로 들어옴'),
 ]
 EXAMPLE_NAMES = {split_name(row[2])[1] for row in EXAMPLE} | {split_name(row[2])[0] for row in EXAMPLE}
 
@@ -981,6 +983,7 @@ GUIDE_TEXT = [
     ('', '자녀는 부모가 적힌 줄보다 아래에 적고, 형제자매는 같은 열에 나이 순서대로 이어서 적습니다.'),
     ('', '부인과 사위는 남편 또는 아내의 바로 아래 줄, 같은 열에 적습니다. 부인이 둘 이상이면 본처를 먼저 적고 후처를 그 아래에 적습니다.'),
     ('', '이름은 金一男(김일남)처럼 한자와 한글을 함께 적어도 되고, 둘 가운데 하나만 적어도 됩니다.'),
+    ('', '부인의 이름을 알면 李貞淑(이정숙)처럼 이름을 적고, 이름을 모르면 예시의 崔氏(최씨)처럼 성 뒤에 氏를 붙여 적습니다.'),
     ('', '세대 열이 모자라면 오른쪽에 "28세"처럼 열을 더 만들어 적습니다.'),
     ('', ''),
     ('head', '③ 세'),
@@ -998,7 +1001,7 @@ GUIDE_TEXT = [
     ('head', '⑦ 생모(生母)'),
     ('', '생모는 그 자녀를 낳은 어머니를 말합니다.'),
     ('', '아버지에게 부인이 두 명 이상일 때에만, 자녀의 줄에 그 자녀를 낳은 어머니의 이름을 적습니다.'),
-    ('', '예시에서 金始祖에게는 본처 李氏와 후처 朴氏가 있습니다. 金一男은 李氏가 낳았으므로 李氏(이씨)라고 적었고, 金順과 金二男은 朴氏가 낳았으므로 朴氏(박씨)라고 적었습니다.'),
+    ('', '예시에서 金始祖에게는 본처 李貞淑과 후처 朴英順이 있습니다. 金一男은 李貞淑이 낳았으므로 李貞淑(이정숙)이라고 적었고, 金順과 金二男은 朴英順이 낳았으므로 朴英順(박영순)이라고 적었습니다. 부인 줄에 적은 이름과 똑같이 적어야 프로그램이 찾을 수 있습니다.'),
     ('', '아버지의 부인이 한 명뿐이면 이 칸은 비워 둡니다. 비워 두면 그 부인이 낳은 자녀로 봅니다.'),
     ('', '부인의 줄과 사위의 줄에는 이 칸을 적지 않습니다. 어머니가 누구인지 모르면 (미상)이라고 적습니다.'),
     ('', ''),

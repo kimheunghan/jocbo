@@ -134,10 +134,10 @@ def test_templates(client):
     people = {p['korean_name']: p for p in family['people']}
     key = {p['key']: p['korean_name'] for p in family['people']}
     parents = {(key[a], key[b], adopted) for a, b, adopted in family['parents']}
-    assert ('이씨', '김일남', 0) in parents and ('박씨', '김순', 0) in parents and ('박씨', '김이남', 0) in parents
+    assert ('이정숙', '김일남', 0) in parents and ('박영순', '김순', 0) in parents and ('박영순', '김이남', 0) in parents
     assert ('김일남', '김계손', 1) in parents and ('김시조', '김정', 1) in parents
     orders = {tuple(sorted((key[a], key[b]))): order for a, b, order in family['spouses']}
-    assert orders[('김시조', '이씨')] == 1 and orders[('김시조', '박씨')] == 2
+    assert orders[('김시조', '이정숙')] == 1 and orders[('김시조', '박영순')] == 2
     assert people['정모']['gender'] == '남' and people['김정']['gender'] == '여'
     guide = x.read_xlsx(sheet.content, x.GUIDE_SHEET, fallback=False)
     text = '\n'.join(x._cell_text(row[0]) for row in guide if row)
