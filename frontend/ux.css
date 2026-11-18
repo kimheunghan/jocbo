@@ -2448,6 +2448,9 @@ button {
 .import-source { margin: 14px 0 4px; }
 .import-source label { display: block; }
 .import-templates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--ink-soft); font-size: 13px; }
+.template-guide { margin: 6px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.template-guide li + li { margin-top: 2px; }
+.template-guide strong { color: var(--ink); font-weight: 600; }
 .link-button { min-height: 0; padding: 2px 2px; border: 0; background: none; box-shadow: none; color: var(--navy, #1f3a68); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .link-button:hover { background: none; color: var(--green, #2f6b4f); }
 .dialog-foot { justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }

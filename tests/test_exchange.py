@@ -564,3 +564,12 @@ def test_bongwan_in_either_script_comes_back_unchanged(client):
     assert client.post(f'/api/books/{bid}/merge', json=body(family)).status_code == 200
     kept = {p['korean_name']: p['bon_gwan'] for p in client.get(f'/api/books/{bid}').json()['persons']}
     assert kept == {'김갑': '金海', '김을': '김해'}
+
+
+# 이름 없이 성에 씨를 붙인 부인도 다른 족보 프로그램에서 성으로 묶이고, 돌아와도 이름이 그대로입니다.
+def test_wife_known_by_clan_keeps_her_name_and_gets_a_surname():
+    assert x.gedcom_name('崔氏') == ('氏 /崔/', '氏', '崔')
+    assert x.gedcom_name('전주최씨') == ('전주최씨', '', '최')
+    assert x.gedcom_name('김영조') == ('영조 /김/', '영조', '김')
+    for line, name in (('씨 /최/', '최씨'), ('전주최씨 /최/', '전주최씨'), ('全州崔氏 //', '全州崔氏'), ('영조 /김/', '김영조')):
+        assert x._name_text({'value': line, 'children': []}) == name

@@ -1442,12 +1442,20 @@ SURNAMES_TWO = {'남궁', '제갈', '선우', '황보', '독고', '사공', '서
 
 
 BOOK_NOTE_FIRST = '우리의 족보에서 내보낸 족보입니다.'
+# 메모장으로 파일을 연 사람을 위한 안내. 다른 족보 프로그램은 이 글을 읽지 않고 넘어갑니다.
+GEDCOM_GUIDE = [
+    '이 파일은 GEDCOM 파일입니다. GEDCOM은 족보 프로그램끼리 족보를 주고받으려고 만든 국제 표준 형식입니다.',
+    'Gramps, MyHeritage, Ancestry 같은 다른 족보 프로그램에서 이 파일을 불러오면 족보를 그대로 옮길 수 있습니다.',
+    '이 파일은 메모장으로 직접 작성하거나 고치는 파일이 아닙니다. 줄의 순서나 기호가 하나라도 틀리면 프로그램이 읽지 못합니다.',
+    '족보를 직접 작성하거나 고치려면, 우리의 족보 프로그램의 [불러오기] 창에서 엑셀 양식을 받아 작성하십시오.',
+    '아래는 이 족보의 정보입니다.',
+]
 KEY_LINE = '족보 번호'
 
 
 def book_note(book):
     """족보명: …, 성씨/가문: …, …, 족보 번호: …, and the description last, since it may run to many lines."""
-    lines = [BOOK_NOTE_FIRST]
+    lines = [BOOK_NOTE_FIRST] + GEDCOM_GUIDE
     for field, word in BOOK_WORDS:
         if field != 'description' and book.get(field):
             lines.append(f'{word}: {book[field]}')
@@ -1472,6 +1480,24 @@ def read_book_note(text):
         elif word in words:
             book[words[word]] = value.strip()
     return book, key
+
+
+def gedcom_name(name):
+    """사람 이름 → GEDCOM NAME 줄의 값과 GIVN·SURN.
+
+    김영조 → '영조 /김/'. 이름 없이 성에 씨를 붙인 부인은 다른 족보 프로그램에서 성으로 묶이도록
+    崔氏 → '氏 /崔/'(성 崔), 본관이 앞에 붙은 全州崔氏는 이름 그대로 두고 SURN에 崔만 적습니다.
+    다시 읽을 때는 어느 쪽이든 원래 이름(崔氏, 全州崔氏)으로 돌아옵니다.
+    """
+    name = name.strip()
+    if len(name) >= 2 and name.endswith(('씨', '氏')) and ' ' not in name:
+        rest, suffix = name[:-1], name[-1]
+        if len(rest) == 1 or rest in SURNAMES_TWO:
+            return f'{suffix} /{rest}/', suffix, rest
+        surname = rest[-2:] if rest[-2:] in SURNAMES_TWO else rest[-1]
+        return name, '', surname
+    surname, given = name_parts(name)
+    return (f'{given} /{surname}/'.strip(), given, surname) if surname else (name, '', '')
 
 
 def name_parts(name):
@@ -1586,14 +1612,15 @@ def gedcom(book, version='2026'):
     add(1, 'NAME', '우리의 족보')
     for p in people:
         add(0, 'INDI', '', xref[p['id']])
-        surname, given = name_parts(p['korean_name'])
-        add(1, 'NAME', f'{given} /{surname}/'.strip() if surname else p['korean_name'])
-        if surname:
+        value, given, surname = gedcom_name(p['korean_name'])
+        add(1, 'NAME', value)
+        if given:
             add(2, 'GIVN', given)
+        if surname:
             add(2, 'SURN', surname)
         if p['hanja_name'] and p['hanja_name'] != p['korean_name']:
-            surname, given = name_parts(p['hanja_name'])
-            add(1, 'NAME', f'{given} /{surname}/'.strip() if surname else p['hanja_name'])
+            value, given, surname = gedcom_name(p['hanja_name'])
+            add(1, 'NAME', value)
             add(2, 'TYPE', 'aka')
             add(2, 'NOTE', '漢字')
         add(1, 'SEX', {'남': 'M', '여': 'F'}.get(p['gender'], 'U'))
@@ -1699,6 +1726,9 @@ def _name_text(node):
         inner, _, after = rest.partition('/')
         before, inner, after = before.strip(), inner.strip(), after.strip()
         if HANGUL.search(value) or HANJA.search(value):
+            # 전주최씨 /최/ 처럼 이름 칸에 성까지 다 적힌 부인은 이름 칸만 씁니다.
+            if inner and before.endswith(('씨', '氏')) and inner in before:
+                return re.sub(r'\s+', '', before + after)
             return re.sub(r'\s+', '', inner + before + after)
         return ' '.join(part for part in (before, inner, after) if part)
     if value:
