@@ -205,7 +205,7 @@
   <div class="wrap">
     <p class="eyebrow">FEATURES</p>
     <h2>족보 정리, 이 프로그램 하나로 충분합니다</h2>
-    <p class="sub">족보 작성을 위해 족보책을 손으로 옮겨 적을 필요가 없습니다. 사진을 찍어 올리면 프로그램이 족보를 판독해 입력합니다. 인물 기록, 가족 관계 연결, 가계도와 족보책 인쇄, 가족과의 공유를 모두 이 족보 만들기 프로그램에서 처리합니다.</p>
+    <p class="sub">족보 작성을 위해 족보책을 손으로 옮겨 적을 필요가 없습니다. 사진을 찍어 올리면 프로그램이 족보를 판독해 입력합니다. 인물 기록, 가족 관계 연결, 가계도와 족보책 인쇄, 엑셀·GEDCOM 불러오기와 내보내기, 가족과의 공유를 모두 이 족보 만들기 프로그램에서 처리합니다.</p>
 
     <div class="feature">
       <div class="text">
@@ -231,6 +231,15 @@
         <p>입력한 기록을 전통 족보 양식에 따라 한 면에 여섯 세대 칸을 두고 세로쓰기 한자로 조판합니다. 인쇄하거나 PDF로 저장해 배포할 수 있습니다.</p>
       </div>
       <div class="pic"><img src="/img/book.jpg" alt="족보책 미리보기 화면" loading="lazy"></div>
+    </div>
+
+    <div class="feature">
+      <div class="text">
+        <h3>엑셀·GEDCOM으로 불러오기와 내보내기</h3>
+        <p>족보를 엑셀 가계도나 GEDCOM 파일로 내보내고, 다시 불러올 수 있습니다. 엑셀에서는 세대별 열에 이름을 적는 익숙한 모양으로 족보를 작성합니다.</p>
+        <ul><li>엑셀 양식에는 작성 예시와 작성 안내가 들어 있어, 처음 작성하는 분도 따라 적을 수 있습니다.</li><li>엑셀에서 고친 내용을 기존 족보에 반영할 수 있습니다. 바뀐 내용을 미리 보여 드리고, 반영 직전의 족보는 백업해 둡니다.</li><li>GEDCOM은 Gramps, MyHeritage, Ancestry 같은 다른 족보 프로그램과 족보를 주고받는 국제 표준 파일입니다.</li></ul>
+      </div>
+      <div class="pic"><img src="/img/excel.jpg" alt="엑셀로 내보낸 가계도 양식" loading="lazy"></div>
     </div>
 
     <div class="feature">
@@ -345,6 +354,7 @@
     <details><summary>판독은 100% 정확합니까?</summary><p>아닙니다. 오래된 목판 인쇄본은 획이 뭉개져 비슷한 글자로 판독되기도 합니다. 따라서 판독 결과는 원본 사진과 나란히 대조해 고친 뒤 등록합니다.</p></details>
     <details><summary>20명은 어떻게 셉니까?</summary><p>한 계정의 모든 족보에 등록된 인물 수를 합한 것입니다. 20명이 되면 새 인물 등록만 제한되며, 기존 기록의 열람·수정·인쇄는 그대로 가능합니다.</p></details>
     <details><summary>웹 공유 링크는 PC를 꺼도 열립니까?</summary><p>열립니다. 공유 사이트에 사본이 보관되기 때문입니다. PC에서 수정한 내용은 프로그램이 켜져 있으면 몇 초 뒤 자동으로 반영되고, 프로그램이 꺼져 있던 동안 수정한 내용은 다음 실행 때 반영됩니다.</p></details>
+    <details><summary>엑셀로 정리해 둔 족보나 다른 족보 프로그램의 자료를 옮길 수 있습니까?</summary><p>옮길 수 있습니다. 엑셀은 프로그램에서 받은 엑셀 양식에 맞춰 작성하면 불러올 수 있습니다. 다른 족보 프로그램의 자료는 GEDCOM(.ged) 파일로 내보낸 뒤 불러오면 됩니다. 반대로 이 프로그램의 족보를 엑셀이나 GEDCOM으로 내보낼 수도 있습니다.</p></details>
     <details><summary>정식판을 다른 PC로 옮길 수 있습니까?</summary><p>PC 2대까지 사용할 수 있습니다. 옮길 때는 사용하지 않을 PC에서 등록을 해제한 뒤 새 PC에 키를 입력합니다.</p></details>
     <details><summary>맥(Mac)에서도 사용할 수 있습니까?</summary><p>현재는 Windows 10·11만 지원합니다. 공유 링크는 맥과 휴대폰 브라우저에서도 열립니다.</p></details>
     <details><summary>환불은 어떻게 합니까?</summary><p>자세한 내용은 <a href="/refund">환불 정책</a>을 참고하십시오. 구매 후 14일 안에 결제 확인 이메일에 회신하거나 아래 문의 메일로 요청하면 환불합니다.</p></details>
@@ -377,7 +387,7 @@
   const STORE_URL = 'https://apps.microsoft.com/detail/9p94f6t7dvww?hl=ko-KR&gl=KR';
   const CHECKOUT_URL = '/buy';
   // 직접 받는 설치 파일: 데모 계정과 예제 족보만 든 Store 판입니다(store-v 태그). 새 판을 내면 바꿉니다.
-  const EXE_URL = 'https://jocbo.pages.dev/download/store-v2026.10.16/jocbo-setup.exe';
+  const EXE_URL = 'https://jocbo.pages.dev/download/store-v2026.11.8/jocbo-setup.exe';
   document.querySelectorAll('[data-exe]').forEach(a => { a.href = EXE_URL; });
   document.querySelectorAll('[data-store]').forEach(a => { a.href = STORE_URL; a.target = '_blank'; a.rel = 'noopener'; });
   document.querySelectorAll('[data-buy]').forEach(a => {
