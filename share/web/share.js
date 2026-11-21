@@ -127,6 +127,10 @@
     for (const name of Object.keys(treeOptions)) treeOptions[name] = true;
     const header = document.querySelector('header > div');
     if (header) header.insertAdjacentHTML('beforeend', '<span class="share-badge">가족 공유 · 보기 전용</span>');
+    // 맨 아래에 이 가계도를 만든 프로그램을 한 줄로 알립니다. 족보 화면을 가리지 않도록
+    // 기존 맺음말 줄에만 붙입니다.
+    const footer = document.querySelector('body > footer');
+    if (footer) footer.insertAdjacentHTML('beforeend', '<span class="share-made">이 가계도는 Windows 족보 프로그램 <a href="/" target="_blank" rel="noopener">우리의 족보</a>로 만들었습니다. 인물 20명까지 무료로 쓸 수 있습니다.</span>');
     treeFirst();
     revealWhenDrawn();
     openShare();

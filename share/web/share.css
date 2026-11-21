@@ -48,6 +48,16 @@
   white-space: nowrap;
 }
 
+.share-made {
+  display: block;
+  margin-top: 6px;
+  color: #c4cde0;
+}
+
+.share-made a {
+  color: #e9d6aa;
+}
+
 .share-error:empty {
   display: none;
 }
