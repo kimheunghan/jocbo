@@ -84,6 +84,18 @@
   h2 { margin: 0 0 14px; font-family: "Noto Serif KR", serif; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.35; color: var(--navy); }
   .sub { margin: 0 0 40px; color: var(--ink-soft); max-width: 720px; }
 
+  /* 사용 영상: 누르기 전에는 YouTube를 불러오지 않습니다. */
+  .video-section { padding: 64px 0 20px; }
+  .video { position: relative; display: block; max-width: 960px; aspect-ratio: 16 / 9; margin: 0 auto;
+           border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line);
+           box-shadow: 0 14px 36px #13254a33; background: var(--navy); }
+  .video img, .video iframe { display: block; width: 100%; height: 100%; border: 0; object-fit: cover; }
+  .video .play { position: absolute; inset: 0; display: grid; place-items: center; background: #13254a59; }
+  .video .play span { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%;
+                      background: #b8322ae6; color: #fff; font-size: 34px; padding-left: 6px; box-shadow: 0 8px 24px #0006; }
+  .video:hover .play span { background: #b8322a; }
+  .video-note { max-width: 960px; margin: 10px auto 0; color: var(--ink-soft); font-size: 13px; text-align: center; }
+
   /* 기능 */
   .feature { display: grid; grid-template-columns: 1fr 1.25fr; gap: 44px; align-items: center; margin-bottom: 72px; }
   .feature:nth-child(even) { grid-template-columns: 1.25fr 1fr; }
@@ -180,7 +192,7 @@
 <header>
   <div class="wrap">
     <a class="brand" href="#top"><span class="seal">家</span>우리의 족보</a>
-    <nav><a href="#demo">예제 보기</a><a href="#features">기능</a><a href="#pricing">가격</a><a href="#steps">사용 순서</a><a href="#faq">자주 묻는 질문</a><a href="/guide/">사용 안내</a></nav>
+    <nav><a href="#video">사용 영상</a><a href="#demo">예제 보기</a><a href="#features">기능</a><a href="#pricing">가격</a><a href="#steps">사용 순서</a><a href="#faq">자주 묻는 질문</a><a href="/guide/">사용 안내</a></nav>
     <a class="btn btn-outline" href="#pricing">구매</a>
     <a class="btn btn-primary" href="#download" data-store>무료로 받기</a>
   </div>
@@ -200,6 +212,19 @@
     <img class="shot" src="/img/tree.jpg" alt="가계도 보기 화면 — 세대별로 부부와 자녀가 이어진 가계도">
   </div>
 </div>
+
+<section class="video-section" id="video">
+  <div class="wrap">
+    <p class="eyebrow">VIDEO</p>
+    <h2>2분 사용 영상</h2>
+    <p class="sub">족보 사진 한 장을 판독해 가계도와 세로쓰기 족보책을 만들고, 가족과 링크로 공유하는 과정을 처음부터 보여 드립니다.</p>
+    <a class="video" href="https://youtu.be/OxMe9mnmpB4" target="_blank" rel="noopener" data-youtube="OxMe9mnmpB4" aria-label="우리의 족보 2분 사용 영상 재생">
+      <img src="/img/tree.jpg" alt="우리의 족보 사용 영상 — 가계도 보기 화면" loading="lazy">
+      <span class="play"><span>▶</span></span>
+    </a>
+    <p class="video-note">영상 속 족보와 인물은 모두 가상의 예시입니다. 재생하면 YouTube에서 영상을 불러옵니다.</p>
+  </div>
+</section>
 
 <section id="features">
   <div class="wrap">
@@ -395,6 +420,19 @@
   document.querySelectorAll('[data-buy]').forEach(a => {
     if (CHECKOUT_URL) { a.href = CHECKOUT_URL; a.target = '_blank'; a.rel = 'noopener'; }
     else a.onclick = event => { event.preventDefault(); alert('결제 페이지를 준비하고 있습니다. 곧 열립니다.'); };
+  });
+  // 사용 영상: 누르면 그 자리에서 재생합니다. 누르기 전에는 YouTube에 아무것도 요청하지 않습니다.
+  document.querySelectorAll('[data-youtube]').forEach(a => {
+    a.onclick = event => {
+      event.preventDefault();
+      const frame = document.createElement('iframe');
+      frame.src = `https://www.youtube-nocookie.com/embed/${a.dataset.youtube}?autoplay=1&rel=0`;
+      frame.title = a.getAttribute('aria-label');
+      frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      frame.allowFullscreen = true;
+      a.replaceWith(Object.assign(document.createElement('div'), { className: 'video' }));
+      document.querySelector('#video .video').appendChild(frame);
+    };
   });
 </script>
 </body>
