@@ -95,6 +95,9 @@
                       background: #b8322ae6; color: #fff; font-size: 34px; padding-left: 6px; box-shadow: 0 8px 24px #0006; }
   .video:hover .play span { background: #b8322a; }
   .video-note { max-width: 960px; margin: 10px auto 0; color: var(--ink-soft); font-size: 13px; text-align: center; }
+  .video-close { display: block; margin: 0 auto 10px; padding: 8px 18px; border: 1px solid var(--navy); border-radius: 10px;
+                 background: #fff; color: var(--navy); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .video-close[hidden] { display: none; }
 
   /* 기능 */
   .feature { display: grid; grid-template-columns: 1fr 1.25fr; gap: 44px; align-items: center; margin-bottom: 72px; }
@@ -222,7 +225,7 @@
       <img src="/img/tree.jpg" alt="우리의 족보 사용 영상 — 가계도 보기 화면" loading="lazy">
       <span class="play"><span>▶</span></span>
     </a>
-    <p class="video-note">영상 속 족보와 인물은 모두 가상의 예시입니다. 재생하면 YouTube에서 영상을 불러옵니다.</p>
+    <p class="video-note"><button type="button" id="videoClose" class="video-close" hidden>■ 영상 닫기</button>영상 속 족보와 인물은 모두 가상의 예시입니다. 재생 단추를 누르면 YouTube에서 영상을 불러옵니다.</p>
   </div>
 </section>
 
@@ -421,17 +424,24 @@
     if (CHECKOUT_URL) { a.href = CHECKOUT_URL; a.target = '_blank'; a.rel = 'noopener'; }
     else a.onclick = event => { event.preventDefault(); alert('결제 페이지를 준비하고 있습니다. 곧 열립니다.'); };
   });
-  // 사용 영상: 누르면 그 자리에서 재생합니다. 누르기 전에는 YouTube에 아무것도 요청하지 않습니다.
-  document.querySelectorAll('[data-youtube]').forEach(a => {
-    a.onclick = event => {
+  // 사용 영상: 저절로 켜지지 않습니다. 재생 단추를 눌러야 그 자리에서 켜지고, [영상 닫기]를
+  // 누르면 꺼지고 처음 그림으로 돌아갑니다. 켜기 전에는 YouTube에 아무것도 요청하지 않습니다.
+  document.querySelectorAll('[data-youtube]').forEach(poster => {
+    const close = document.querySelector('#videoClose');
+    poster.onclick = event => {
       event.preventDefault();
       const frame = document.createElement('iframe');
-      frame.src = `https://www.youtube-nocookie.com/embed/${a.dataset.youtube}?autoplay=1&rel=0`;
-      frame.title = a.getAttribute('aria-label');
+      frame.src = `https://www.youtube-nocookie.com/embed/${poster.dataset.youtube}?autoplay=1&rel=0`;
+      frame.title = poster.getAttribute('aria-label');
       frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
       frame.allowFullscreen = true;
-      a.replaceWith(Object.assign(document.createElement('div'), { className: 'video' }));
-      document.querySelector('#video .video').appendChild(frame);
+      // YouTube는 영상을 어느 사이트에서 트는지 알아야 재생합니다(없으면 오류 153).
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      const box = Object.assign(document.createElement('div'), { className: 'video' });
+      box.appendChild(frame);
+      poster.replaceWith(box);
+      close.hidden = false;
+      close.onclick = () => { box.replaceWith(poster); close.hidden = true; poster.focus(); };
     };
   });
 </script>
