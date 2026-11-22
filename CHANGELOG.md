@@ -5,6 +5,17 @@
 - 설치 파일(exe): `store-v<버전>` 태그, 홈페이지에서 `jocbo-setup_v<버전>.exe`로 내려받음
 - Microsoft Store: `msix-v<버전>` 태그
 
+## 라이선스 서버와 Paddle 결제 (만드는 중, 실제 사이트 미배포) — 2026.11.22
+
+Lemon Squeezy가 2027-03-31에 결제를 끝내므로, 결제는 Paddle(판매 대행, 국내 카드·카카오페이·네이버페이)로 옮기고 키는 우리 서버가 만들고 확인합니다. 지금 판매는 계속 Lemon Squeezy(`/buy`)입니다.
+
+- 라이선스 서버 `share/lib/license.js`(공유 서버 `/api`에 연결): Paddle 결제 완료 알림(서명 검증) → 키 발급(`JOCBO-XXXX-XXXX-XXXX-XXXX`, FindInside는 `FIND-`) → 키 메일, 환불 승인 시 키 막기, 구매 완료 화면용 조회(알림이 늦으면 거기서 발급), 키 다시 받기(같은 메일 5분에 한 번), PC 2대 등록·해제. Lemon Squeezy 키는 처음 들어올 때 이어받고(그쪽이 살아 있는 동안은 그쪽이 PC 수를 셈, 이미 등록된 PC는 자리표로 셈), 닫힌 뒤에도 이어받은 키는 계속 동작합니다. 표: `schema.sql`의 licenses, activations, mail_log.
+- 화면: `/checkout`(Paddle 결제, 시험 주소에서만 Sandbox로 동작, 실제 주소는 Live 설정 전까지 기존 결제로 안내), `/thanks`(구매 완료, 키 복사), `/license`(키 다시 받기). 스타일 `pay.css`.
+- 키 메일: 운영자 Gmail의 Apps Script 창구 `share/mailer/gmail-sender.gs`(비밀값이 맞을 때만 발송, 하루 100통).
+- 시험 환경: `preview.jocbo.pages.dev`(`--branch preview`) = Paddle Sandbox + 시험용 D1 `jocbo-test`. 설정은 `wrangler.toml`의 `[env.preview]`, 비밀값은 Cloudflare 설정에만 둡니다(저장소에 없음).
+- 프로그램 `backend/license.py`: 키 확인을 Lemon Squeezy 대신 우리 서버(`JOCBO_LICENSE_SERVER`, 기본 jocbo.pages.dev)에 묻습니다. 다음 버전에 들어갑니다.
+- 시험: 서버 15개(`cd share && npm test`, Node 내장 SQLite로 실제 표 사용), 프로그램 8개(`tests/test_license.py`), 전체 Python 86개 통과.
+
 ## 사용 영상 — 2026.11.22
 
 - 영상을 새 목소리(MeloTTS, MIT 라이선스, 이 PC에서 생성)와 작은 자막으로 다시 만들어 새 주소 https://youtu.be/Y6BUYxzwHxk 로 올렸습니다(2분 6초). 앞뒤 빈 소리를 자르고 음량을 고르게 맞췄습니다. 예전 영상(OxMe9mnmpB4)은 지웠고, 홈페이지와 사용 안내의 링크를 새 주소로 바꿨습니다.

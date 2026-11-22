@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>라이선스 키 다시 받기 | 우리의 족보</title>
+<meta name="description" content="우리의 족보 정식판 라이선스 키를 잃어버렸을 때, 구매한 메일 주소로 키를 다시 받습니다.">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/pay.css">
+</head>
+<body>
+<header><div class="wrap"><a class="brand" href="/"><span class="seal">家</span>우리의 족보</a><nav><a href="/guide/">사용 안내</a><a href="/faq">자주 묻는 질문</a></nav></div></header>
+<main class="wrap">
+<h1>라이선스 키 다시 받기</h1>
+<p class="lead">구매할 때 입력한 메일 주소를 넣으시면, 그 메일로 산 라이선스 키를 모두 다시 보내 드립니다.</p>
+<form id="form" class="card">
+  <div class="row">
+    <input type="email" id="email" required placeholder="구매한 메일 주소" autocomplete="email" aria-label="구매한 메일 주소">
+    <button type="submit" class="btn" id="send">키 다시 받기</button>
+  </div>
+  <p id="note" class="muted" style="margin:12px 0 0"></p>
+</form>
+<h2>메일이 오지 않을 때</h2>
+<ul>
+  <li>스팸함과 프로모션함을 확인해 주십시오. 키 메일은 hung67890@gmail.com에서 보냅니다.</li>
+  <li>같은 메일 주소로는 5분에 한 번만 다시 보냅니다.</li>
+  <li>2026년 11월 이전에 Lemon Squeezy에서 구매하신 분은 그때 받은 결제 확인 메일의 키를 그대로 쓰시면 됩니다.</li>
+  <li>그래도 찾을 수 없으면 <a href="mailto:hung67890@gmail.com">hung67890@gmail.com</a>으로 구매한 메일 주소를 알려 주십시오.</li>
+</ul>
+</main>
+<footer><div class="wrap"><a href="/">홈</a> · <a href="/guide/">사용 안내</a> · <a href="/refund">환불 정책</a> · <a href="/privacy">개인정보처리방침</a> · 문의 <a href="mailto:hung67890@gmail.com">hung67890@gmail.com</a></div></footer>
+<script>
+  const form = document.getElementById('form');
+  const note = document.getElementById('note');
+  const send = document.getElementById('send');
+  form.onsubmit = async event => {
+    event.preventDefault();
+    send.disabled = true;
+    note.textContent = '보내는 중입니다…';
+    try {
+      const response = await fetch('/api/license/resend', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: document.getElementById('email').value }) });
+      const body = await response.json().catch(() => ({}));
+      note.textContent = body.detail || '잠시 뒤 다시 시도해 주십시오.';
+    } catch {
+      note.textContent = '연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주십시오.';
+    }
+    send.disabled = false;
+  };
+</script>
+</body>
+</html>

@@ -5,7 +5,8 @@
   "description": "우리의 족보 - 웹 공유 (Netlify)",
   "scripts": {
     "build": "node build.mjs",
-    "dev": "npx netlify-cli dev"
+    "dev": "npx netlify-cli dev",
+    "test": "node --test test/license.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.3"

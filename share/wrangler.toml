@@ -10,3 +10,26 @@ compatibility_date = "2026-10-01"
 binding = "DB"
 database_name = "jocbo-share"
 database_id = "4cbe9445-3460-4762-b73c-4b062fec0add"
+
+# 라이선스 서버(lib/license.js) 설정. 비밀값(PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET,
+# MAIL_URL, MAIL_SECRET)은 여기 두지 않고 `npx wrangler pages secret put 이름 --project-name jocbo` 로 넣습니다.
+# 실제 사이트: Paddle Live 심사가 끝나기 전까지 PADDLE_PRICES 를 비워 두어 Paddle 키는 만들지 않습니다.
+[vars]
+PADDLE_ENV = "live"
+PADDLE_PRICES = "{}"
+LS_PRODUCTS = '{"1420186":"jocbo","1420193":"findinside"}'
+SITE_URL = "https://jocbo.pages.dev"
+
+# 시험 주소(preview.jocbo.pages.dev, `--branch preview` 로 배포): Paddle Sandbox 와 시험용 DB.
+# 비밀값은 `npx wrangler pages secret put 이름 --project-name jocbo --env preview` 로 따로 넣습니다.
+[env.preview]
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "jocbo-test"
+database_id = "507e6a3a-704b-43e0-9ffc-726d680f51d3"
+
+[env.preview.vars]
+PADDLE_ENV = "sandbox"
+PADDLE_PRICES = '{"pri_01m7ztfe2xx5kfn1p583cfzac9":"jocbo"}'
+LS_PRODUCTS = '{"1420186":"jocbo","1420193":"findinside"}'
+SITE_URL = "https://preview.jocbo.pages.dev"

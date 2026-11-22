@@ -23,3 +23,37 @@ CREATE TABLE IF NOT EXISTS files (
   data BLOB NOT NULL,
   PRIMARY KEY (id, fid, kind)
 );
+
+-- 라이선스(lib/license.js). 결제 하나(txn)의 상품마다 수량만큼 키를 만듭니다.
+-- source: paddle | lemonsqueezy(이어받은 키) | manual. status: active | refunded.
+-- mailed: 키 메일을 보낸 시각(ms), 아직이면 0.
+CREATE TABLE IF NOT EXISTS licenses (
+  key TEXT PRIMARY KEY,
+  product TEXT NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  txn TEXT NOT NULL,
+  seq INTEGER NOT NULL DEFAULT 1,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  max_pcs INTEGER NOT NULL DEFAULT 2,
+  created INTEGER NOT NULL,
+  mailed INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (txn, product, seq)
+);
+CREATE INDEX IF NOT EXISTS licenses_email ON licenses (email);
+
+-- 키를 등록한 PC. instance 가 legacy-N 이면 Lemon Squeezy 에 직접 등록되어 있던 PC 의 자리표입니다.
+CREATE TABLE IF NOT EXISTS activations (
+  key TEXT NOT NULL,
+  instance TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  created INTEGER NOT NULL,
+  PRIMARY KEY (key, instance)
+);
+
+-- 키 다시 받기를 같은 메일로 너무 자주 하지 않게 합니다.
+CREATE TABLE IF NOT EXISTS mail_log (
+  email TEXT PRIMARY KEY,
+  last INTEGER NOT NULL
+);

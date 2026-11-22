@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>정식판 구매 | 우리의 족보</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/pay.css">
+</head>
+<body>
+<header><div class="wrap"><a class="brand" href="/"><span class="seal">家</span>우리의 족보</a><nav><a href="/guide/">사용 안내</a><a href="/faq">자주 묻는 질문</a><a href="/license">키 다시 받기</a></nav></div></header>
+<main class="wrap">
+<h1 id="title">정식판 구매</h1>
+<p class="lead" id="lead">한 번 구매로 계속 사용합니다. 결제가 끝나면 이 화면에서 바로 라이선스 키를 받고, 같은 키를 메일로도 보내 드립니다.</p>
+<div class="card">
+  <h2 id="product" style="margin-top:0">우리의 족보 정식판</h2>
+  <p style="margin:0 0 6px"><b style="font-size:24px">₩29,000</b> <span class="muted">일회 구매 · 부가세 포함</span></p>
+  <ul id="terms">
+    <li>인물 수 제한 없음</li>
+    <li>키 하나로 PC 2대까지 사용(옮겨 쓰기 가능)</li>
+    <li>구매 후 14일 안에 환불</li>
+  </ul>
+  <p class="muted">결제는 Paddle이 판매 대행자로서 처리합니다. 국내 신용·체크카드, 카카오페이, 네이버페이 등으로 결제할 수 있습니다.</p>
+  <button type="button" class="btn gold" id="pay" disabled>결제하기</button>
+  <p class="warn" id="error" hidden></p>
+</div>
+<p class="muted" style="margin-top:18px">이미 구매하셨나요? 키를 잃어버리셨다면 <a href="/license">키 다시 받기</a>에서 다시 받을 수 있습니다.</p>
+</main>
+<footer><div class="wrap"><a href="/">홈</a> · <a href="/terms">이용약관</a> · <a href="/refund">환불 정책</a> · <a href="/privacy">개인정보처리방침</a> · 문의 <a href="mailto:hung67890@gmail.com">hung67890@gmail.com</a></div></footer>
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  // 결제 설정. 시험(sandbox)은 preview 주소와 이 PC 에서, 실제(live)는 jocbo.pages.dev 에서 씁니다.
+  // client token 과 가격 ID 는 화면에 공개되는 값입니다(비밀 키는 서버에만 있습니다).
+  const PADDLE = {
+    sandbox: { token: 'test_81ca3e875e8807e63ea55622000',
+               prices: { jocbo: 'pri_01m7ztfe2xx5kfn1p583cfzac9', findinside: '' } },
+    // Live 계정 심사가 끝나면 채웁니다. 비어 있는 동안 실제 주소에서는 지금 결제(/buy)로 안내합니다.
+    live: null,
+  };
+  const NAMES = {
+    jocbo: { product: '우리의 족보 정식판', lead: '인물 수 제한 없이 우리의 족보를 사용합니다.' },
+    findinside: { product: 'FindInside 라이선스', lead: 'FindInside를 PC 2대까지 사용합니다.' },
+  };
+  const host = location.hostname;
+  const mode = host.startsWith('preview.') || host === 'localhost' || host === '127.0.0.1' ? 'sandbox' : 'live';
+  const want = new URLSearchParams(location.search).get('p') === 'findinside' ? 'findinside' : 'jocbo';
+  const config = PADDLE[mode];
+  const price = config && config.prices[want];
+  const pay = document.getElementById('pay');
+  const error = document.getElementById('error');
+  document.getElementById('product').textContent = NAMES[want].product;
+  document.title = NAMES[want].product + ' 구매 | 우리의 족보';
+  if (want === 'findinside') document.getElementById('terms').firstElementChild.remove();
+
+  if (!price || !window.Paddle) {
+    error.hidden = false;
+    error.innerHTML = '새 결제 화면을 준비하고 있습니다. 지금은 <a href="/buy">기존 결제 화면</a>에서 구매해 주십시오.';
+  } else {
+    if (mode === 'sandbox') Paddle.Environment.set('sandbox');
+    Paddle.Initialize({
+      token: config.token,
+      checkout: { settings: { displayMode: 'overlay', locale: 'ko', theme: 'light', allowLogout: false } },
+      eventCallback(event) {
+        if (event.name === 'checkout.completed' && event.data && event.data.transaction_id) {
+          location.href = '/thanks?txn=' + encodeURIComponent(event.data.transaction_id);
+        }
+      },
+    });
+    pay.disabled = false;
+    pay.onclick = () => Paddle.Checkout.open({ items: [{ priceId: price, quantity: 1 }] });
+    if (mode === 'sandbox') document.getElementById('lead').insertAdjacentHTML('afterend',
+      '<p class="warn">시험 결제 화면입니다(Paddle Sandbox). 실제로 돈이 나가지 않습니다.</p>');
+  }
+</script>
+</body>
+</html>
