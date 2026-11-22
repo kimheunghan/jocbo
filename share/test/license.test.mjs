@@ -107,6 +107,19 @@ test('같은 알림이 두 번 와도 키는 하나, 메일도 한 통', async (
   assert.equal(mails.length, 1);
 });
 
+test('결제 알림과 구매 완료 화면 조회가 동시에 와도 메일은 한 통, 보낸 이는 흥한소프트', async () => {
+  await Promise.all([
+    hook({ event_type: 'transaction.completed', data: { id: TXN } }),
+    call(`license/order?txn=${TXN}`),
+    call(`license/order?txn=${TXN}`),
+  ]);
+  assert.equal(env.DB.sql.prepare('SELECT COUNT(*) n FROM licenses').get().n, 1);
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].name, '흥한소프트 (우리의 족보)');
+  assert.ok(mails[0].text.includes('흥한소프트(K Software)'));
+  assert.ok(mails[0].text.includes(`주문 번호: ${TXN}`));
+});
+
 test('서명이 틀리거나 오래된 알림은 거절', async () => {
   assert.equal((await hook({ event_type: 'transaction.completed', data: { id: TXN } }, 'ts=1;h1=00')).status, 401);
   const body = '{}';

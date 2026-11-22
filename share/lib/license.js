@@ -24,11 +24,14 @@
 //   SITE_URL                'https://jocbo.pages.dev'
 
 export const PRODUCTS = {
-  jocbo: { name: '우리의 족보 정식판', prefix: 'JOCBO', pcs: 2,
+  jocbo: { name: '우리의 족보 정식판', brand: '우리의 족보', prefix: 'JOCBO', pcs: 2,
            how: '우리의 족보 프로그램에 로그인한 뒤 오른쪽 위 [정식판]을 누르고, 위 키를 붙여 넣은 뒤 [등록]을 누르십시오.' },
-  findinside: { name: 'FindInside 라이선스', prefix: 'FIND', pcs: 2,
+  findinside: { name: 'FindInside 라이선스', brand: 'FindInside', prefix: 'FIND', pcs: 2,
                 how: 'FindInside 프로그램의 라이선스 입력 칸에 위 키를 붙여 넣고 등록하십시오.' },
 };
+// 판매자 상호. 메일 보낸 사람 이름과 서명에 씁니다.
+export const SELLER = '흥한소프트';
+export const SELLER_FULL = '흥한소프트(K Software)';
 const LS_API = 'https://api.lemonsqueezy.com/v1/licenses';
 const LS_KEY = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
 const TXN = /^txn_[0-9a-z]{20,40}$/;
@@ -92,6 +95,8 @@ function keyMail(env, rows) {
   const lines = rows.map(r => `${PRODUCTS[r.product]?.name || r.product}: ${r.key}`);
   const hows = [...new Set(rows.map(r => PRODUCTS[r.product]?.how).filter(Boolean))];
   const base = site(env);
+  const brand = PRODUCTS[rows[0].product]?.brand || '우리의 족보';
+  const paddle = TXN.test(rows[0].txn || '');
   const text = [
     `${who}구매해 주셔서 감사합니다.`, '',
     '■ 라이선스 키', ...lines, '',
@@ -101,16 +106,19 @@ function keyMail(env, rows) {
     '・구매 후 14일 안에 이 메일에 회신하시면 환불해 드립니다.',
     `・키를 잃어버리셨다면: ${base}/license`,
     `・사용 안내: ${base}/guide/`, '',
-    `주문 번호: ${rows[0].txn}`,
+    ...(paddle ? [
+      `주문 번호: ${rows[0].txn} (환불·문의 때 알려 주십시오)`,
+      '결제 금액과 영수증은 결제 대행사 Paddle이 보낸 메일에서 확인하실 수 있습니다.',
+    ] : []),
     '문의: 이 메일에 회신해 주십시오.', '',
-    `우리의 족보 · ${base}`,
+    `${SELLER_FULL} · ${brand} · ${base}`,
   ].join('\n');
   const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   const html = '<div style="font-family:\'Malgun Gothic\',sans-serif;font-size:15px;line-height:1.7;color:#1d2433">'
     + esc(text).replace(/^(.*: )([A-Z0-9-]{20,})$/gm, '$1<b style="font-size:17px;letter-spacing:.04em">$2</b>')
       .replace(/(https:\/\/[^\s<]+)/g, '<a href="$1">$1</a>').replace(/\n/g, '<br>') + '</div>';
-  const subject = rows.length === 1 ? `[우리의 족보] ${PRODUCTS[rows[0].product]?.name || '라이선스'} 키 안내` : '[우리의 족보] 라이선스 키 안내';
-  return { to: rows[0].email, subject, text, html };
+  const subject = rows.length === 1 ? `[${brand}] ${PRODUCTS[rows[0].product]?.name || '라이선스'} 키 안내` : `[${brand}] 라이선스 키 안내`;
+  return { to: rows[0].email, subject, text, html, name: `${SELLER} (${brand})` };
 }
 
 /** 보냈으면 true. 창구가 아직 없거나 실패하면 false(다음 기회에 다시 보냅니다). */
@@ -119,7 +127,7 @@ export async function sendMail(env, mail) {
   try {
     const response = await fetch(env.MAIL_URL, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: env.MAIL_SECRET, name: '우리의 족보', ...mail }),
+      body: JSON.stringify({ secret: env.MAIL_SECRET, name: `${SELLER} (우리의 족보)`, ...mail }),
     });
     const body = await response.json().catch(() => ({}));
     return response.ok && body.ok === true;
@@ -131,10 +139,17 @@ export async function sendMail(env, mail) {
 async function mailKeys(env, rows) {
   const waiting = rows.filter(r => !r.mailed && r.status === 'active');
   if (!waiting.length) return true;
-  if (!(await sendMail(env, keyMail(env, waiting)))) return false;
+  // 결제 알림과 구매 완료 화면의 조회가 거의 같은 때 들어오므로, 보내기 전에 먼저
+  // 표시해 두고 표시에 성공한 키만 보냅니다. 그러지 않으면 메일이 두 번 갑니다.
   const now = Date.now();
-  await env.DB.batch(waiting.map(r => env.DB.prepare('UPDATE licenses SET mailed = ? WHERE key = ?').bind(now, r.key)));
-  return true;
+  const claims = await env.DB.batch(waiting.map(r =>
+    env.DB.prepare('UPDATE licenses SET mailed = ? WHERE key = ? AND (mailed IS NULL OR mailed = 0)').bind(now, r.key)));
+  const mine = waiting.filter((_, i) => claims[i]?.meta?.changes === 1);
+  if (!mine.length) return true;
+  if (await sendMail(env, keyMail(env, mine))) return true;
+  // 보내지 못했으면 표시를 되돌려 다음 기회에 다시 보냅니다.
+  await env.DB.batch(mine.map(r => env.DB.prepare('UPDATE licenses SET mailed = 0 WHERE key = ? AND mailed = ?').bind(r.key, now)));
+  return false;
 }
 
 // -- 발급 ---------------------------------------------------------------------

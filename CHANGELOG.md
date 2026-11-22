@@ -12,6 +12,10 @@ Lemon Squeezy가 2027-03-31에 결제를 끝내므로, 결제는 Paddle(판매 �
 - 라이선스 서버 `share/lib/license.js`(공유 서버 `/api`에 연결): Paddle 결제 완료 알림(서명 검증) → 키 발급(`JOCBO-XXXX-XXXX-XXXX-XXXX`, FindInside는 `FIND-`) → 키 메일, 환불 승인 시 키 막기, 구매 완료 화면용 조회(알림이 늦으면 거기서 발급), 키 다시 받기(같은 메일 5분에 한 번), PC 2대 등록·해제. Lemon Squeezy 키는 처음 들어올 때 이어받고(그쪽이 살아 있는 동안은 그쪽이 PC 수를 셈, 이미 등록된 PC는 자리표로 셈), 닫힌 뒤에도 이어받은 키는 계속 동작합니다. 표: `schema.sql`의 licenses, activations, mail_log.
 - 화면: `/checkout`(Paddle 결제, 시험 주소에서만 Sandbox로 동작, 실제 주소는 Live 설정 전까지 기존 결제로 안내), `/thanks`(구매 완료, 키 복사), `/license`(키 다시 받기). 스타일 `pay.css`.
 - 키 메일: 운영자 Gmail의 Apps Script 창구 `share/mailer/gmail-sender.gs`(비밀값이 맞을 때만 발송, 하루 100통). 2026.11.22 운영자 계정에 배포해 시험 주소(`MAIL_URL`, `MAIL_SECRET`)에 연결했고, Sandbox 결제 한 건으로 키 메일 발송까지 확인했습니다. 틀린 비밀값은 거절합니다.
+- 판매자 상호 "흥한소프트(K Software)": 결제·구매 완료·키 다시 받기 화면 위쪽과 아래쪽, 홈페이지 맨 아래, 약관·개인정보 페이지에 표시합니다. 키 메일 보낸 사람은 "흥한소프트 (우리의 족보)", 서명은 "흥한소프트(K Software) · 우리의 족보"(FindInside는 FindInside). 메일에 주문 번호(환불·문의용)와 영수증은 Paddle 메일에 있다는 안내를 넣었습니다(Lemon Squeezy 키를 다시 보낼 때는 빠짐).
+- 키 메일이 두 통 가던 문제: 결제 알림과 구매 완료 화면의 조회가 거의 같은 때 메일을 보내려 했습니다. 이제 보내기 전에 먼저 표시해 두고 표시에 성공한 쪽만 보냅니다(보내지 못하면 표시를 되돌림). 시험 추가(16개 통과, 예전 코드에서는 실패).
+- 약관·환불·개인정보(2026.11.22 개정): 결제 대행을 Paddle.com으로 바꿔 적고(Lemon Squeezy 결제 화면에서 산 경우는 Lemon Squeezy), 운영자 표기, 카드 명세서 표시(PADDLE.NET), 환불 요청 방법(키 메일 회신·paddle.net), 라이선스 서버와 Gmail 키 메일이 다루는 정보를 넣었습니다. Paddle 도메인 심사용입니다. 홈페이지·자주 묻는 질문의 결제 방법 안내는 구매 단추를 Paddle로 바꾸는 날 고칩니다.
+- "1.x 판 업데이트 무료"를 "업데이트 평생 무료"로 바꿨습니다(홈페이지 가격표, 약관, 결제 화면). 버전을 날짜로 매기고 Store판은 누구나 새 판을 받으므로 지금 운영과 맞춘 것입니다.
 - 시험 환경: `preview.jocbo.pages.dev`(`--branch preview`) = Paddle Sandbox + 시험용 D1 `jocbo-test`. 설정은 `wrangler.toml`의 `[env.preview]`, 비밀값은 Cloudflare 설정에만 둡니다(저장소에 없음).
 - 프로그램 `backend/license.py`: 키 확인을 Lemon Squeezy 대신 우리 서버(`JOCBO_LICENSE_SERVER`, 기본 jocbo.pages.dev)에 묻습니다. 다음 버전에 들어갑니다.
 - 시험: 서버 15개(`cd share && npm test`, Node 내장 SQLite로 실제 표 사용), 프로그램 8개(`tests/test_license.py`), 전체 Python 86개 통과.

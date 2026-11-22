@@ -12,6 +12,9 @@ h1 { color: #13254a; font-size: 28px; line-height: 1.4; margin: 0 0 12px; }
 h2 { color: #13254a; font-size: 19px; margin: 30px 0 8px; }
 a { color: #13254a; }
 .lead { color: #4b5563; margin: 0 0 24px; }
+/* 판매자 상호. Lemon Squeezy 판매 화면 위쪽과 같은 모양입니다. */
+.seller { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; color: #1d2433; font-weight: 500; }
+.seller-mark { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #8b93ad; color: #fff; font-size: 15px; font-weight: 700; }
 .card { padding: 24px; border: 1px solid #e4dccb; border-radius: 14px; background: #fffdf8; box-shadow: 0 10px 30px #13254a14; }
 .btn { display: inline-block; padding: 12px 22px; border: 0; border-radius: 10px; background: #13254a; color: #fff;
        font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
