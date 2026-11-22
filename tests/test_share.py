@@ -125,6 +125,11 @@ def test_photos_go_up_small_and_large(client, site, tmp_path):
 
 
 def test_a_book_shared_on_the_old_site_moves_to_the_new_one(client, site, monkeypatch):
+    # 앞의 시험들이 공유해 둔 족보도 함께 옮겨지면 지운 횟수가 늘어나므로(같은 DB를 이어 쓰는
+    # GitHub에서 9번), 이 족보 하나만 공유된 상태에서 시작합니다.
+    from backend import main
+    with main.engine.begin() as c:
+        c.execute(main.shares.delete())
     account(client)
     bid = book(client)
     monkeypatch.setattr(web_share, 'SERVER', 'https://old.example')
