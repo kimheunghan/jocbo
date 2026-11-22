@@ -493,6 +493,7 @@ for(const type of ['pointerdown','focus'])$('#search').addEventListener(type,()=
 $('#search').addEventListener('blur',()=>{if(!$('#search').value)$('#search').setAttribute('readonly','');});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
 function personName(id){return book.persons.find(p=>p.id===id)?.korean_name||'';}
+function relationName(id){const p=book.persons.find(person=>person.id===id);return p?bothNames(p):'';}
 function hanjaNumber(value){const n=Number(value);if(!Number.isInteger(n)||n<0||n>99)return String(value||'');const digits='零一二三四五六七八九';if(n<10)return digits[n];if(n===10)return '十';const tens=n>19?digits[Math.floor(n/10)]+'十':'十';return tens+(n%10?digits[n%10]:'');}
 // A child stands a generation below its parent, and husband and wife in one:
 // someone who married in, entered at 1, takes the generation of the one married.
@@ -706,6 +707,12 @@ function displayName(person,mode=scriptMode){
   ?{primary:korean,other:hanja}
   :{primary:hanja||korean,other:hanja?korean:''};
 }
+// 고르는 목록과 관계 줄에는 한자를 모르는 사람도 알아보도록 두 이름을 함께 적습니다:
+// 한자 보기에서는 金永祖(김영조), 한글 보기에서는 김영조(金永祖).
+function bothNames(person,mode=scriptMode){
+ const {primary,other}=displayName(person,mode);
+ return other&&other!==primary?`${primary}(${other})`:primary;
+}
 // The list card carries the portrait and the same facts the tree card shows, so
 // browsing the list feels like reading the book rather than a bare index.
 // A person was once called by more than one name: 字, given on coming of age,
@@ -741,7 +748,7 @@ function searchMatches(person,query){
 function personCard(person){
  const photo=book.files.find(file=>file.person_id===person.id&&/\.(png|jpe?g)$/i.test(file.name));
  const tone=person.gender==='남'?' male':person.gender==='여'?' female':'';
- const dates=[person.birth_date?shownDate(person.birth_date):'출생일 미상',person.death_date?'— '+shownDate(person.death_date):''].filter(Boolean).join(' ');
+ const dates=[person.birth_date?shownDate(person.birth_date):'출생일 미상',person.death_date?'~ '+shownDate(person.death_date):''].filter(Boolean).join(' ');
  return `<button type="button" class="person-card${tone}" data-person="${person.id}">`
   +`<span class="person-portrait">${photo?`<img src="/api/files/${photo.id}?size=240" alt="">`:esc(person.korean_name.slice(0,1))}</span>`
   +'<span class="person-body">'
@@ -955,7 +962,7 @@ function treeDetails(person,outside){
   rows.push([treeOptions.generation?(outside?'外家':person.generation+'세대'):'',treeOptions.hanja?displayName(person).other:''].filter(Boolean).join(' · '));
  if(treeOptions.bon_gwan)rows.push(person.bon_gwan?'본관 '+scriptText(person.bon_gwan):'');
  if(treeOptions.birth||treeOptions.death)
-  rows.push([treeOptions.birth&&person.birth_date?shownDate(person.birth_date):'',treeOptions.death&&person.death_date?'— '+shownDate(person.death_date):''].filter(Boolean).join(' '));
+  rows.push([treeOptions.birth&&person.birth_date?shownDate(person.birth_date):'',treeOptions.death&&person.death_date?'~ '+shownDate(person.death_date):''].filter(Boolean).join(' '));
  if(treeOptions.age)rows.push(ageText(person));
  return rows;
 }
@@ -1493,7 +1500,7 @@ function addRelative(kind,personId,pickFirst=false){
 // own script and repainted whenever its switch is thrown.
 function paintRelativeBanner(){
  if(!pendingRelative)return;
- const {kind,anchor}=pendingRelative,name=p=>esc(displayName(p,dialogScriptMode).primary);
+ const {kind,anchor}=pendingRelative,name=p=>esc(bothNames(p,dialogScriptMode));
  $('#relativeText').innerHTML=kind==='sibling'
   ? `<strong>${name(anchor)}</strong>의 형제자매로 등록 · 부모 ${parentsOfPerson(anchor.id).map(name).join('·')}에 함께 연결`
   : `<strong>${name(anchor)}</strong>의 ${RELATIVE_LABELS[kind]}로 등록`;
@@ -1508,7 +1515,7 @@ function paintRelativeBanner(){
  const fitting={parent:anchor.generation-1,spouse:anchor.generation,child:anchor.generation+1,sibling:anchor.generation}[kind];
  pick.innerHTML=book.persons.filter(p=>p.id!==anchor.id)
   .map((p,index)=>({p,index})).sort((a,b)=>(a.p.generation!==fitting)-(b.p.generation!==fitting)||a.index-b.index).map(({p})=>p)
-  .map(p=>`<option value="${p.id}">${name(p)} (${p.generation}세대)</option>`).join('');
+  .map(p=>`<option value="${p.id}">${esc(bothNames(p,dialogScriptMode))} (${p.generation}세대)</option>`).join('');
  pick.value=chosenPick;
  if(pick.selectedIndex<0&&pick.options.length)pick.selectedIndex=0;
 }
@@ -1864,7 +1871,8 @@ $('#fileList').onclick=async event=>{
   const el=$('#personError');el.textContent='첨부파일을 삭제했습니다.';el.hidden=false;el.classList.add('success');
  }catch(err){dialogError(err.message);}
 };
-function renderRelations(){if(!book)return;const options='<option value="">인물 선택</option>'+book.persons.map(p=>`<option value="${p.id}">${esc(displayName(p).primary)} (${p.generation}세대)</option>`).join('');const anchor=$('#relationForm').elements.source_id;const kept=anchor.value;anchor.innerHTML=options;
+const openRelationRows=new Set();
+function renderRelations(){if(!book)return;const options='<option value="">인물 선택</option>'+book.persons.map(p=>`<option value="${p.id}">${esc(bothNames(p))} (${p.generation}세대)</option>`).join('');const anchor=$('#relationForm').elements.source_id;const kept=anchor.value;anchor.innerHTML=options;
  // Whoever was searched for is the one the reader has in mind, so the form
  // starts from them rather than from the first name in the book.
  const q=$('#search').value.toLowerCase().trim();
@@ -1893,14 +1901,43 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
   return 0;
  });
  $('#relationScope').hidden=!chosen;
- if(chosen)$('#relationScope').textContent=`${displayName(chosen).primary} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
+ if(chosen)$('#relationScope').textContent=`${bothNames(chosen)} 직계 · 관계 ${shown.length}건 (전체 ${book.relations.length}건)`;
  // 배우자 관계에는 혼인 순서(본처·후처)를, 부모-자녀 관계에는 입양 여부를 정하는 칸을 둡니다.
- const ORDER_WORDS=['등록한 순서','첫째(본처)','둘째(후처)','셋째(후처)','넷째(후처)'];
+ // 본처·후처는 양자처럼 체크 하나로 정합니다. 체크하지 않으면 본처, 체크하면 후처이고,
+ // 후처가 여럿이면 등록한 순서대로 섭니다. 예전에 둘째·셋째로 정한 기록은 후처로 읽힙니다.
  const detail=r=>r.kind==='spouse'
-  ?`<label class="relation-detail">혼인 순서<select data-order="${r.id}">${ORDER_WORDS.map((word,n)=>`<option value="${n}"${(r.marriage_order||0)===n?' selected':''}>${word}</option>`).join('')}</select></label>`
-  :`<label class="relation-detail"><input type="checkbox" data-adopted="${r.id}"${r.adopted?' checked':''}> 양자·양녀(입양)</label>`;
- $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span>${detail(r)}<button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));
- document.querySelectorAll('[data-order]').forEach(select=>select.onchange=run(async()=>{await api('/relations/'+select.dataset.order,'PUT',{marriage_order:Number(select.value)});await refresh();message('혼인 순서를 고쳤습니다.');}));
+  ?`<label class="relation-detail" title="첫 부인과 사별·이혼한 뒤 다시 혼인한 배우자이면 체크합니다. 족보책과 가계도에서 본처 다음 자리에 섭니다."><input type="checkbox" data-later="${r.id}"${(r.marriage_order||0)>=2?' checked':''}> 후처(재혼)</label>`
+  :`<label class="relation-detail" title="친자식이 아니라 대를 잇기 위해 양자·양녀로 들인 경우에만 체크합니다. 체크하면 가계도와 족보책에 양자로 표시됩니다."><input type="checkbox" data-adopted="${r.id}"${r.adopted?' checked':''}> 양자·양녀(입양)</label>`;
+ // 두 칸은 특별한 경우에만 쓰므로 평소에는 접어 두고, 정해 둔 것만 작은 표시로 보여 줍니다.
+ // [자세히]를 누른 줄만 펼치며, 펼친 줄은 다시 그려도 펼친 채로 둡니다.
+ const badge=r=>r.kind==='spouse'
+  ?((r.marriage_order||0)>=2?'<em class="relation-badge">후처</em>':'')
+  :(r.adopted?'<em class="relation-badge">양자·양녀</em>':'');
+ // 후처 표시는 한 사람이 배우자를 둘 이상 두었을 때(또는 이미 후처로 적혀 있을 때)만 보입니다.
+ const spouseCount=new Map();
+ for(const r of book.relations)if(r.kind==='spouse')for(const id of [r.source_id,r.target_id])spouseCount.set(id,(spouseCount.get(id)||0)+1);
+ const hasDetail=r=>r.kind!=='spouse'||(spouseCount.get(r.source_id)||0)>1||(spouseCount.get(r.target_id)||0)>1||(r.marriage_order||0)>=2;
+ $('#relationList').innerHTML=shown.map(r=>{
+  const open=openRelationRows.has(r.id)&&hasDetail(r);
+  return `<div class="relation-row"><span>${esc(relationName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(relationName(r.target_id))}${badge(r)}</span>`
+   +(open?detail(r):'')
+   +`<span class="relation-actions">`+(hasDetail(r)?`<button type="button" class="secondary" data-relation-more="${r.id}" aria-expanded="${open}" title="${r.kind==='spouse'?'후처(재혼) 표시하기':'양자·양녀(입양) 표시하기'}">${open?'접기':'자세히'}</button>`:'')
+   +`<button class="secondary" data-relation="${r.id}">관계 삭제</button></span></div>`;
+ }).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));
+ document.querySelectorAll('[data-relation-more]').forEach(b=>b.onclick=()=>{
+  const id=Number(b.dataset.relationMore);
+  if(openRelationRows.has(id))openRelationRows.delete(id);else openRelationRows.add(id);
+  renderRelations();
+ });
+ document.querySelectorAll('[data-later]').forEach(box=>box.onchange=run(async()=>{
+  const r=book.relations.find(x=>x.id===Number(box.dataset.later));
+  // 후처의 자리: 배우자가 더 많은 쪽(남편)의 다른 후처들 다음. 본처로 되돌리면 1.
+  const host=(spouseCount.get(r.source_id)||0)>=(spouseCount.get(r.target_id)||0)?r.source_id:r.target_id;
+  const later=book.relations.filter(x=>x.kind==='spouse'&&x.id!==r.id&&(x.source_id===host||x.target_id===host)&&(x.marriage_order||0)>=2);
+  const order=box.checked?2+later.length:1;
+  await api('/relations/'+r.id,'PUT',{marriage_order:order});await refresh();
+  message(box.checked?'후처로 표시했습니다.':'본처로 표시했습니다.');
+ }));
  document.querySelectorAll('[data-adopted]').forEach(box=>box.onchange=run(async()=>{await api('/relations/'+box.dataset.adopted,'PUT',{adopted:box.checked});await refresh();message(box.checked?'입양으로 표시했습니다.':'입양 표시를 없앴습니다.');}));
  renderLoose();}
 // 이어지지 않은 사람: 옛 족보는 빠진 쪽, 잘못 옮긴 곳이 흔해서, 사진 판독·불러오기·직접 입력
@@ -1972,7 +2009,7 @@ function renderLoose(){
  box.innerHTML=`<div class="loose-head"><strong>${items.length?`⚠ 이어지지 않은 사람 ${items.length}명`:'이어지지 않은 사람 없음'}</strong>`
   +`<button type="button" class="secondary" data-loose-toggle>${closed?'펼치기':'접기'}</button></div>`
   +(closed?'':`<p class="muted">부모나 배우자와 이어지지 않아 가계도에서 따로 떨어진 사람입니다. 족보 원본과 맞춰 이어 주십시오.</p>`
-  +items.map((item,i)=>`<div class="loose-row"><span><b>${esc(displayName(item.person).primary)}</b> · ${item.person.generation}세대 · ${esc(item.why)}</span>`
+  +items.map((item,i)=>`<div class="loose-row"><span><b>${esc(bothNames(item.person))}</b> · ${item.person.generation}세대 · ${esc(item.why)}</span>`
    +`<span class="loose-actions"><button type="button" data-loose-link="${i}">${WORD[item.kind]}</button>`
    +(item.line?`<button type="button" class="secondary" data-loose-done="${i}" title="기록 칸에서 이 표시를 지웁니다">고쳤음</button>`
      :`<button type="button" class="secondary" data-loose-hide="${i}" title="일부러 따로 둔 사람이면 이 PC의 목록에서 숨깁니다">목록에서 숨기기</button>`)

@@ -2459,6 +2459,8 @@ button {
 .relation-detail { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 13px; white-space: nowrap; }
 .relation-detail select { width: auto; min-height: 0; padding: 2px 6px; }
 .relation-detail input { width: auto; min-height: 0; margin: 0; }
+.relation-badge { margin-left: 8px; padding: 1px 7px; border-radius: 10px; background: var(--paper-sunk, #f1ece0); color: var(--ink-soft, #5b5b5b); font-size: 12px; font-style: normal; font-weight: 600; white-space: nowrap; }
+.relation-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
 .loose-box { margin: 0 0 16px; padding: 12px 16px; border: 1px solid #e3c98f; border-left: 4px solid #b8862b; border-radius: 8px; background: #fff8e8; }
 .loose-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .loose-head button { min-height: 0; padding: 4px 12px; }

@@ -664,6 +664,32 @@ def test_incomplete_books_the_customer_named():
     assert not any('빼고' in w or '합쳤' in w for w in family['warnings'])
 
 
+def test_joining_never_takes_the_wrong_person():
+    # 출시 전 점검에서 찾은 경우들: 잘못 합치는 것은 합치지 않는 것보다 나쁩니다.
+    def people_of(text):
+        return sorted(p['key'] for p in x.read_family('t.ged', (AI_HEAD + text + '0 TRLR\n').encode('utf-8'))['people'])
+    # 같은 이름의 아버지와 아들(세 없음)
+    assert people_of(ai_person(1, '김철수') + ai_person(2, '이씨', 'F') + ai_person(3, '김철수')
+                     + '0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n') == ['I1', 'I2', 'I3']
+    # 이름 없는 사람들
+    assert people_of('0 @I1@ INDI\n1 SEX M\n0 @I2@ INDI\n0 @I3@ INDI\n1 SEX M\n0 @I4@ INDI\n1 NAME 홍길동\n'
+                     '0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n1 CHIL @I4@\n') == ['I1', 'I2', 'I3', 'I4']
+    # 같은 이름의 사위와 처남
+    assert people_of(ai_person(1, '김아버') + ai_person(2, '박철수') + ai_person(3, '김영희', 'F') + ai_person(4, '박철수')
+                     + ai_person(5, '박손자') + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n1 CHIL @I3@\n'
+                     + '0 @F2@ FAM\n1 HUSB @I4@\n1 WIFE @I3@\n1 CHIL @I5@\n') == ['I1', 'I2', 'I3', 'I4', 'I5']
+    # 두 부인 이씨는 한 사람이 되지 않습니다
+    text = (ai_person(0, '김아버') + ai_person(1, '김갑동') + ai_person(2, '이씨', 'F') + ai_person(3, '이씨', 'F')
+            + ai_person(5, '김병동') + ai_person(6, '김정동')
+            + '0 @F0@ FAM\n1 HUSB @I0@\n1 CHIL @I1@\n0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I5@\n'
+            + '0 @F2@ FAM\n1 HUSB @I1@\n1 WIFE @I3@\n1 CHIL @I6@\n')
+    assert {'I2', 'I3'} <= set(people_of(text))
+    # 한자 이름의 아버지와 한글 "김씨" 딸은 같은 성입니다
+    family = x.read_family('t.ged', (AI_HEAD + '0 @I1@ INDI\n1 NAME 金甲東\n1 SEX M\n' + ai_person(2, '김씨', 'F')
+                                     + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n0 TRLR\n').encode('utf-8'))
+    assert pairs(family) == [('I1', 'I2')]
+
+
 def test_a_daughter_cannot_have_another_surname():
     # 아버지가 김씨인데 "박씨"가 자녀로 적혔으면 며느리를 자녀 줄에 넣은 것입니다. 딸 "김씨"는 그대로 둡니다.
     text = (AI_HEAD + ai_person(1, '김갑') + ai_person(2, '박씨', 'F') + ai_person(3, '김씨', 'F')
