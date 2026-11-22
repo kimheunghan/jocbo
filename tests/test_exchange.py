@@ -615,6 +615,67 @@ def test_links_written_only_on_the_person_are_read():
     assert gen['I4'] == gen['I1'] + 1
 
 
+AI_HEAD = '0 HEAD\n1 CHAR UTF-8\n'
+
+
+def ai_person(i, name, sex='M', extra=''):
+    return f'0 @I{i}@ INDI\n1 NAME {name}\n1 SEX {sex}\n{extra}'
+
+
+def test_numbers_counted_again_on_each_page(client):
+    # 쪽마다 @I1@부터 다시 매긴 파일: 따로 불러오고, 관계는 그 쪽의 사람과 잇습니다. 저장까지 됩니다.
+    text = (AI_HEAD + ai_person(1, '김장유') + ai_person(2, '김중손') + ai_person(3, '김을돈')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n0 @F2@ FAM\n1 HUSB @I2@\n1 CHIL @I3@\n'
+            + ai_person(1, '김중현') + ai_person(2, '김택현') + '0 @F3@ FAM\n1 HUSB @I3@\n1 CHIL @I1@\n1 CHIL @I2@\n0 TRLR\n')
+    account(client)
+    family, book = bring_in(client, 'pages.ged', text.encode('utf-8'))
+    assert any('같은 번호가 두 번 이상' in w for w in family['warnings'])
+    gen = {p['korean_name']: p['generation'] for p in book['persons']}
+    assert gen == {'김장유': 1, '김중손': 2, '김을돈': 3, '김중현': 4, '김택현': 4}
+
+
+def test_person_written_again_at_the_top_of_a_page():
+    text = (AI_HEAD + ai_person(1, '김장유', extra='1 _GEN 1\n') + ai_person(2, '김중손', extra='1 _GEN 2\n')
+            + ai_person(3, '김중손', extra='1 _GEN 2\n1 BIRT\n2 DATE 1501\n') + ai_person(4, '김을돈', extra='1 _GEN 3\n')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n0 @F2@ FAM\n1 HUSB @I3@\n1 CHIL @I4@\n0 TRLR\n')
+    family = x.read_family('copy.ged', text.encode('utf-8'))
+    assert [p['key'] for p in family['people']] == ['I1', 'I2', 'I4']
+    assert pairs(family) == [('I1', 'I2'), ('I2', 'I4')]
+    assert family['people'][1]['birth_date'] == '1501'
+    assert '김중손(I2) = 김중손(I3)' in family['warnings'][0]
+
+
+def test_same_names_that_are_not_the_same_person_stay_apart():
+    text = (AI_HEAD + ai_person(1, '김갑') + ai_person(2, '이씨', 'F') + ai_person(3, '이씨', 'F') + ai_person(4, '김을')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n0 @F2@ FAM\n1 HUSB @I4@\n1 WIFE @I3@\n1 CHIL @I1@\n0 TRLR\n')
+    assert len(x.read_family('apart.ged', text.encode('utf-8'))['people']) == 4
+
+
+def test_wife_written_as_a_child():
+    text = (AI_HEAD + ai_person(1, '김장유') + ai_person(2, '김중손') + ai_person(3, '이씨', 'F')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n1 CHIL @I3@\n0 @F2@ FAM\n1 HUSB @I2@\n1 WIFE @I3@\n0 TRLR\n')
+    family = x.read_family('wife.ged', text.encode('utf-8'))
+    assert pairs(family) == [('I1', 'I2')] and sorted(family['spouses']) == [['I2', 'I3', 1]]
+    assert '이씨(I3)' in family['warnings'][0]
+
+
+def test_generation_written_with_a_word():
+    text = (AI_HEAD + ai_person(1, '김갑', extra='1 _GEN 25세\n') + ai_person(2, '김을', extra='1 _GEN 26世\n')
+            + ai_person(3, '김정', extra='1 EVEN 28\n2 TYPE 세대\n') + '0 TRLR\n')
+    gen = [p['generation'] for p in x.read_family('gen.ged', text.encode('utf-8'))['people']]
+    assert gen == [25, 26, 28]
+
+
+def test_loose_ai_output():
+    # 코드 블록 표시(```), 소문자 태그, @ 없는 번호, 가족 기록 없이 사람 쪽에만 적은 관계.
+    fenced = '```gedcom\n' + AI_HEAD + ai_person(1, '김갑') + ai_person(2, '김을') + '0 @F1@ fam\n1 husb @I1@\n1 chil @I2@\n```\n'
+    bare = AI_HEAD + '0 I1 INDI\n1 NAME 김갑\n0 I2 INDI\n1 NAME 김을\n0 F1 FAM\n1 HUSB I1\n1 CHIL I2\n0 TRLR\n'
+    no_fam = AI_HEAD + ai_person(1, '김갑', extra='1 FAMS @F1@\n') + ai_person(2, '김을', extra='1 FAMC @F1@\n') + '0 TRLR\n'
+    for text in (fenced, bare, no_fam):
+        family = x.read_family('loose.ged', text.encode('utf-8'))
+        assert family['errors'] == [] and pairs(family) == [('I1', 'I2')]
+
+
 def test_tangles_leave_a_sound_family_alone():
     family = x.read_family('Park family.ged', OTHER_PROGRAM.encode('utf-8'))
     by_key = {p['key']: p for p in family['people']}

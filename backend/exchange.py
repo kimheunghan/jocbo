@@ -1885,6 +1885,71 @@ def parse_gedcom_lines(text):
     return roots, bad
 
 
+RECORDS = {'INDI', 'FAM', 'NOTE', 'SNOTE', 'SOUR', 'OBJE', 'REPO', 'SUBM'}
+POINTERS = {'HUSB', 'WIFE', 'CHIL', 'FAMS', 'FAMC'}
+
+
+def mend_records(roots):
+    """Straighten what hand- and AI-written files get wrong before the records are read.
+
+    "0 I1 INDI" (no @) is read as "0 @I1@ INDI", and "1 CHIL I2" as "1 CHIL @I2@".
+    A number used for two people (a file put together page by page, each page
+    counting from 1) gives the second one its own number, and every pointer goes
+    to the record of that number written nearest to it. Returns the numbers used twice.
+    """
+    for node in roots:
+        if not node['xref'] and node['tag'] not in ('HEAD', 'TRLR') and node['value'].strip().upper() in RECORDS:
+            node['xref'], node['tag'], node['value'] = f'@{node["tag"]}@', node['value'].strip().upper(), ''
+    defs = defaultdict(list)
+    for index, node in enumerate(roots):
+        if node['xref'] and node['tag'] in ('INDI', 'FAM'):
+            defs[(node['tag'], node['xref'])].append(index)
+    twice = sorted(xref.strip('@') for (tag, xref), at in defs.items() if len(at) > 1)
+    names = {}
+    for (tag, xref), at in defs.items():
+        for n, index in enumerate(at[1:], start=2):
+            fresh = f'@{xref.strip("@")}-{n}@'
+            while (tag, fresh) in defs:
+                fresh = f'@{fresh.strip("@")}-{n}@'
+            names[index] = fresh
+    for index, node in enumerate(roots):
+        for child in node['children']:
+            if child['tag'] not in POINTERS:
+                continue
+            value = child['value'].strip()
+            if value and not value.startswith('@'):
+                value = f'@{value}@'
+            target = ('FAM' if child['tag'] in ('FAMS', 'FAMC') else 'INDI', value)
+            at = defs.get(target, [])
+            if len(at) > 1:
+                # 쪽마다 사람을 먼저, 가족을 뒤에 적습니다. 가족이 가리키는 사람은 바로 앞에 적힌 그 번호,
+                # 사람이 가리키는 가족은 바로 뒤에 적힌 그 번호입니다.
+                before, after = [p for p in at if p < index], [p for p in at if p > index]
+                if target[0] == 'INDI':
+                    chosen = max(before) if before else min(after)
+                else:
+                    chosen = min(after) if after else max(before)
+                value = names.get(chosen, value)
+            child['value'] = value
+    for index, fresh in names.items():
+        roots[index]['xref'] = fresh
+    return twice
+
+
+def generation_of(node):
+    """世 as written: 25, 25세, 25世, or an event of type 세/世/세대 (Gramps, other programs)."""
+    found = [_custom(node, '_GEN')]
+    for event in _subs(node, 'EVEN') + _subs(node, 'FACT'):
+        kind = (_sub(event, 'TYPE') or {}).get('value', '').strip().upper()
+        if kind in ('세', '世', '세대', '世代', 'GENERATION'):
+            found.append(event['value'].strip())
+    for value in found:
+        match = re.fullmatch(r'\s*(\d{1,3})\s*(?:세|世|대|代)?\s*', value or '')
+        if match and 1 <= int(match[1]) <= 200:
+            return int(match[1])
+    return None
+
+
 def _sub(node, tag):
     return next((child for child in node['children'] if child['tag'] == tag), None)
 
@@ -1939,7 +2004,13 @@ def gedcom_family(data):
         return finish(family)
     if bad:
         family['warnings'].append(f'읽을 수 없는 줄 {bad}개를 건너뛰었습니다.')
-    notes = {node['xref']: node['value'] for node in roots if node['tag'] in ('NOTE', 'SNOTE') and node['xref']}
+    twice = mend_records(roots)
+    if twice:
+        shown = ', '.join(twice[:10]) + (f' 외 {len(twice) - 10}개' if len(twice) > 10 else '')
+        family['warnings'].append(f'같은 번호가 두 번 이상 쓰였습니다({shown}). 쪽마다 번호를 새로 매긴 파일로 보고 '
+                                  '서로 다른 사람으로 불러왔으며, 관계는 파일에서 가장 가까이 적힌 사람과 이었습니다. '
+                                  '불러온 뒤 이 번호의 사람들이 바르게 이어졌는지 확인해 주십시오.')
+    notes ={node['xref']: node['value'] for node in roots if node['tag'] in ('NOTE', 'SNOTE') and node['xref']}
 
     def note_text(node):
         value = node['value'].strip()
@@ -2025,9 +2096,9 @@ def gedcom_family(data):
                     add_note(person, f'{word} {event["value"].strip()}')
         for note in _subs(node, 'NOTE') + _subs(node, 'SNOTE'):
             add_note(person, note_text(note).strip())
-        generation = _custom(node, '_GEN')
-        if generation.isdigit() and 1 <= int(generation) <= 200:
-            person['generation'] = int(generation)
+        generation = generation_of(node)
+        if generation:
+            person['generation'] = generation
         person['bon_gwan'] = _custom(node, '_BONGWAN')
         for ref in _subs(node, 'REFN'):
             kind = _sub(ref, 'TYPE')
@@ -2039,7 +2110,7 @@ def gedcom_family(data):
             person['present'] = ['korean_name'] + [field for field, has in (
                 ('hanja_name', person['hanja_name']), ('gender', person['gender'] != '미상'),
                 ('birth_date', person['birth_date']), ('death_date', person['death_date']), ('note', person['note']),
-                ('bon_gwan', person['bon_gwan']), ('generation', generation.isdigit())) if has]
+                ('bon_gwan', person['bon_gwan']), ('generation', bool(generation))) if has]
         keys[node['xref']] = key
         people.append(person)
     if undated:
@@ -2056,7 +2127,11 @@ def gedcom_family(data):
                 child_of[ref['value'].strip()].append(key)
     missing = 0
     fams = []
-    for node in roots:
+    written = {node['xref'] for node in roots if node['tag'] == 'FAM'}
+    # 가족 기록 없이 사람 쪽(FAMS·FAMC)에만 적힌 가족도 가족으로 봅니다.
+    unwritten = [{'tag': 'FAM', 'xref': ref, 'value': '', 'children': []}
+                 for ref in dict.fromkeys(list(member_of) + list(child_of)) if ref not in written]
+    for node in roots + unwritten:
         if node['tag'] != 'FAM':
             continue
         couple = [keys.get(child['value'].strip()) for child in node['children'] if child['tag'] in ('HUSB', 'WIFE')]
@@ -2086,7 +2161,103 @@ def gedcom_family(data):
                     family['parents'].append([parent, kid, adopted])
     if missing:
         family['warnings'].append(f'가족(FAM) 기록이 가리키는 사람 {missing}명을 파일에서 찾지 못해 그 관계는 건너뛰었습니다.')
+    if not own_file:
+        join_page_copies(family)
+        unwind_wife_as_child(family)
     return finish(family)
+
+
+def _surname(person):
+    for name in (person.get('hanja_name'), person.get('korean_name')):
+        if name:
+            return name[0]
+    return ''
+
+
+def join_page_copies(family):
+    """옛 족보는 쪽이 바뀌면 그 쪽의 첫 사람을 다시 적습니다. 파일로 옮기면 같은 사람이 둘이 되어,
+    앞쪽의 그 사람에게는 자녀가 없고 뒤쪽의 그 사람에게는 부모가 없어 자손이 통째로 끊깁니다.
+
+    이름(한자가 있으면 한자도)과 성별이 같은 남자, 적힌 세가 있으면 세도 같고, 한쪽은 자녀가 없고
+    다른 쪽은 부모가 없으며, 그런 짝이 하나뿐일 때만 한 사람으로 합칩니다. 합친 것은 알림에 적습니다.
+    """
+    people = family['people']
+    has_parent = {child for _, child, *_ in family['parents']}
+    has_child = {parent for parent, *_ in family['parents']}
+
+    def fits(a, b):
+        same_name = a['korean_name'] == b['korean_name'] and (not a['hanja_name'] or not b['hanja_name'] or a['hanja_name'] == b['hanja_name'])
+        same_gen = not a.get('generation') or not b.get('generation') or a['generation'] == b['generation']
+        # 부인(○씨)과 딸은 합치지 않습니다. 성별을 적지 않은 파일은 이름만으로 봅니다.
+        return (same_name and same_gen and a['gender'] == b['gender'] and a['gender'] != '여'
+                and len(a['korean_name']) >= 2 and not a['korean_name'].endswith(('씨', '氏')))
+
+    leaves = defaultdict(list)
+    for p in people:
+        if p['key'] in has_parent and p['key'] not in has_child:
+            leaves[p['korean_name']].append(p)
+    heads = defaultdict(list)
+    for p in people:
+        if p['key'] not in has_parent and p['key'] in has_child:
+            heads[p['korean_name']].append(p)
+    into = {}
+    for name, copies in heads.items():
+        originals = [o for o in leaves.get(name, []) if any(fits(o, c) for c in copies)]
+        copies = [c for c in copies if any(fits(o, c) for o in originals)]
+        if len(originals) == 1 and len(copies) == 1:
+            into[copies[0]['key']] = originals[0]['key']
+    if not into:
+        return
+    by_key = {p['key']: p for p in people}
+    lines = []
+    for copy, original in into.items():
+        a, b = by_key[original], by_key[copy]
+        for field in ('hanja_name', 'birth_date', 'death_date', 'bon_gwan'):
+            if not a.get(field) and b.get(field):
+                a[field] = b[field]
+        if b.get('note') and b['note'] not in (a.get('note') or ''):
+            add_note(a, b['note'])
+        if not a.get('generation') and b.get('generation'):
+            a['generation'] = b['generation']
+        if a.get('present') is not None and b.get('present') is not None:
+            a['present'] = sorted(set(a['present']) | set(b['present']))
+        lines.append(f'{who(a, original)} = {who(b, copy)}')
+    family['people'] = [p for p in people if p['key'] not in into]
+    family['parents'] = [[into.get(a, a), into.get(b, b), *rest] for a, b, *rest in family['parents']]
+    family['spouses'] = [[into.get(a, a), into.get(b, b), *rest] for a, b, *rest in family['spouses']]
+    family['warnings'].insert(0, f'쪽이 바뀌며 다시 적힌 것으로 보이는 같은 사람 {len(lines)}쌍을 한 사람으로 합쳤습니다'
+                                 f'(앞쪽에는 자녀가 없고 뒤쪽에는 부모가 없는 같은 이름): {", ".join(lines[:20])}'
+                                 + (f' 외 {len(lines) - 20}쌍' if len(lines) > 20 else '') + '. 다른 사람이면 불러온 뒤 나눠 주십시오.')
+
+
+def unwind_wife_as_child(family):
+    """配(부인)를 자녀 줄로 잘못 옮기면 며느리가 시아버지의 자녀이면서 그 아들의 아내가 됩니다.
+
+    부부가 같은 부모를 두고 있으면, 성이 그 부모(아버지)와 다른 쪽의 부모 관계를 뺍니다.
+    누구인지 가릴 수 없으면 알림만 남깁니다.
+    """
+    by_key = {p['key']: p for p in family['people']}
+    parents_of = defaultdict(set)
+    for parent, child, *_ in family['parents']:
+        parents_of[child].add(parent)
+    drop, unsure = set(), []
+    for one, other, *_ in family['spouses']:
+        shared = parents_of[one] & parents_of[other]
+        if not shared:
+            continue
+        clan = {_surname(by_key[p]) for p in shared if by_key[p]['gender'] == '남'} or {_surname(by_key[p]) for p in shared}
+        outsiders = [k for k in (one, other) if _surname(by_key[k]) not in clan]
+        if len(outsiders) == 1:
+            drop.update((p, outsiders[0]) for p in parents_of[outsiders[0]])
+        else:
+            unsure.append(f'{who(by_key[one], one)} ↔ {who(by_key[other], other)}')
+    if drop:
+        family['parents'] = [l for l in family['parents'] if (l[0], l[1]) not in drop]
+        wives = sorted({c for _, c in drop})
+        family['warnings'].insert(0, f'부부가 같은 부모의 자녀로도 적혀 있어, 성이 다른 배우자 {len(wives)}명의 부모 관계를 뺐습니다'
+                                     f'(配를 자녀 줄로 옮긴 것으로 보임): {", ".join(who(by_key[k], k) for k in wives[:20])}.')
+    if unsure:
+        family['warnings'].insert(0, f'부부가 같은 부모의 자녀로도 적혀 있습니다. 족보 원본과 맞춰 확인해 주십시오: {", ".join(unsure[:20])}.')
 
 
 # ── 파일 종류 가리기 ──────────────────────────────────────────────────
