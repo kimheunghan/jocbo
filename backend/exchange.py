@@ -425,12 +425,146 @@ GENDER = {'남': '남', '男': '남', 'M': '남', 'MALE': '남', '여': '여', '
 
 # ── 세대 ──────────────────────────────────────────────────────────────
 
+def tangles(keys, parents, spouses):
+    """The links that keep the family from being laid out in 世, as (parent links, spouse links).
+
+    A child must stand below its parents and a couple side by side, so a loop of
+    such links (someone married to their own child, a person their own forebear)
+    cannot be drawn. Only the people caught in such a loop are looked at again:
+    their parent links are put back first, then their marriages, and a link that
+    would close a loop is left out. Returns empty lists when nothing is wrong.
+    """
+    keys = list(keys)
+    root = {k: k for k in keys}
+
+    def find(k):
+        while root[k] != k:
+            root[k] = root[root[k]]
+            k = root[k]
+        return k
+
+    for one, other, *_ in spouses:
+        if one in root and other in root:
+            root[find(one)] = find(other)
+    # 부부를 한 덩어리로 묶고, 부모 → 자녀를 덩어리 사이의 화살표로 봅니다.
+    arrows, looped = defaultdict(set), set()
+    for parent, child, *_ in parents:
+        if parent in root and child in root:
+            a, b = find(parent), find(child)
+            if a == b:
+                looped.add(a)
+            else:
+                arrows[a].add(b)
+    # 서로 이어져 도는 덩어리들(강연결요소)을 찾습니다.
+    index, low, on, stack, counter = {}, {}, set(), [], [0]
+    groups = {find(k) for k in keys}
+    for start in groups:
+        if start in index:
+            continue
+        work = [(start, iter(arrows[start]))]
+        index[start] = low[start] = counter[0]
+        counter[0] += 1
+        stack.append(start)
+        on.add(start)
+        while work:
+            node, rest = work[-1]
+            nxt = next(rest, None)
+            if nxt is not None:
+                if nxt not in index:
+                    index[nxt] = low[nxt] = counter[0]
+                    counter[0] += 1
+                    stack.append(nxt)
+                    on.add(nxt)
+                    work.append((nxt, iter(arrows[nxt])))
+                elif nxt in on:
+                    low[node] = min(low[node], index[nxt])
+                continue
+            work.pop()
+            if work:
+                low[work[-1][0]] = min(low[work[-1][0]], low[node])
+            if low[node] == index[node]:
+                part = []
+                while True:
+                    top = stack.pop()
+                    on.discard(top)
+                    part.append(top)
+                    if top == node:
+                        break
+                if len(part) > 1:
+                    looped.update(part)
+    caught = {k for k in keys if find(k) in looped}
+    if not caught:
+        return [], []
+    # 걸린 사람들 사이의 관계만 다시 이어 봅니다. 부모-자녀를 먼저, 혼인을 나중에.
+    kids, mates = defaultdict(list), defaultdict(list)
+
+    def reaches(start, goal, need_parent):
+        """start에서 goal까지 (부모 → 자녀, 배우자 양쪽으로) 갈 수 있는가. need_parent면 부모-자녀를 한 번은 거쳐야 합니다."""
+        seen = {(start, False)}
+        todo = [(start, False)]
+        while todo:
+            node, crossed = todo.pop()
+            if node == goal and (crossed or not need_parent):
+                return True
+            for nxt, step in [(c, True) for c in kids[node]] + [(m, False) for m in mates[node]]:
+                state = (nxt, crossed or step)
+                if state not in seen:
+                    seen.add(state)
+                    todo.append(state)
+        return False
+
+    left_parents, left_spouses = [], []
+    for link in parents:
+        parent, child = link[0], link[1]
+        if parent not in caught or child not in caught:
+            continue
+        if reaches(child, parent, False):
+            left_parents.append(link)
+        else:
+            kids[parent].append(child)
+    for link in spouses:
+        one, other = link[0], link[1]
+        if one not in caught or other not in caught:
+            continue
+        if reaches(one, other, True) or reaches(other, one, True):
+            left_spouses.append(link)
+        else:
+            mates[one].append(other)
+            mates[other].append(one)
+    return left_parents, left_spouses
+
+
+def who(person, key):
+    """A person named in a message: the name, and where to find them in the file."""
+    name = label(person) if person else ''
+    place = f'{key[1:]}행' if re.fullmatch(r'r\d+', key) else key
+    return f'{name}({place})' if name else place
+
+
+def link_text(kind, a, b, by_key):
+    if kind == 'parent':
+        return f'{who(by_key.get(a), a)} → 자녀 {who(by_key.get(b), b)}'
+    return f'{who(by_key.get(a), a)} ↔ 배우자 {who(by_key.get(b), b)}'
+
+
+def tangle_text(people, parents, spouses, limit=5):
+    """Name the links caught in a loop, for an error message."""
+    by_key = {p['key']: p for p in people}
+    left_parents, left_spouses = tangles(by_key, parents, spouses)
+    found = [link_text('parent', l[0], l[1], by_key) for l in left_parents] + \
+            [link_text('spouse', l[0], l[1], by_key) for l in left_spouses]
+    if not found:
+        return ''
+    more = f' 외 {len(found) - limit}건' if len(found) > limit else ''
+    return ' 맞지 않는 관계: ' + ', '.join(found[:limit]) + more + '.'
+
+
 def settle_generations(people, parents, spouses, base=1):
     """Give everyone a 世: the one written down where there is one, else from the family.
 
     A child stands at least one below each parent and husband and wife stand
     together, as the page itself draws them. A parent line that loops back on
-    itself, or one that cannot be laid out, is an error.
+    itself, or one that cannot be laid out, is an error that names the links.
     """
     keys = [p['key'] for p in people]
     gen = {p['key']: p.get('generation') for p in people}
@@ -453,7 +587,8 @@ def settle_generations(people, parents, spouses, base=1):
                 state[node] = 2
                 stack.pop()
             elif state.get(nxt) == 1:
-                raise ExchangeError('부모-자녀 관계가 순환합니다. 어떤 사람이 자기 조상으로 이어져 있습니다.')
+                raise ExchangeError('부모-자녀 관계가 순환합니다. 어떤 사람이 자기 조상으로 이어져 있습니다.'
+                                    + tangle_text(people, parents, spouses))
             elif nxt not in state:
                 state[nxt] = 1
                 stack.append((nxt, iter(children[nxt])))
@@ -487,7 +622,8 @@ def settle_generations(people, parents, spouses, base=1):
         if not changed:
             break
     else:
-        raise ExchangeError('세대를 맞출 수 없습니다. 부부 관계와 부모 관계가 서로 맞지 않는 사람이 있습니다.')
+        raise ExchangeError('세대를 맞출 수 없습니다. 부부 관계와 부모 관계가 서로 맞지 않는 사람이 있습니다.'
+                            + tangle_text(people, parents, spouses))
     lowest = min(gen.values(), default=1)
     if lowest < 1:
         gen = {key: value + 1 - lowest for key, value in gen.items()}
@@ -523,10 +659,50 @@ def finish(family):
     if not family['errors']:
         try:
             settle_generations(family['people'], parents, spouses)
-        except ExchangeError as error:
-            family['errors'].append(str(error))
+        except ExchangeError:
+            # 옛 족보는 빠진 쪽, 잘못 옮겨 적은 곳이 흔합니다. 파일을 거부하지 않고, 세대가 서로
+            # 맞지 않는 관계만 빼고 불러온 뒤, 누구의 어떤 관계를 뺐는지 알리고 기록 칸에도 적어 둡니다.
+            set_aside(family)
+            try:
+                settle_generations(family['people'], family['parents'], family['spouses'])
+            except ExchangeError as error:
+                family['errors'].append(str(error))
     family['book'] = tidy_book(family['book'])
     return family
+
+
+SET_ASIDE = '불러올 때 뺀 관계'
+
+
+def set_aside(family):
+    """Leave out the links that cannot be laid out in 世, and say which (warnings and each person's note)."""
+    by_key = {p['key']: p for p in family['people']}
+    left_parents, left_spouses = tangles(by_key, family['parents'], family['spouses'])
+    if not left_parents and not left_spouses:
+        return
+    out_p = {(l[0], l[1]) for l in left_parents}
+    out_s = {(l[0], l[1]) for l in left_spouses}
+    family['parents'] = [l for l in family['parents'] if (l[0], l[1]) not in out_p]
+    family['spouses'] = [l for l in family['spouses'] if (l[0], l[1]) not in out_s]
+    lines = []
+    for kind, links in (('parent', left_parents), ('spouse', left_spouses)):
+        for a, b, *_ in links:
+            lines.append(link_text(kind, a, b, by_key))
+            one, other = by_key[a], by_key[b]
+            if kind == 'parent':
+                add_note(one, f'[{SET_ASIDE}] 자녀 {label(other)}')
+                add_note(other, f'[{SET_ASIDE}] 부모 {label(one)}')
+            else:
+                add_note(one, f'[{SET_ASIDE}] 배우자 {label(other)}')
+                add_note(other, f'[{SET_ASIDE}] 배우자 {label(one)}')
+    for person in (by_key[k] for l in left_parents + left_spouses for k in l[:2]):
+        if person.get('present') is not None and 'note' not in person['present']:
+            person['present'].append('note')
+        person['note'] = person['note'][:LIMITS['note']]
+    head = (f'세대가 서로 맞지 않는 관계 {len(lines)}건은 빼고 불러옵니다. 자녀가 부모보다 아래 세대가 아니거나, '
+            f'부부가 서로 다른 세대가 되는 관계입니다. 해당 인물의 기록 칸에 "[{SET_ASIDE}]"로 적어 두었으니, '
+            '불러온 뒤 족보 원본과 맞춰 관계를 다시 이어 주십시오.')
+    family['warnings'][:0] = [head] + [f'뺀 관계: {line}' for line in lines]
 
 
 def tidy_book(book):
@@ -1868,10 +2044,18 @@ def gedcom_family(data):
         people.append(person)
     if undated:
         family['warnings'].append(f'정확하지 않은 날짜(ABT, BEF, BET 등) {undated}개는 날짜 칸 대신 기록 칸에 옮겨 적었습니다.')
-    # 부부가 함께 적힌 가족만 혼인으로 셉니다(한쪽 부모만 있는 가족은 혼인 순서에 넣지 않음).
-    spouse_fams = {node['xref'] for node in roots if node['tag'] == 'FAM'
-                   and sum(1 for child in node['children'] if child['tag'] in ('HUSB', 'WIFE')) == 2}
+    # 관계는 가족(FAM)의 HUSB·WIFE·CHIL과 사람(INDI)의 FAMS·FAMC 두 곳에 적힙니다. 한쪽에만 적은
+    # 파일(다른 프로그램, AI가 만든 파일)도 있으므로 둘을 합쳐 읽습니다.
+    member_of, child_of = defaultdict(list), defaultdict(list)
+    for node in roots:
+        if node['tag'] == 'INDI' and node['xref']:
+            key = node['xref'].strip('@')
+            for ref in _subs(node, 'FAMS'):
+                member_of[ref['value'].strip()].append(key)
+            for ref in _subs(node, 'FAMC'):
+                child_of[ref['value'].strip()].append(key)
     missing = 0
+    fams = []
     for node in roots:
         if node['tag'] != 'FAM':
             continue
@@ -1879,6 +2063,13 @@ def gedcom_family(data):
         kids = [keys.get(child['value'].strip()) for child in node['children'] if child['tag'] == 'CHIL']
         missing += sum(1 for k in couple + kids if k is None)
         couple = [k for k in couple if k]
+        couple += [k for k in dict.fromkeys(member_of.get(node['xref'], [])) if k not in couple][:max(0, 2 - len(couple))]
+        kids = [k for k in kids if k]
+        kids += [k for k in dict.fromkeys(child_of.get(node['xref'], [])) if k not in kids and k not in couple]
+        fams.append((node, couple, kids))
+    # 부부가 함께 적힌 가족만 혼인으로 셉니다(한쪽 부모만 있는 가족은 혼인 순서에 넣지 않음).
+    spouse_fams = {node['xref'] for node, couple, _ in fams if len(couple) == 2}
+    for node, couple, kids in fams:
         if len(couple) == 2:
             # 혼인 순서: 그 사람의 가족(FAMS) 가운데 몇 번째인가. 혼인이 여러 번인 쪽을 따릅니다.
             order = 0

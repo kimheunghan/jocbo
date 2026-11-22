@@ -602,8 +602,9 @@ def merge_into_book(bid: int, data: ImportFamily, uid=Depends(auth)):
             if ('parent', ids[a], ids[b]) not in kept:
                 c.execute(relations.insert().values(source_id=ids[a], target_id=ids[b], kind='parent', adopted=adopted))
         # 반영한 뒤에도 족보 전체가 맞아야 합니다: 순환이 없고, 자녀는 부모보다 아래 세대.
-        everyone = [{'key': str(p['id']), 'generation': p['generation']}
-                    for p in c.execute(select(persons.c.id, persons.c.generation).where(persons.c.book_id == bid)).mappings()]
+        everyone = [{'key': str(p['id']), 'generation': p['generation'], 'korean_name': p['korean_name'], 'hanja_name': p['hanja_name']}
+                    for p in c.execute(select(persons.c.id, persons.c.generation, persons.c.korean_name, persons.c.hanja_name)
+                                       .where(persons.c.book_id == bid)).mappings()]
         links = list(c.execute(select(relations).where(relations.c.source_id.in_([int(p['key']) for p in everyone]))).mappings())
         before = {p['key']: p['generation'] for p in everyone}
         try:

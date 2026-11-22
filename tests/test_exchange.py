@@ -538,6 +538,89 @@ def test_loops_are_refused():
         x.settle_generations(people, [('a', 'b'), ('b', 'c'), ('c', 'a')], [])
 
 
+TANGLED = '''0 HEAD
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME 김갑
+1 SEX M
+0 @I2@ INDI
+1 NAME 이씨
+1 SEX F
+0 @I3@ INDI
+1 NAME 김을
+1 SEX M
+0 @I4@ INDI
+1 NAME 김병
+1 SEX M
+0 @I5@ INDI
+1 NAME 박씨
+1 SEX F
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+0 @F2@ FAM
+1 HUSB @I3@
+1 WIFE @I2@
+0 @F3@ FAM
+1 HUSB @I4@
+1 CHIL @I5@
+0 TRLR
+'''
+
+
+def test_tangled_family_names_the_people():
+    # 어머니가 아들의 배우자로도 적힌 파일: 무엇이 맞지 않는지 이름으로 알려 줍니다.
+    people = [dict(x.blank_person(k), korean_name=n) for k, n in (('I1', '김갑'), ('I2', '이씨'), ('I3', '김을'))]
+    with pytest.raises(x.ExchangeError) as error:
+        x.settle_generations(people, [('I1', 'I3'), ('I2', 'I3')], [('I1', 'I2'), ('I3', 'I2')])
+    assert '김을(I3) ↔ 배우자 이씨(I2)' in str(error.value) or '이씨(I2) ↔ 배우자 김을(I3)' in str(error.value)
+
+
+def test_tangled_gedcom_is_read_with_the_link_left_out():
+    # 옛 족보는 잘못 옮겨 적은 곳이 흔하므로, 파일을 거부하지 않고 맞지 않는 관계만 빼고 불러옵니다.
+    family = x.read_family('tangled.ged', TANGLED.encode('utf-8'))
+    assert family['errors'] == []
+    assert len(family['people']) == 5
+    assert sorted(family['parents']) == [['I1', 'I3', 0], ['I2', 'I3', 0], ['I4', 'I5', 0]]
+    assert sorted(family['spouses']) == [['I1', 'I2', 1]]
+    assert '1건은 빼고 불러옵니다' in family['warnings'][0]
+    assert any('김을(I3)' in w and '이씨(I2)' in w for w in family['warnings'])
+    people = {p['key']: p for p in family['people']}
+    assert '[불러올 때 뺀 관계] 배우자 이씨' in people['I3']['note']
+    assert '[불러올 때 뺀 관계] 배우자 김을' in people['I2']['note']
+    assert 'note' in people['I3']['present']
+    gen = {k: p['generation'] for k, p in people.items()}
+    assert gen['I1'] == gen['I2'] and gen['I3'] == gen['I1'] + 1
+
+
+def test_parent_loop_in_a_file_is_read_with_one_link_left_out():
+    text = ('0 HEAD\n1 CHAR UTF-8\n0 @A@ INDI\n1 NAME 갑\n0 @B@ INDI\n1 NAME 을\n0 @C@ INDI\n1 NAME 병\n'
+            '0 @F1@ FAM\n1 HUSB @A@\n1 CHIL @B@\n0 @F2@ FAM\n1 HUSB @B@\n1 CHIL @C@\n0 @F3@ FAM\n1 HUSB @C@\n1 CHIL @A@\n0 TRLR\n')
+    family = x.read_family('loop.ged', text.encode('utf-8'))
+    assert family['errors'] == [] and len(family['parents']) == 2
+    assert family['warnings'][0].startswith('세대가 서로 맞지 않는 관계 1건')
+
+
+def test_links_written_only_on_the_person_are_read():
+    # AI가 만든 파일처럼 자녀를 사람 쪽(FAMC)에만, 아내를 사람 쪽(FAMS)에만 적은 경우.
+    text = ('0 HEAD\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME 김갑\n1 FAMS @F1@\n0 @I2@ INDI\n1 NAME 이씨\n1 FAMS @F1@\n'
+            '0 @I3@ INDI\n1 NAME 김중현\n1 FAMC @F1@\n0 @I4@ INDI\n1 NAME 김택현\n1 FAMC @F1@\n'
+            '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I3@\n0 TRLR\n')
+    family = x.read_family('ai.ged', text.encode('utf-8'))
+    assert family['errors'] == []
+    assert sorted(family['spouses']) == [['I1', 'I2', 1]]
+    assert pairs(family) == [('I1', 'I3'), ('I1', 'I4'), ('I2', 'I3'), ('I2', 'I4')]
+    gen = {p['key']: p['generation'] for p in family['people']}
+    assert gen['I4'] == gen['I1'] + 1
+
+
+def test_tangles_leave_a_sound_family_alone():
+    family = x.read_family('Park family.ged', OTHER_PROGRAM.encode('utf-8'))
+    by_key = {p['key']: p for p in family['people']}
+    assert x.tangles(by_key, family['parents'], family['spouses']) == ([], [])
+
+
 # 본관은 한자 옆에 한글, 한글 옆에 한자를 괄호로 적고, 다시 불러와도 바뀐 것으로 보지 않습니다.
 def test_bongwan_written_with_its_pair():
     assert x.bongwan_cell('金海') == '金海(김해)'
