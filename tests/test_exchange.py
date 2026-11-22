@@ -553,7 +553,7 @@ TANGLED = '''0 HEAD
 1 NAME 김병
 1 SEX M
 0 @I5@ INDI
-1 NAME 박씨
+1 NAME 김씨
 1 SEX F
 0 @F1@ FAM
 1 HUSB @I1@
@@ -649,6 +649,39 @@ def test_same_names_that_are_not_the_same_person_stay_apart():
     text = (AI_HEAD + ai_person(1, '김갑') + ai_person(2, '이씨', 'F') + ai_person(3, '이씨', 'F') + ai_person(4, '김을')
             + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n0 @F2@ FAM\n1 HUSB @I4@\n1 WIFE @I3@\n1 CHIL @I1@\n0 TRLR\n')
     assert len(x.read_family('apart.ged', text.encode('utf-8'))['people']) == 4
+
+
+def test_incomplete_books_the_customer_named():
+    # 형이 혼인 뒤 일찍 죽어 형수가 동생과 산 경우, 며느리를 빼서 아버지만 있는 자녀: 그대로 불러옵니다.
+    text = (AI_HEAD + ai_person(1, '김갑') + ai_person(2, '김을') + ai_person(3, '김병') + ai_person(4, '이씨', 'F')
+            + ai_person(5, '김정') + ai_person(6, '김무')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n1 CHIL @I3@\n0 @F2@ FAM\n1 HUSB @I2@\n1 WIFE @I4@\n'
+            + '0 @F3@ FAM\n1 HUSB @I3@\n1 WIFE @I4@\n1 CHIL @I5@\n0 @F4@ FAM\n1 HUSB @I5@\n1 CHIL @I6@\n0 TRLR\n')
+    family = x.read_family('book.ged', text.encode('utf-8'))
+    assert family['errors'] == [] and len(family['people']) == 6
+    assert sorted(family['spouses']) == [['I2', 'I4', 1], ['I3', 'I4', 1]]
+    assert ('I5', 'I6') in pairs(family)
+    assert not any('빼고' in w or '합쳤' in w for w in family['warnings'])
+
+
+def test_a_daughter_cannot_have_another_surname():
+    # 아버지가 김씨인데 "박씨"가 자녀로 적혔으면 며느리를 자녀 줄에 넣은 것입니다. 딸 "김씨"는 그대로 둡니다.
+    text = (AI_HEAD + ai_person(1, '김갑') + ai_person(2, '박씨', 'F') + ai_person(3, '김씨', 'F')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n1 CHIL @I3@\n0 TRLR\n')
+    family = x.read_family('daughter.ged', text.encode('utf-8'))
+    assert pairs(family) == [('I1', 'I3')]
+
+
+def test_a_head_written_on_several_pages():
+    # 자녀가 세 쪽에 걸친 가장이 쪽마다 다시 적히고, 부인도 함께 다시 적힌 경우: 한 사람, 한 부인으로 합칩니다.
+    text = (AI_HEAD + ai_person(1, '김갑') + ai_person(2, '이씨', 'F') + ai_person(3, '김을') + ai_person(4, '최씨', 'F')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n'
+            + ai_person(5, '김을') + ai_person(6, '최씨', 'F') + ai_person(7, '김병') + '0 @F2@ FAM\n1 HUSB @I5@\n1 WIFE @I6@\n1 CHIL @I7@\n'
+            + ai_person(8, '김을') + ai_person(9, '최씨', 'F') + ai_person(10, '김정') + '0 @F3@ FAM\n1 HUSB @I8@\n1 WIFE @I9@\n1 CHIL @I10@\n0 TRLR\n')
+    family = x.read_family('heads.ged', text.encode('utf-8'))
+    assert sorted(p['key'] for p in family['people']) == ['I1', 'I10', 'I2', 'I3', 'I4', 'I7']
+    assert ('I3', 'I7') in pairs(family) and ('I3', 'I10') in pairs(family)
+    assert sorted(family['spouses']) == [['I1', 'I2', 1], ['I3', 'I4', 1]]
 
 
 def test_wife_written_as_a_child():

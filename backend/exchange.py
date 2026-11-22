@@ -2162,8 +2162,9 @@ def gedcom_family(data):
     if missing:
         family['warnings'].append(f'가족(FAM) 기록이 가리키는 사람 {missing}명을 파일에서 찾지 못해 그 관계는 건너뛰었습니다.')
     if not own_file:
-        join_page_copies(family)
         unwind_wife_as_child(family)
+        join_page_copies(family)
+        unwind_wife_as_child(family)  # 합친 뒤에야 같은 부모가 드러나는 부부
     return finish(family)
 
 
@@ -2178,12 +2179,16 @@ def join_page_copies(family):
     """옛 족보는 쪽이 바뀌면 그 쪽의 첫 사람을 다시 적습니다. 파일로 옮기면 같은 사람이 둘이 되어,
     앞쪽의 그 사람에게는 자녀가 없고 뒤쪽의 그 사람에게는 부모가 없어 자손이 통째로 끊깁니다.
 
-    이름(한자가 있으면 한자도)과 성별이 같은 남자, 적힌 세가 있으면 세도 같고, 한쪽은 자녀가 없고
-    다른 쪽은 부모가 없으며, 그런 짝이 하나뿐일 때만 한 사람으로 합칩니다. 합친 것은 알림에 적습니다.
+    자녀가 여러 쪽에 걸친 가장은 쪽마다 다시 적히기도 합니다.
+
+    부모가 없는 남자(다시 적힌 사람)를, 이름(한자가 있으면 한자도)·성별·세(적혀 있으면)가 같은 사람에
+    합칩니다. 그 가운데 부모가 있는 사람이 하나뿐이면 그 사람에, 부모가 있는 사람이 없으면 파일에 먼저
+    적힌 사람(맨 윗대 조상이 다시 적힌 경우)에 합칩니다. 부모가 있는 같은 이름이 둘 이상이면 누구인지
+    가릴 수 없어 합치지 않고 알립니다. 함께 다시 적힌 부인(부모 없는 같은 이름의 배우자)도 합칩니다.
     """
     people = family['people']
     has_parent = {child for _, child, *_ in family['parents']}
-    has_child = {parent for parent, *_ in family['parents']}
+    linked = has_parent | {parent for parent, *_ in family['parents']} | {k for a, b, *_ in family['spouses'] for k in (a, b)}
 
     def fits(a, b):
         same_name = a['korean_name'] == b['korean_name'] and (not a['hanja_name'] or not b['hanja_name'] or a['hanja_name'] == b['hanja_name'])
@@ -2192,23 +2197,81 @@ def join_page_copies(family):
         return (same_name and same_gen and a['gender'] == b['gender'] and a['gender'] != '여'
                 and len(a['korean_name']) >= 2 and not a['korean_name'].endswith(('씨', '氏')))
 
-    leaves = defaultdict(list)
+    named = defaultdict(list)
     for p in people:
-        if p['key'] in has_parent and p['key'] not in has_child:
-            leaves[p['korean_name']].append(p)
-    heads = defaultdict(list)
+        named[p['korean_name']].append(p)
+    name_of = {p['key']: p['korean_name'] for p in people}
+    mate_names = defaultdict(set)
+    for a, b, *_ in family['spouses']:
+        mate_names[a].add(name_of[b])
+        mate_names[b].add(name_of[a])
+    place = {p['key']: i for i, p in enumerate(people)}
+    into, unsure, guessed = {}, [], []
     for p in people:
-        if p['key'] not in has_parent and p['key'] in has_child:
-            heads[p['korean_name']].append(p)
-    into = {}
-    for name, copies in heads.items():
-        originals = [o for o in leaves.get(name, []) if any(fits(o, c) for c in copies)]
-        copies = [c for c in copies if any(fits(o, c) for o in originals)]
-        if len(originals) == 1 and len(copies) == 1:
-            into[copies[0]['key']] = originals[0]['key']
+        if p['key'] in has_parent or p['key'] not in linked:
+            continue
+        same = [o for o in named[p['korean_name']] if o is not p and fits(o, p)]
+        with_parents = [o for o in same if o['key'] in has_parent]
+        if len(with_parents) > 1:
+            # 같은 이름이 여럿이면 부인 이름이 같은 사람, 그래도 여럿이면(또는 부인이 아직 이어지지 않았으면)
+            # 다시 적힌 곳 바로 앞에 적힌 사람입니다. 앞에 아무도 없으면 가릴 수 없습니다.
+            wed = [o for o in with_parents if mate_names.get(o['key'], set()) & mate_names.get(p['key'], set())]
+            pool = wed or with_parents
+            earlier = [o for o in pool if place[o['key']] < place[p['key']]]
+            if len(pool) == 1:
+                with_parents = pool
+            elif earlier:
+                with_parents = [max(earlier, key=lambda o: place[o['key']])]
+                guessed.append(f'{who(with_parents[0], with_parents[0]["key"])} = {who(p, p["key"])}')
+        if len(with_parents) == 1:
+            into[p['key']] = with_parents[0]['key']
+        elif len(with_parents) > 1:
+            unsure.append(who(p, p['key']))
+        else:
+            first = same[0] if same else None
+            if first and people.index(first) < people.index(p):
+                into[p['key']] = first['key']
+    by_key = {p['key']: p for p in people}
+
+    def final(k):
+        while k in into:
+            k = into[k]
+        return k
+
+    into = {k: final(k) for k in into}
+    # 함께 다시 적힌 부인: 합친 사람의 배우자 가운데 부모가 없고 이름이 같은 사람은 하나로 합칩니다.
+    wives = defaultdict(list)
+    for a, b, *_ in family['spouses']:
+        a2, b2 = into.get(a, a), into.get(b, b)
+        for man, wife in ((a2, b), (b2, a)):
+            if man in into.values() and wife not in into and wife not in has_parent:
+                wives[(man, by_key[wife]['korean_name'])].append(wife)
+    for (_, _), group in wives.items():
+        group = sorted(dict.fromkeys(group), key=lambda k: people.index(by_key[k]))
+        for extra in group[1:]:
+            into[extra] = group[0]
+    # 족보에서 配는 남편 바로 다음에 적습니다. 앞쪽에 관계 없이 남은 부인이 남편 바로 뒤에 있고,
+    # 다시 적힌 곳의 부인과 이름이 같으면 같은 사람입니다.
+    for (man, wife_name), group in wives.items():
+        at = place[man] + 1
+        if at < len(people):
+            lone = people[at]
+            if lone['key'] not in linked and lone['korean_name'] == wife_name and lone['key'] not in into:
+                target = into.get(group[0], group[0])
+                into[target] = lone['key']
+                for k, v in list(into.items()):
+                    if v == target:
+                        into[k] = lone['key']
+    if guessed:
+        family['warnings'].insert(0, f'같은 세에 같은 이름이 여럿이라, 다시 적힌 곳 바로 앞의 사람과 합친 경우가 {len(guessed)}건 있습니다. '
+                                     f'족보 원본과 맞는지 꼭 확인해 주십시오: {", ".join(guessed[:20])}'
+                                     + (f' 외 {len(guessed) - 20}건' if len(guessed) > 20 else '') + '.')
+    if unsure:
+        family['warnings'].insert(0, f'부모 없이 다시 적힌 것으로 보이지만 같은 이름이 여럿이라 합치지 못한 사람이 있습니다. '
+                                     f'불러온 뒤 맞는 부모와 이어 주십시오: {", ".join(unsure[:20])}'
+                                     + (f' 외 {len(unsure) - 20}명' if len(unsure) > 20 else '') + '.')
     if not into:
         return
-    by_key = {p['key']: p for p in people}
     lines = []
     for copy, original in into.items():
         a, b = by_key[original], by_key[copy]
@@ -2226,7 +2289,7 @@ def join_page_copies(family):
     family['parents'] = [[into.get(a, a), into.get(b, b), *rest] for a, b, *rest in family['parents']]
     family['spouses'] = [[into.get(a, a), into.get(b, b), *rest] for a, b, *rest in family['spouses']]
     family['warnings'].insert(0, f'쪽이 바뀌며 다시 적힌 것으로 보이는 같은 사람 {len(lines)}쌍을 한 사람으로 합쳤습니다'
-                                 f'(앞쪽에는 자녀가 없고 뒤쪽에는 부모가 없는 같은 이름): {", ".join(lines[:20])}'
+                                 f'(부모 없이 다시 적힌 같은 이름·같은 세): {", ".join(lines[:20])}'
                                  + (f' 외 {len(lines) - 20}쌍' if len(lines) > 20 else '') + '. 다른 사람이면 불러온 뒤 나눠 주십시오.')
 
 
@@ -2251,6 +2314,12 @@ def unwind_wife_as_child(family):
             drop.update((p, outsiders[0]) for p in parents_of[outsiders[0]])
         else:
             unsure.append(f'{who(by_key[one], one)} ↔ {who(by_key[other], other)}')
+    # 아버지와 성이 다른 "○씨"는 딸일 수 없습니다(딸은 아버지의 성). 자녀 줄에 잘못 들어간 며느리로 봅니다.
+    for child, parents in parents_of.items():
+        name = by_key[child]['korean_name']
+        fathers = [p for p in parents if by_key[p]['gender'] == '남']
+        if fathers and name.endswith(('씨', '氏')) and all(_surname(by_key[f]) != _surname(by_key[child]) for f in fathers):
+            drop.update((p, child) for p in parents)
     if drop:
         family['parents'] = [l for l in family['parents'] if (l[0], l[1]) not in drop]
         wives = sorted({c for _, c in drop})
