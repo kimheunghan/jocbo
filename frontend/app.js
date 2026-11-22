@@ -1467,7 +1467,7 @@ function relativeGeneration(kind,anchor){
  if(kind==='child')return anchor.generation+1;
  return anchor.generation;
 }
-function addRelative(kind,personId){
+function addRelative(kind,personId,pickFirst=false){
  const anchor=book.persons.find(p=>p.id===personId);
  if(!anchor)return;
  if(kind==='sibling'&&!parentsOfPerson(anchor.id).length){
@@ -1486,7 +1486,8 @@ function addRelative(kind,personId){
  form.elements.generation.value=relativeGeneration(kind,anchor);
  if(kind!=='spouse')setPersonScriptField('bon_gwan',anchor.bon_gwan||book.bon_gwan||'');
  $('#relativePickMode').hidden=book.persons.length<2;
- setRelativeMode(false);
+ // 이어지지 않은 사람 목록에서 왔으면 이을 사람이 이미 족보에 있으므로 "기존 인물에서 고르기"로 엽니다.
+ setRelativeMode(pickFirst&&book.persons.length>=2);
 }
 // The banner and both pickers name people, so they are written in the window's
 // own script and repainted whenever its switch is thrown.
@@ -1503,9 +1504,13 @@ function paintRelativeBanner(){
   +'<option value="">배우자 없이 (이 사람만)</option>';
  mate.value=chosenMate;
  const pick=$('#relativePick'),chosenPick=pick.value;
+ // 고를 사람은 그 관계에 맞는 세대(부모는 한 세대 위, 배우자는 같은 세대, 자녀는 한 세대 아래)를 앞에 둡니다.
+ const fitting={parent:anchor.generation-1,spouse:anchor.generation,child:anchor.generation+1,sibling:anchor.generation}[kind];
  pick.innerHTML=book.persons.filter(p=>p.id!==anchor.id)
+  .map((p,index)=>({p,index})).sort((a,b)=>(a.p.generation!==fitting)-(b.p.generation!==fitting)||a.index-b.index).map(({p})=>p)
   .map(p=>`<option value="${p.id}">${name(p)} (${p.generation}세대)</option>`).join('');
  pick.value=chosenPick;
+ if(pick.selectedIndex<0&&pick.options.length)pick.selectedIndex=0;
 }
 // Registering someone new and picking someone already recorded are both offered
 // at once; a single toggle kept whichever one it was not showing out of sight.
@@ -1896,7 +1901,103 @@ function renderRelations(){if(!book)return;const options='<option value="">인�
   :`<label class="relation-detail"><input type="checkbox" data-adopted="${r.id}"${r.adopted?' checked':''}> 양자·양녀(입양)</label>`;
  $('#relationList').innerHTML=shown.map(r=>`<div class="relation-row"><span>${esc(personName(r.source_id))} ${r.kind==='parent'?'→ 자녀':'↔ 배우자'} ${esc(personName(r.target_id))}</span>${detail(r)}<button class="secondary" data-relation="${r.id}">관계 삭제</button></div>`).join('')||(book.persons.length<2?'<p class="muted">인물 2명 이상 등록 후 관계 지정 가능</p>':'<p class="muted">등록된 관계 없음</p>');document.querySelectorAll('[data-relation]').forEach(b=>b.onclick=run(async()=>{if(!await ask('가족 관계만 삭제 · 인물 기록은 유지','삭제'))return;await api('/relations/'+b.dataset.relation,'DELETE');await refresh();message('관계 삭제 완료');}));
  document.querySelectorAll('[data-order]').forEach(select=>select.onchange=run(async()=>{await api('/relations/'+select.dataset.order,'PUT',{marriage_order:Number(select.value)});await refresh();message('혼인 순서를 고쳤습니다.');}));
- document.querySelectorAll('[data-adopted]').forEach(box=>box.onchange=run(async()=>{await api('/relations/'+box.dataset.adopted,'PUT',{adopted:box.checked});await refresh();message(box.checked?'입양으로 표시했습니다.':'입양 표시를 없앴습니다.');}));}
+ document.querySelectorAll('[data-adopted]').forEach(box=>box.onchange=run(async()=>{await api('/relations/'+box.dataset.adopted,'PUT',{adopted:box.checked});await refresh();message(box.checked?'입양으로 표시했습니다.':'입양 표시를 없앴습니다.');}));
+ renderLoose();}
+// 이어지지 않은 사람: 옛 족보는 빠진 쪽, 잘못 옮긴 곳이 흔해서, 사진 판독·불러오기·직접 입력
+// 어느 길로 들어와도 부모와 끊겨 가계도에서 따로 떨어진 사람이 생깁니다. 그런 사람을 모아
+// 보여 주고, 기존 "가족 관계" 등록 창(addRelative)으로 바로 잇게 합니다.
+const SET_ASIDE='[불러올 때 뺀 관계]';
+function hiddenLooseKey(){return 'jocbo.loose.hidden.'+(book?book.id:'');}
+function hiddenLoose(){try{return new Set(JSON.parse(localStorage.getItem(hiddenLooseKey())||'[]'));}catch{return new Set();}}
+function saveHiddenLoose(ids){try{localStorage.setItem(hiddenLooseKey(),JSON.stringify([...ids]));}catch{}}
+function loosePeople(){
+ const persons=book.persons,byId=new Map(persons.map(p=>[p.id,p]));
+ const parents=new Map(),children=new Map(),mates=new Map();
+ const push=(map,key,value)=>{if(!map.has(key))map.set(key,[]);map.get(key).push(value);};
+ for(const r of book.relations){
+  if(!byId.has(r.source_id)||!byId.has(r.target_id))continue;
+  if(r.kind==='parent'){push(parents,r.target_id,r.source_id);push(children,r.source_id,r.target_id);}
+  else{push(mates,r.source_id,r.target_id);push(mates,r.target_id,r.source_id);}
+ }
+ const order=new Map(persons.map((p,i)=>[p.id,i]));
+ const orphan=persons.filter(p=>!parents.has(p.id));
+ // 시집·장가온 사람: 배우자가 부모 있는 사람이거나, 둘 다 부모가 없으면 여자 쪽(같으면 나중에 적힌 쪽).
+ const guest=p=>(mates.get(p.id)||[]).some(id=>{
+  const m=byId.get(id);
+  if(parents.has(id))return true;
+  if(p.gender==='여'&&m.gender!=='여')return true;
+  if(p.gender===m.gender)return order.get(p.id)>order.get(id);
+  return false;
+ });
+ const heads=orphan.filter(p=>!guest(p));
+ // 맨 윗대 조상: 자손이 가장 많은 줄기의 맨 위 사람(같으면 세가 높고 먼저 적힌 사람).
+ const issue=p=>{
+  const seen=new Set([p.id]),todo=[p.id,...(mates.get(p.id)||[])];
+  while(todo.length){const id=todo.pop();for(const c of children.get(id)||[])if(!seen.has(c)){seen.add(c);todo.push(c,...(mates.get(c)||[]));}}
+  return seen.size;
+ };
+ const counted=heads.map(p=>({p,n:issue(p)}));
+ counted.sort((a,b)=>b.n-a.n||a.p.generation-b.p.generation||order.get(a.p.id)-order.get(b.p.id));
+ const top=counted.length?counted[0].p.id:null;
+ const list=[];
+ for(const {p} of counted){
+  if(p.id===top)continue;
+  const alone=!(mates.get(p.id)||[]).length&&!(children.get(p.id)||[]).length;
+  // 혼자 떨어진 "○씨" 부인은 남편과 이어야 하므로 배우자 잇기를 권합니다.
+  const wife=alone&&p.gender!=='남'&&/[씨氏]$/.test(p.korean_name||'');
+  list.push({person:p,why:alone?'관계 없음':'부모 없음',kind:wife?'spouse':'parent'});
+ }
+ // 불러올 때 뺀 관계가 기록 칸에 남은 사람.
+ for(const p of persons){
+  const lines=(p.note||'').split('\n').filter(line=>line.startsWith(SET_ASIDE));
+  for(const line of lines){
+   const rest=line.slice(SET_ASIDE.length).trim();
+   const kind=rest.startsWith('배우자')?'spouse':rest.startsWith('자녀')?'child':'parent';
+   list.push({person:p,why:'불러올 때 뺀 관계: '+rest,kind,line});
+  }
+ }
+ return list;
+}
+function renderLoose(){
+ const box=$('#looseBox');
+ if(!book||book.persons.length<2){box.hidden=true;box.innerHTML='';return;}
+ const hidden=hiddenLoose();
+ const all=loosePeople();
+ const items=all.filter(item=>!hidden.has(item.line?`${item.person.id}:${item.line}`:String(item.person.id)));
+ const tucked=all.length-items.length;
+ if(!items.length&&!tucked){box.hidden=true;box.innerHTML='';return;}
+ const closed=box.dataset.closed==='1';
+ const WORD={parent:'부모 잇기',spouse:'배우자 잇기',child:'자녀 잇기'};
+ box.hidden=false;
+ box.innerHTML=`<div class="loose-head"><strong>${items.length?`⚠ 이어지지 않은 사람 ${items.length}명`:'이어지지 않은 사람 없음'}</strong>`
+  +`<button type="button" class="secondary" data-loose-toggle>${closed?'펼치기':'접기'}</button></div>`
+  +(closed?'':`<p class="muted">부모나 배우자와 이어지지 않아 가계도에서 따로 떨어진 사람입니다. 족보 원본과 맞춰 이어 주십시오.</p>`
+  +items.map((item,i)=>`<div class="loose-row"><span><b>${esc(displayName(item.person).primary)}</b> · ${item.person.generation}세대 · ${esc(item.why)}</span>`
+   +`<span class="loose-actions"><button type="button" data-loose-link="${i}">${WORD[item.kind]}</button>`
+   +(item.line?`<button type="button" class="secondary" data-loose-done="${i}" title="기록 칸에서 이 표시를 지웁니다">고쳤음</button>`
+     :`<button type="button" class="secondary" data-loose-hide="${i}" title="일부러 따로 둔 사람이면 이 PC의 목록에서 숨깁니다">목록에서 숨기기</button>`)
+   +'</span></div>').join('')
+  +(tucked?`<p class="muted">목록에서 숨긴 사람 ${tucked}명 · <button type="button" class="link-button" data-loose-unhide>다시 보이기</button></p>`:''));
+ box.querySelector('[data-loose-toggle]').onclick=()=>{box.dataset.closed=closed?'':'1';renderLoose();};
+ box.querySelectorAll('[data-loose-link]').forEach(b=>b.onclick=()=>{
+  const item=items[Number(b.dataset.looseLink)];
+  $('#relationForm').elements.source_id.value=String(item.person.id);
+  $('#relationForm').elements.kind.value=item.kind;
+  addRelative(item.kind,item.person.id,true);
+ });
+ box.querySelectorAll('[data-loose-hide]').forEach(b=>b.onclick=()=>{
+  const ids=hiddenLoose();ids.add(String(items[Number(b.dataset.looseHide)].person.id));saveHiddenLoose(ids);renderLoose();
+ });
+ box.querySelectorAll('[data-loose-done]').forEach(b=>b.onclick=run(async()=>{
+  const item=items[Number(b.dataset.looseDone)],p=item.person;
+  const note=(p.note||'').split('\n').filter(line=>line!==item.line).join('\n');
+  const fields=['korean_name','hanja_name','bon_gwan','generation','gender','birth_date','death_date'];
+  await api('/persons/'+p.id,'PUT',{...Object.fromEntries(fields.map(f=>[f,p[f]])),note});
+  await refresh();message(`${p.korean_name} — 뺀 관계 표시를 지웠습니다.`);
+ }));
+ const unhide=box.querySelector('[data-loose-unhide]');
+ if(unhide)unhide.onclick=()=>{saveHiddenLoose(new Set());renderLoose();};
+}
 // 한 사람의 배우자 관계들을 혼인 순서대로 세웁니다(backend/exchange.py in_marriage_order와 같은 규칙).
 // 혼인 순서를 정한 관계는 그 순서를, 정하지 않은 관계(0)는 그 사람의 배우자 가운데 등록한 순서를 씁니다.
 function inMarriageOrder(links){

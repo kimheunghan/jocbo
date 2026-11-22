@@ -2459,6 +2459,14 @@ button {
 .relation-detail { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 13px; white-space: nowrap; }
 .relation-detail select { width: auto; min-height: 0; padding: 2px 6px; }
 .relation-detail input { width: auto; min-height: 0; margin: 0; }
+.loose-box { margin: 0 0 16px; padding: 12px 16px; border: 1px solid #e3c98f; border-left: 4px solid #b8862b; border-radius: 8px; background: #fff8e8; }
+.loose-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.loose-head button { min-height: 0; padding: 4px 12px; }
+.loose-box > p { margin: 6px 0; }
+.loose-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid #efe0bd; }
+.loose-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.loose-actions button { min-height: 0; padding: 4px 10px; font-size: 13px; }
+@media (max-width: 640px) { .loose-row { flex-direction: column; align-items: flex-start; } }
 .import-warning { margin: 10px 0; padding: 10px 14px; border: 1px solid #dfaaa4; border-left: 4px solid #b3372a; border-radius: 8px; background: #fff2f0; color: #8f2d24; }
 .import-warning strong { display: block; margin-bottom: 4px; }
 .import-warning ul { margin: 4px 0; padding-left: 20px; }
