@@ -15,6 +15,7 @@
 
 ## 라이선스 서버를 실제 사이트에 올림 — 2026.11.24
 
+- 진짜 Lemon Squeezy 키로 실제 서버 시험(2026-11-24, 운영자의 0원 FindInside 시험 주문 키): 우리의 족보로 넣으면 거절, FindInside 등록 성공(서버가 이어받음), 확인 valid:true, 해제, 해제 뒤 확인 valid:false. 끝난 뒤 그 키의 등록 수 0/2.
 - 실제 DB(jocbo-share)에 licenses·activations·mail_log 표를 더하고(기존 공유 자료 그대로), 메일 창구 비밀값(MAIL_URL, MAIL_SECRET)을 넣었습니다.
 - 실제 사이트 화면은 그대로 두고 서버 코드만 더했습니다(`site-license` 갈래). PADDLE_PRICES는 비어 있어 Paddle 키는 아직 만들지 않고, 구매(`/buy`)는 그대로 Lemon Squeezy입니다. Paddle Live API 키와 알림 서명 키는 Live 상품을 만들 때 넣습니다.
 - 확인: 없는 키 등록·확인·해제 거절, 서명 없는 결제 알림 401, FindInside 사이트의 키 다시 받기 허용, 기존 공유 링크 열림, 설치 파일 내려받기 그대로.
