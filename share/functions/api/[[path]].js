@@ -17,6 +17,10 @@
 //     GET    /api/me, /api/books, /api/books/:bid, /api/files/:fid
 //
 // 저장은 D1 데이터베이스(바인딩 DB, schema.sql)에, 쿠키 서명은 비밀값 SHARE_SECRET 으로 합니다.
+//
+// 라이선스(/api/license/*, /api/paddle/webhook)는 lib/license.js 가 맡습니다.
+
+import { licenseApi, webhook } from '../../lib/license.js';
 
 const COOKIE = 'jocbo_share';
 const DAYS = 30;
@@ -87,6 +91,10 @@ export async function onRequest({ request, env, params }) {
   const parts = [].concat(params.path || []).filter(Boolean);
   const method = request.method;
   const db = env.DB;
+
+  // -- 라이선스 ----------------------------------------------------------
+  if (parts[0] === 'license') return licenseApi(request, env, parts);
+  if (parts[0] === 'paddle' && parts[1] === 'webhook' && method === 'POST') return webhook(request, env);
 
   // -- PC 프로그램 ------------------------------------------------------
   if (parts[0] === 'share') {
