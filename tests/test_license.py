@@ -10,7 +10,7 @@ class FakeServer:
     """Our license server (share/lib/license.js): two places per key, keys for
     both programs it sells, and Lemon Squeezy keys it has taken over."""
 
-    PRODUCTS = {'JOCBO-KEY-1': 'jocbo', 'FINDINSIDE-KEY': 'findinside', '5AC927E4-617A-46EF-9947-43E1B5903BEA': 'jocbo'}
+    PRODUCTS = {'JOCBO-KEY-1': 'jocbo', 'FINDINSIDE-KEY': 'findinside', 'A1B2C3D4-1111-4222-8333-444455556666': 'jocbo'}
 
     def __init__(self):
         self.instances = {key: [] for key in self.PRODUCTS}
@@ -101,7 +101,7 @@ def test_the_program_asks_our_server_for_its_own_product(client, lemon):
 
 def test_a_lemon_squeezy_key_still_works_through_our_server(client, lemon):
     account(client)
-    assert client.post('/api/license', json={'key': '5ac927e4-617a-46ef-9947-43e1b5903bea'}).json() == {'plan': 'paid'}
+    assert client.post('/api/license', json={'key': 'a1b2c3d4-1111-4222-8333-444455556666'}).json() == {'plan': 'paid'}
     assert client.delete('/api/license').json() == {'plan': 'free'}
 
 
