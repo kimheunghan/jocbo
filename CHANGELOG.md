@@ -5,6 +5,11 @@
 - 설치 파일(exe): `store-v<버전>` 태그, 홈페이지에서 `jocbo-setup_v<버전>.exe`로 내려받음
 - Microsoft Store: `msix-v<버전>` 태그
 
+## 약관·개인정보처리방침·환불 정책 개정 (실제 사이트) — 2026.11.23
+
+- 판매자를 흥한소프트(K Software), 대표 김흥한으로 적고, 판매 대행자를 "결제 화면에 표시된 Paddle.com 또는 Lemon Squeezy"로 적었습니다. 지금(Lemon Squeezy)과 Paddle로 옮긴 뒤 모두 맞는 문구입니다. 구매 뒤 업데이트는 모두 무료라고 고쳤습니다.
+- 실제 사이트에는 그때 올라가 있던 판(6acdaa2)에 약관 세 장만 바꿔 올렸습니다(`site-legal` 갈래). Paddle 결제 화면과 라이선스 서버는 올리지 않았습니다.
+
 ## 라이선스 서버: FindInside 결제 페이지와 키 확인 (시험 사이트만) — 2026.11.23
 
 - `POST /api/license/validate {key, instance, product}` → `{valid, product?, detail?}`. 환불된 키, 등록을 푼 PC, 다른 프로그램의 키, 없는 키는 `valid:false`입니다. Lemon Squeezy 키는 그쪽이 살아 있는 동안 그쪽 답을 따르고, 확인할 곳에 닿지 못하면 503을 돌려주어 프로그램이 이전 상태를 그대로 두게 합니다.
