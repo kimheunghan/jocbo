@@ -5,6 +5,11 @@
 - 설치 파일(exe): `store-v<버전>` 태그, 홈페이지에서 `jocbo-setup_v<버전>.exe`로 내려받음
 - Microsoft Store: `msix-v<버전>` 태그
 
+## 2026.11.9 게시 — 2026.11.24
+
+- Microsoft Store Submission 5(`msix-v2026.11.9`) 심사 통과.
+- 홈페이지: 설치 파일을 `store-v2026.11.9`(jocbo-setup_v26.11.9.exe)로 바꾸고, AI로 만든 GEDCOM·빠진 쪽이 있는 족보 불러오기와 이어지지 않은 사람 잇기 안내(첫 화면, 자주 묻는 질문, 사용 안내 2장)를 올렸습니다. 실제 사이트 판(6acdaa2)에 이 4개 파일과 약관만 얹었고(`site-2026.11.9` 갈래), Paddle 결제 화면과 라이선스 서버는 올리지 않았습니다.
+
 ## 2026.11.9 — 2026.11.23 (손님이 알려 준 GEDCOM 불러오기 오류 수정)
 
 브랜치 `release-2026.11.9`. 키 확인은 지금 판 그대로 Lemon Squeezy(`backend/license.py`를 msix-v2026.11.8 것으로 되돌림, Paddle 서버 확인은 `main`에만 있음).
