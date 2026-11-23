@@ -7,6 +7,7 @@
 
 ## 2026.11.10 — 2026.11.24
 
+- 2026-11-24: Lemon Squeezy로 산 우리의 족보 키 2개를 실제 라이선스 서버(jocbo-share)에 미리 등록함(출처 lemonsqueezy, PC 자리 1/2, 옛 판으로 등록한 PC는 "이전 등록" 자리표). 두 손님은 옛 판으로 등록해 서버가 키를 몰랐으므로, 2027-03-31 뒤 새 PC 등록이 거절될 뻔했음. 등록 전 Lemon Squeezy에서 두 키 모두 정상(족보, 1/2) 확인, 서버 시험 23개 통과. 두 손님께 업데이트 안내 메일 보냄(운영자 Gmail).
 - 2026-11-24: Microsoft Store Submission 6(`msix-v2026.11.10`) 제출, 2026-11-24 통과(게시). 홈페이지 설치 파일을 `store-v2026.11.10`(jocbo-setup_v26.11.10.exe)로 바꿈(`site-2026.11.10` 갈래, 첫 화면 한 줄만). 받은 파일의 판 번호 2026.11.10 확인.
 - 정식판 키를 우리 라이선스 서버(jocbo.pages.dev)에서 확인합니다(`backend/license.py`). Paddle로 산 `JOCBO-` 키와 Lemon Squeezy로 산 키를 모두 받습니다. Lemon Squeezy 키는 서버가 Lemon Squeezy에 물어 이어받으므로, Lemon Squeezy가 닫힌(2027-03-31) 뒤에도 그대로 씁니다. 2026.11.9 이하 판은 Lemon Squeezy에 직접 묻기 때문에 Paddle 키를 받지 못하고, 2027-03-31 뒤에는 등록도 되지 않습니다.
 - 2026.11.9 판(`release-2026.11.9`)에 2125723(Lemon Squeezy 확인으로 되돌림)만 되돌려 만들었습니다(`release-2026.11.10`).
