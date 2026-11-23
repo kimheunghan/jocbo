@@ -30,7 +30,7 @@ const SECRET = 'whsec_test';
 beforeEach(() => {
   mails = [];
   paddleTxn = { id: TXN, status: 'completed', customer_id: 'ctm_1', items: [{ price: { id: PRICE_JOCBO }, quantity: 1 }] };
-  lemon = { up: true, keys: { '5AC927E4-617A-46EF-9947-43E1B5903BEA': { product: 1420186, used: ['ls-inst-1'], limit: 2 } } };
+  lemon = { up: true, keys: { 'A1B2C3D4-1111-4222-8333-444455556666': { product: 1420186, used: ['ls-inst-1'], limit: 2 } } };
   env = {
     DB: d1(), PADDLE_ENV: 'sandbox', PADDLE_API_KEY: 'k', PADDLE_WEBHOOK_SECRET: SECRET,
     PADDLE_PRICES: JSON.stringify({ [PRICE_JOCBO]: 'jocbo', [PRICE_FIND]: 'findinside' }),
@@ -42,7 +42,7 @@ beforeEach(() => {
     if (url.startsWith('https://sandbox-api.paddle.com/transactions/')) {
       return url.endsWith(paddleTxn.id) ? reply({ data: paddleTxn }) : reply({ error: { code: 'not_found' } }, 404);
     }
-    if (url === 'https://sandbox-api.paddle.com/customers/ctm_1') return reply({ data: { email: 'Buyer@Example.com', name: '김영두' } });
+    if (url === 'https://sandbox-api.paddle.com/customers/ctm_1') return reply({ data: { email: 'Buyer@Example.com', name: '홍길동' } });
     if (url === env.MAIL_URL) {
       const body = JSON.parse(init.body);
       assert.equal(body.secret, 'm');
@@ -62,7 +62,7 @@ beforeEach(() => {
         if (k.used.length >= k.limit) return reply({ activated: false, error: 'This license key has reached the activation limit.' }, 400);
         k.used.push(`ls-inst-${k.used.length + 1}`);
         return reply({ activated: true, instance: { id: k.used.at(-1) }, license_key: { activation_usage: k.used.length, activation_limit: k.limit },
-          meta: { product_id: k.product, order_id: 4862011, customer_email: 'report@naver.com', customer_name: 'kim young du' } });
+          meta: { product_id: k.product, order_id: 4800001, customer_email: 'ls-buyer@example.com', customer_name: 'test buyer' } });
       }
       k.used = k.used.filter(i => i !== f.instance_id);
       return reply({ deactivated: true });
@@ -100,7 +100,7 @@ test('결제 완료 알림 → 키 하나 발급, 메일 한 통', async () => {
   assert.equal(mails.length, 1);
   assert.equal(mails[0].to, 'buyer@example.com');
   assert.ok(mails[0].text.includes(rows[0].key));
-  assert.ok(mails[0].text.includes('김영두 님'));
+  assert.ok(mails[0].text.includes('홍길동 님'));
   assert.ok(mails[0].text.includes('https://jocbo.pages.dev/license'));
 });
 
@@ -199,19 +199,19 @@ test('다른 상품 키, 없는 키, 환불된 키는 거절', async () => {
 });
 
 test('Lemon Squeezy 키: 처음 들어오면 이어받고, 이미 쓰던 PC 1대도 셈', async () => {
-  const key = '5ac927e4-617a-46ef-9947-43e1b5903bea';
+  const key = 'a1b2c3d4-1111-4222-8333-444455556666';
   const a = await read(await call('license/activate', { key, name: 'PC-2', product: 'jocbo' }));
   assert.equal(a.activated, true);
   const row = env.DB.sql.prepare('SELECT * FROM licenses').get();
   assert.equal(row.source, 'lemonsqueezy');
-  assert.equal(row.email, 'report@naver.com');
+  assert.equal(row.email, 'ls-buyer@example.com');
   assert.equal(env.DB.sql.prepare('SELECT COUNT(*) n FROM activations').get().n, 2);
   // Lemon Squeezy 가 PC 수를 세는 동안: 3대째는 그쪽이 거절
   assert.equal((await call('license/activate', { key, product: 'jocbo' })).status, 409);
 });
 
 test('Lemon Squeezy 가 닫힌 뒤에도 이어받은 키는 여기서 셈, 옛 PC 해제도 됨', async () => {
-  const key = '5AC927E4-617A-46EF-9947-43E1B5903BEA';
+  const key = 'A1B2C3D4-1111-4222-8333-444455556666';
   const first = await read(await call('license/activate', { key, name: 'PC-2', product: 'jocbo' }));
   lemon.up = false;
   assert.equal((await call('license/activate', { key, product: 'jocbo' })).status, 409);
@@ -223,7 +223,7 @@ test('Lemon Squeezy 가 닫힌 뒤에도 이어받은 키는 여기서 셈, 옛 
 
 test('Lemon Squeezy 가 닫힌 뒤 처음 보는 Lemon Squeezy 키는 거절', async () => {
   lemon.up = false;
-  assert.equal((await call('license/activate', { key: '5AC927E4-617A-46EF-9947-43E1B5903BEA', product: 'jocbo' })).status, 404);
+  assert.equal((await call('license/activate', { key: 'A1B2C3D4-1111-4222-8333-444455556666', product: 'jocbo' })).status, 404);
 });
 
 test('FindInside 의 Lemon Squeezy 키를 우리의 족보에 넣으면 거절하고 자리를 돌려줌', async () => {
@@ -338,7 +338,7 @@ test('확인: Lemon Squeezy 키는 그쪽 답을 따르고, 닿지 않으면 503
   lemon.keys[key].disabled = false;
   lemon.up = false;
   assert.equal((await check()).valid, true);
-  assert.equal((await check({ key: '5AC927E4-617A-46EF-9947-43E1B5903BEA', instance: 'x', product: 'jocbo' })).status, 503);
+  assert.equal((await check({ key: 'A1B2C3D4-1111-4222-8333-444455556666', instance: 'x', product: 'jocbo' })).status, 503);
 });
 
 test('두 번 산 키를 다시 받으면 주문 번호를 키마다 적고, 키는 굵게', async () => {
