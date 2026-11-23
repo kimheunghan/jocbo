@@ -47,6 +47,10 @@ export const SELLER = '흥한소프트';
 export const SELLER_FULL = '흥한소프트(K Software)';
 const LS_API = 'https://api.lemonsqueezy.com/v1/licenses';
 const LS_KEY = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+// Lemon Squeezy 결제 종료(2027-03-31). 이 뒤에는 그쪽에 묻지 않고, 이어받아 둔 키를 여기서만 셉니다.
+// 그쪽이 닫힌 뒤 "없는 키"라고 답하더라도 손님 키를 거절하지 않기 위해서입니다. 시험에서는 env.LS_END 로 바꿉니다.
+const LS_END = '2027-04-01T00:00:00+09:00';
+const lemonOpen = env => Date.now() < Date.parse(env.LS_END || LS_END);
 const TXN = /^txn_[0-9a-z]{20,40}$/;
 const RESEND_GAP = 5 * 60 * 1000;
 
@@ -258,7 +262,7 @@ async function activate(env, body) {
   const row = await env.DB.prepare('SELECT * FROM licenses WHERE key = ?').bind(key).first();
 
   // Lemon Squeezy 키: 그쪽이 살아 있는 동안은 그쪽이 PC 수를 세고, 여기에도 적어 둡니다.
-  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy')) {
+  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy') && lemonOpen(env)) {
     const ls = await lemon('activate', { license_key: key, instance_name: name });
     if (ls.reached && ls.status < 500) {
       if (!ls.body.activated) {
@@ -301,7 +305,7 @@ async function deactivate(env, body) {
   const key = tidyKey(body.key);
   const instance = String(body.instance || '');
   const row = await env.DB.prepare('SELECT * FROM licenses WHERE key = ?').bind(key).first();
-  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy') && instance) {
+  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy') && instance && lemonOpen(env)) {
     const ls = await lemon('deactivate', { license_key: key, instance_id: instance });
     if (!row) {
       if (ls.reached && ls.body.deactivated) return json({ deactivated: true });
@@ -370,7 +374,11 @@ async function validate(env, body) {
   const row = await env.DB.prepare('SELECT * FROM licenses WHERE key = ?').bind(key).first();
 
   // Lemon Squeezy 키: 그쪽이 살아 있는 동안은 그쪽 답을 따릅니다.
-  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy')) {
+  if (LS_KEY.test(key) && !row && !lemonOpen(env)) {
+    // 닫힌 뒤 처음 보는 Lemon Squeezy 키: 확정해 거절하지 않고, 프로그램이 이전 상태를 지키게 합니다.
+    return fail(503, '지금은 라이선스를 확인할 수 없습니다. 문의 메일로 알려 주십시오.');
+  }
+  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy') && lemonOpen(env)) {
     const ls = await lemon('validate', { license_key: key, instance_id: instance });
     if (ls.reached && ls.status < 500) {
       const product = parse(env.LS_PRODUCTS || '{}', {})[String(ls.body.meta?.product_id)];
