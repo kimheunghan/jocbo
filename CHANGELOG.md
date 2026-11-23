@@ -9,6 +9,7 @@
 
 - `POST /api/license/validate {key, instance, product}` → `{valid, product?, detail?}`. 환불된 키, 등록을 푼 PC, 다른 프로그램의 키, 없는 키는 `valid:false`입니다. Lemon Squeezy 키는 그쪽이 살아 있는 동안 그쪽 답을 따르고, 확인할 곳에 닿지 못하면 503을 돌려주어 프로그램이 이전 상태를 그대로 두게 합니다.
 - FindInside 결제 페이지(`findinside.netlify.app`)가 구매 완료 화면에서 `GET /api/license/order?txn=`로 키를 물을 수 있게 그 주소만 열었습니다.
+- FindInside 키 메일의 링크(키 다시 받기, 사용 안내, 맨 아래 주소)는 FindInside 사이트로, 문의처 hung6789@naver.com도 적습니다. 족보 메일은 그대로입니다. 키 다시 받기(`resend`)도 FindInside 사이트에서 부를 수 있게 열고, `product`를 보내면 그 상품 키만 보냅니다.
 - 시험 사이트에 FindInside Sandbox 가격(`pri_01m80etg52ssx88fxh1jxx0rts`)을 넣었습니다. 상품은 가격 ID로 알아보고 customData는 보지 않습니다.
 
 ## 불러오기: 맞지 않는 관계가 있어도 불러옴 (다음 버전) — 2026.11.22

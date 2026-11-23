@@ -244,6 +244,46 @@ test('FindInside 결제: 가격 ID로 알아보고 FIND 키를 FindInside 이름
   assert.equal(mails[0].name, '흥한소프트 (FindInside)');
   assert.equal(mails[0].subject, '[FindInside] FindInside 라이선스 키 안내');
   assert.ok(mails[0].text.includes(row.key));
+  // 메일 속 링크는 FindInside 사이트로, jocbo 주소는 없음
+  const text = mails[0].text;
+  assert.ok(text.includes('키를 잃어버리셨다면: https://findinside.netlify.app/license?test=1'));
+  assert.ok(text.includes('사용 안내: https://findinside.netlify.app/#howto'));
+  assert.ok(text.includes('hung6789@naver.com'));
+  assert.ok(text.trim().endsWith('흥한소프트(K Software) · FindInside · https://findinside.netlify.app'));
+  assert.ok(!text.includes('jocbo'));
+});
+
+test('족보 메일은 그대로 jocbo 주소, 실제 결제면 FindInside 주소에 ?test=1 이 없음', async () => {
+  paddleTxn.items = [{ price: { id: PRICE_JOCBO }, quantity: 1 }, { price: { id: PRICE_FIND }, quantity: 1 }];
+  env.PADDLE_ENV = 'live';
+  env.PADDLE_API_BASE = 'https://sandbox-api.paddle.com';
+  await hook({ event_type: 'transaction.completed', data: { id: TXN } });
+  const text = mails[0].text;
+  assert.ok(text.includes('키를 잃어버리셨다면: https://jocbo.pages.dev/license'));
+  assert.ok(text.includes('키를 잃어버리셨다면: https://findinside.netlify.app/license\n'));
+  assert.ok(text.includes('사용 안내: https://jocbo.pages.dev/guide/'));
+});
+
+test('FindInside 사이트의 키 다시 받기: 미리 묻기(OPTIONS) 허용, FindInside 키만 보냄', async () => {
+  paddleTxn.items = [{ price: { id: PRICE_JOCBO }, quantity: 1 }, { price: { id: PRICE_FIND }, quantity: 1 }];
+  await hook({ event_type: 'transaction.completed', data: { id: TXN } });
+  mails = [];
+  const origin = 'https://findinside.netlify.app';
+  const pre = await licenseApi(new Request('https://x/api/license/resend', { method: 'OPTIONS', headers: { origin } }), env, ['license', 'resend']);
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), origin);
+  assert.match(pre.headers.get('access-control-allow-headers'), /Content-Type/);
+  const r = await licenseApi(new Request('https://x/api/license/resend', { method: 'POST', headers: { origin },
+    body: JSON.stringify({ email: 'buyer@example.com', product: 'findinside' }) }), env, ['license', 'resend']);
+  assert.equal(r.headers.get('access-control-allow-origin'), origin);
+  assert.equal(mails.length, 1);
+  assert.ok(/FIND-/.test(mails[0].text) && !/JOCBO-/.test(mails[0].text));
+  // 상품마다 5분을 따로 세므로, 족보 사이트의 다시 받기는 막히지 않음
+  await call('license/resend', { email: 'buyer@example.com' });
+  assert.equal(mails.length, 2);
+  // 다른 사이트의 미리 묻기는 허용하지 않음
+  const evil = await licenseApi(new Request('https://x/api/license/resend', { method: 'OPTIONS', headers: { origin: 'https://evil.example' } }), env, ['license', 'resend']);
+  assert.equal(evil.headers.get('access-control-allow-origin'), null);
 });
 
 test('구매 완료 화면 주소는 FindInside 결제 사이트에만 열림', async () => {

@@ -30,8 +30,18 @@ export const PRODUCTS = {
   jocbo: { name: '우리의 족보 정식판', brand: '우리의 족보', prefix: 'JOCBO', pcs: 2,
            how: '우리의 족보 프로그램에 로그인한 뒤 오른쪽 위 [정식판]을 누르고, 위 키를 붙여 넣은 뒤 [등록]을 누르십시오.' },
   findinside: { name: 'FindInside 라이선스', brand: 'FindInside', prefix: 'FIND', pcs: 2,
-                how: 'FindInside 프로그램의 라이선스 입력 칸에 위 키를 붙여 넣고 등록하십시오.' },
+                how: 'FindInside 프로그램의 라이선스 입력 칸에 위 키를 붙여 넣고 등록하십시오.',
+                // 메일 속 링크는 FindInside 사이트로 (jocbo 상품은 SITE_URL 을 씁니다).
+                site: 'https://findinside.netlify.app', guide: '/#howto', contact: 'hung6789@naver.com' },
 };
+
+/** 메일에 적을 그 상품의 주소들. 시험(Sandbox)이면 키 다시 받기 주소에 ?test=1 을 붙입니다. */
+function linksOf(env, product) {
+  const p = PRODUCTS[product] || PRODUCTS.jocbo;
+  const base = p.site || site(env);
+  const test = p.site && env.PADDLE_ENV === 'sandbox' ? '?test=1' : '';
+  return { base, license: `${base}/license${test}`, guide: base + (p.guide || '/guide/'), contact: p.contact || '' };
+}
 // 판매자 상호. 메일 보낸 사람 이름과 서명에 씁니다.
 export const SELLER = '흥한소프트';
 export const SELLER_FULL = '흥한소프트(K Software)';
@@ -97,9 +107,12 @@ function keyMail(env, rows) {
   const who = rows[0].name ? `${rows[0].name} 님, ` : '';
   const lines = rows.map(r => `${PRODUCTS[r.product]?.name || r.product}: ${r.key}`);
   const hows = [...new Set(rows.map(r => PRODUCTS[r.product]?.how).filter(Boolean))];
-  const base = site(env);
   const brand = PRODUCTS[rows[0].product]?.brand || '우리의 족보';
   const paddle = TXN.test(rows[0].txn || '');
+  // 상품마다 자기 사이트의 주소를 적습니다. 두 상품을 함께 샀으면 두 곳을 모두 적습니다.
+  const links = [...new Set(rows.map(r => r.product))].map(product => linksOf(env, product));
+  const base = links[0].base;
+  const contacts = links.filter(l => l.contact).map(l => l.contact);
   const text = [
     `${who}구매해 주셔서 감사합니다.`, '',
     '■ 라이선스 키', ...lines, '',
@@ -107,13 +120,13 @@ function keyMail(env, rows) {
     '■ 이용 안내',
     '・키 하나로 PC 2대까지 사용할 수 있습니다. PC를 옮길 때는 쓰지 않을 PC에서 등록을 해제한 뒤 새 PC에 키를 입력하십시오.',
     '・구매 후 14일 안에 이 메일에 회신하시면 환불해 드립니다.',
-    `・키를 잃어버리셨다면: ${base}/license`,
-    `・사용 안내: ${base}/guide/`, '',
+    ...links.map(l => `・키를 잃어버리셨다면: ${l.license}`),
+    ...links.map(l => `・사용 안내: ${l.guide}`), '',
     ...(paddle ? [
       `주문 번호: ${rows[0].txn} (환불·문의 때 알려 주십시오)`,
       '결제 금액과 영수증은 결제 대행사 Paddle이 보낸 메일에서 확인하실 수 있습니다.',
     ] : []),
-    '문의: 이 메일에 회신해 주십시오.', '',
+    contacts.length ? `문의: 이 메일에 회신하시거나 ${contacts.join(', ')}로 보내 주십시오.` : '문의: 이 메일에 회신해 주십시오.', '',
     `${SELLER_FULL} · ${brand} · ${base}`,
   ].join('\n');
   const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
@@ -327,11 +340,15 @@ async function resend(env, body) {
   const email = tidyEmail(body.email);
   const done = json({ ok: true, detail: '구매하신 메일 주소라면 키를 다시 보냈습니다. 몇 분 안에 오지 않으면 스팸함을 확인해 주십시오.' });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail(400, '메일 주소를 확인해 주십시오.');
-  const last = await env.DB.prepare('SELECT last FROM mail_log WHERE email = ?').bind(email).first();
+  // product 를 보내면(FindInside 사이트) 그 상품의 키만 보내고, 5분 기다림도 상품마다 따로 셉니다.
+  const product = PRODUCTS[body.product] ? body.product : '';
+  const slot = product ? `${email}|${product}` : email;
+  const last = await env.DB.prepare('SELECT last FROM mail_log WHERE email = ?').bind(slot).first();
   if (last && Date.now() - last.last < RESEND_GAP) return done;
-  await env.DB.prepare('INSERT INTO mail_log (email, last) VALUES (?, ?) ON CONFLICT(email) DO UPDATE SET last = excluded.last').bind(email, Date.now()).run();
+  await env.DB.prepare('INSERT INTO mail_log (email, last) VALUES (?, ?) ON CONFLICT(email) DO UPDATE SET last = excluded.last').bind(slot, Date.now()).run();
   const { results } = await env.DB.prepare("SELECT * FROM licenses WHERE email = ? AND status = 'active' ORDER BY created").bind(email).all();
-  if (results.length) await sendMail(env, keyMail(env, results));
+  const mine = product ? results.filter(r => r.product === product) : results;
+  if (mine.length) await sendMail(env, keyMail(env, mine));
   return done;
 }
 
@@ -372,8 +389,9 @@ async function validate(env, body) {
   return json({ valid: true, product: row.product });
 }
 
-// 다른 사이트의 결제 페이지(FindInside)가 구매 완료 화면에서 키를 물을 수 있게 엽니다.
-// 키를 받으려면 결제마다 무작위인 거래 번호(txn_...)를 알아야 하므로 이 주소만 엽니다.
+// FindInside 사이트가 구매 완료 화면에서 키를 묻고(order), 키 다시 받기(resend)를 부를 수
+// 있게 엽니다. order 는 결제마다 무작위인 거래 번호를, resend 는 산 메일 주소로만 보내므로
+// 다른 사람의 키가 드러나지 않습니다. 등록·해제·확인은 PC 프로그램이 부르므로 열지 않습니다.
 export const CHECKOUT_ORIGINS = ['https://findinside.netlify.app'];
 
 function opened(request, response) {
@@ -388,10 +406,20 @@ function opened(request, response) {
 /** /api/license/* */
 export async function licenseApi(request, env, parts) {
   const method = request.method;
+  const shared = parts[1] === 'order' || parts[1] === 'resend';
+  if (method === 'OPTIONS' && shared) {
+    const response = opened(request, new Response(null, { status: 204 }));
+    if (response.headers.has('access-control-allow-origin')) {
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+      response.headers.set('Access-Control-Max-Age', '86400');
+    }
+    return response;
+  }
   const body = method === 'POST' ? await request.json().catch(() => ({})) : {};
   if (method === 'GET' && parts[1] === 'order') return opened(request, await order(env, new URL(request.url).searchParams.get('txn')));
   if (method === 'POST' && parts[1] === 'validate') return validate(env, body);
-  if (method === 'POST' && parts[1] === 'resend') return resend(env, body);
+  if (method === 'POST' && parts[1] === 'resend') return opened(request, await resend(env, body));
   if (method === 'POST' && parts[1] === 'activate') return activate(env, body);
   if (method === 'POST' && parts[1] === 'deactivate') return deactivate(env, body);
   return fail(404, '없는 요청입니다.');
