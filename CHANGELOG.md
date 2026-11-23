@@ -5,6 +5,12 @@
 - 설치 파일(exe): `store-v<버전>` 태그, 홈페이지에서 `jocbo-setup_v<버전>.exe`로 내려받음
 - Microsoft Store: `msix-v<버전>` 태그
 
+## 라이선스 서버: FindInside 결제 페이지와 키 확인 (시험 사이트만) — 2026.11.23
+
+- `POST /api/license/validate {key, instance, product}` → `{valid, product?, detail?}`. 환불된 키, 등록을 푼 PC, 다른 프로그램의 키, 없는 키는 `valid:false`입니다. Lemon Squeezy 키는 그쪽이 살아 있는 동안 그쪽 답을 따르고, 확인할 곳에 닿지 못하면 503을 돌려주어 프로그램이 이전 상태를 그대로 두게 합니다.
+- FindInside 결제 페이지(`findinside.netlify.app`)가 구매 완료 화면에서 `GET /api/license/order?txn=`로 키를 물을 수 있게 그 주소만 열었습니다.
+- 시험 사이트에 FindInside Sandbox 가격(`pri_01m80etg52ssx88fxh1jxx0rts`)을 넣었습니다. 상품은 가격 ID로 알아보고 customData는 보지 않습니다.
+
 ## 불러오기: 맞지 않는 관계가 있어도 불러옴 (다음 버전) — 2026.11.22
 
 손님 신고: AI로 옛 족보를 옮긴 GEDCOM이 "세대를 맞출 수 없습니다"로 아예 열리지 않았고, 다른 파일은 열리지만 여러 사람이 부모와 끊겨 1세대로 따로 섰습니다.

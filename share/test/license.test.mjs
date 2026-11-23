@@ -54,6 +54,10 @@ beforeEach(() => {
       const f = Object.fromEntries(new URLSearchParams(init.body));
       const k = lemon.keys[f.license_key];
       if (!k) return reply({ activated: false, error: 'license_key not found.' }, 404);
+      if (url.endsWith('/validate')) {
+        return reply({ valid: !k.disabled && k.used.includes(f.instance_id), license_key: { status: k.disabled ? 'disabled' : 'active' },
+          meta: { product_id: k.product } });
+      }
       if (url.endsWith('/activate')) {
         if (k.used.length >= k.limit) return reply({ activated: false, error: 'This license key has reached the activation limit.' }, 400);
         k.used.push(`ls-inst-${k.used.length + 1}`);
@@ -226,6 +230,73 @@ test('FindInside 의 Lemon Squeezy 키를 우리의 족보에 넣으면 거절�
   lemon.keys['11111111-2222-3333-4444-555555555555'] = { product: 1420193, used: [], limit: 2 };
   assert.equal((await call('license/activate', { key: '11111111-2222-3333-4444-555555555555', product: 'jocbo' })).status, 400);
   assert.equal(lemon.keys['11111111-2222-3333-4444-555555555555'].used.length, 0);
+});
+
+test('FindInside 결제: 가격 ID로 알아보고 FIND 키를 FindInside 이름의 메일로', async () => {
+  paddleTxn.items = [{ price: { id: PRICE_FIND }, quantity: 1 }];
+  paddleTxn.custom_data = { product: 'jocbo' };   // customData 는 보지 않음
+  await hook({ event_type: 'transaction.completed', data: { id: TXN } });
+  const row = env.DB.sql.prepare('SELECT * FROM licenses').get();
+  assert.equal(row.product, 'findinside');
+  assert.equal(row.max_pcs, 2);
+  assert.match(row.key, /^FIND-[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].name, '흥한소프트 (FindInside)');
+  assert.equal(mails[0].subject, '[FindInside] FindInside 라이선스 키 안내');
+  assert.ok(mails[0].text.includes(row.key));
+});
+
+test('구매 완료 화면 주소는 FindInside 결제 사이트에만 열림', async () => {
+  await hook({ event_type: 'transaction.completed', data: { id: TXN } });
+  const ask = origin => licenseApi(new Request(`https://x/api/license/order?txn=${TXN}`, { headers: { origin } }), env, ['license', 'order']);
+  const from = await ask('https://findinside.netlify.app');
+  assert.equal(from.headers.get('access-control-allow-origin'), 'https://findinside.netlify.app');
+  assert.equal((await from.json()).keys.length, 1);
+  assert.equal((await ask('https://evil.example')).headers.get('access-control-allow-origin'), null);
+});
+
+test('확인: 등록한 PC는 valid, 해제·환불·다른 프로그램·없는 키는 valid:false', async () => {
+  paddleTxn.items = [{ price: { id: PRICE_FIND }, quantity: 1 }];
+  await hook({ event_type: 'transaction.completed', data: { id: TXN } });
+  const key = env.DB.sql.prepare('SELECT key FROM licenses').get().key;
+  const { instance } = await read(await call('license/activate', { key, name: 'PC-1', product: 'findinside' }));
+  const check = async body => read(await call('license/validate', body));
+
+  assert.deepEqual(await check({ key, instance, product: 'findinside' }), { status: 200, valid: true, product: 'findinside' });
+  const other = await check({ key, instance, product: 'jocbo' });
+  assert.equal(other.valid, false);
+  assert.match(other.detail, /키가 아닙니다/);
+  assert.equal((await check({ key: 'FIND-AAAA-BBBB-CCCC-DDDD', instance, product: 'findinside' })).valid, false);
+  assert.equal((await check({ key, product: 'findinside' })).valid, false);
+
+  await call('license/deactivate', { key, instance });
+  const gone = await check({ key, instance, product: 'findinside' });
+  assert.equal(gone.valid, false);
+  assert.match(gone.detail, /해제/);
+
+  const again = (await read(await call('license/activate', { key, name: 'PC-1', product: 'findinside' }))).instance;
+  assert.equal((await check({ key, instance: again, product: 'findinside' })).valid, true);
+  await hook({ event_type: 'adjustment.updated', data: { action: 'refund', status: 'approved', transaction_id: TXN } });
+  const refunded = await check({ key, instance: again, product: 'findinside' });
+  assert.equal(refunded.valid, false);
+  assert.match(refunded.detail, /환불/);
+});
+
+test('확인: Lemon Squeezy 키는 그쪽 답을 따르고, 닿지 않으면 503(이전 상태 유지)', async () => {
+  const key = '11111111-2222-3333-4444-555555555555';
+  lemon.keys[key] = { product: 1420193, used: [], limit: 2 };
+  const { instance } = await read(await call('license/activate', { key, name: 'PC-1', product: 'findinside' }));
+  const check = async (body = { key, instance, product: 'findinside' }) => read(await call('license/validate', body));
+  assert.equal((await check()).valid, true);
+  assert.equal((await check({ key, instance, product: 'jocbo' })).valid, false);
+  assert.equal((await check({ key, instance: 'ls-inst-9', product: 'findinside' })).valid, false);
+  lemon.keys[key].disabled = true;
+  assert.match((await check()).detail, /환불/);
+  // Lemon Squeezy 에 닿지 않으면: 이어받은 키는 여기서 확인, 모르는 키는 503
+  lemon.keys[key].disabled = false;
+  lemon.up = false;
+  assert.equal((await check()).valid, true);
+  assert.equal((await check({ key: '5AC927E4-617A-46EF-9947-43E1B5903BEA', instance: 'x', product: 'jocbo' })).status, 503);
 });
 
 test('키 다시 받기: 산 메일이면 보내고, 아니면 조용히, 5분 안에 또 누르면 보내지 않음', async () => {

@@ -30,6 +30,6 @@ database_id = "507e6a3a-704b-43e0-9ffc-726d680f51d3"
 
 [env.preview.vars]
 PADDLE_ENV = "sandbox"
-PADDLE_PRICES = '{"pri_01m7ztfe2xx5kfn1p583cfzac9":"jocbo"}'
+PADDLE_PRICES = '{"pri_01m7ztfe2xx5kfn1p583cfzac9":"jocbo","pri_01m80etg52ssx88fxh1jxx0rts":"findinside"}'
 LS_PRODUCTS = '{"1420186":"jocbo","1420193":"findinside"}'
 SITE_URL = "https://preview.jocbo.pages.dev"

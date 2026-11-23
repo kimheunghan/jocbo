@@ -13,6 +13,9 @@
 //   PC 프로그램
 //     POST /api/license/activate        {key, name, product} → {activated, instance, product}
 //     POST /api/license/deactivate      {key, instance}
+//     POST /api/license/validate        {key, instance, product} → {valid, product?, detail?}
+//   FindInside 결제 페이지(findinside.netlify.app)도 GET /api/license/order 를 부를 수 있습니다.
+//   상품은 결제의 가격 ID(PADDLE_PRICES)로 알아봅니다. customData 는 보지 않습니다.
 //
 // 환경 값 (wrangler.toml [vars] 또는 비밀값):
 //   PADDLE_ENV              'sandbox' | 'live'
@@ -332,11 +335,62 @@ async function resend(env, body) {
   return done;
 }
 
+// -- 프로그램: 지금도 쓸 수 있는 키인지 확인 ------------------------------------------
+//
+// 답은 늘 200 {valid, product?, detail?} 입니다. valid:false 는 "이 PC 에서 이 키를 더는 쓸 수
+// 없음"(환불, 등록 해제, 다른 프로그램 키, 없는 키)이라는 확정된 답입니다. 확인할 곳에 닿지
+// 못했을 때만 503 {detail} 을 돌려주므로, 프로그램은 그때는 이전 상태를 그대로 둡니다.
+
+async function validate(env, body) {
+  const key = tidyKey(body.key);
+  const instance = String(body.instance || '');
+  const want = body.product || 'jocbo';
+  const no = detail => json({ valid: false, detail });
+  if (!key || !instance) return no('라이선스 키와 등록 번호가 없습니다. 다시 등록해 주십시오.');
+  const row = await env.DB.prepare('SELECT * FROM licenses WHERE key = ?').bind(key).first();
+
+  // Lemon Squeezy 키: 그쪽이 살아 있는 동안은 그쪽 답을 따릅니다.
+  if (LS_KEY.test(key) && (!row || row.source === 'lemonsqueezy')) {
+    const ls = await lemon('validate', { license_key: key, instance_id: instance });
+    if (ls.reached && ls.status < 500) {
+      const product = parse(env.LS_PRODUCTS || '{}', {})[String(ls.body.meta?.product_id)];
+      if (ls.body.valid && product && product !== want) return no(`${PRODUCTS[want]?.name || '이 프로그램'} 키가 아닙니다.`);
+      const status = ls.body.license_key?.status;
+      if (status === 'disabled' || status === 'expired') return no('쓸 수 없는 키입니다(만료 또는 환불). 문의 메일로 알려 주십시오.');
+      if (ls.body.valid) return json({ valid: true, product: product || want });
+      return no('이 PC의 등록이 해제되었거나 맞지 않는 키입니다. 키를 다시 등록해 주십시오.');
+    }
+    if (!row) return fail(503, '지금은 라이선스를 확인할 수 없습니다. 잠시 뒤 다시 확인합니다.');
+    // Lemon Squeezy 가 닫힌 뒤: 이어받아 둔 키는 여기서 확인합니다(아래로 이어짐).
+  }
+
+  if (!row) return no('라이선스 키가 맞지 않습니다.');
+  if (row.status !== 'active') return no('쓸 수 없는 키입니다(환불됨). 문의 메일로 알려 주십시오.');
+  if (row.product !== want) return no(`${PRODUCTS[want]?.name || '이 프로그램'} 키가 아닙니다.`);
+  const here = await env.DB.prepare('SELECT 1 AS ok FROM activations WHERE key = ? AND instance = ?').bind(key, instance).first();
+  if (!here) return no('이 PC의 등록이 해제되었습니다. 키를 다시 등록해 주십시오.');
+  return json({ valid: true, product: row.product });
+}
+
+// 다른 사이트의 결제 페이지(FindInside)가 구매 완료 화면에서 키를 물을 수 있게 엽니다.
+// 키를 받으려면 결제마다 무작위인 거래 번호(txn_...)를 알아야 하므로 이 주소만 엽니다.
+export const CHECKOUT_ORIGINS = ['https://findinside.netlify.app'];
+
+function opened(request, response) {
+  const origin = request.headers.get('origin');
+  if (!CHECKOUT_ORIGINS.includes(origin)) return response;
+  const headers = new Headers(response.headers);
+  headers.set('Access-Control-Allow-Origin', origin);
+  headers.set('Vary', 'Origin');
+  return new Response(response.body, { status: response.status, headers });
+}
+
 /** /api/license/* */
 export async function licenseApi(request, env, parts) {
   const method = request.method;
   const body = method === 'POST' ? await request.json().catch(() => ({})) : {};
-  if (method === 'GET' && parts[1] === 'order') return order(env, new URL(request.url).searchParams.get('txn'));
+  if (method === 'GET' && parts[1] === 'order') return opened(request, await order(env, new URL(request.url).searchParams.get('txn')));
+  if (method === 'POST' && parts[1] === 'validate') return validate(env, body);
   if (method === 'POST' && parts[1] === 'resend') return resend(env, body);
   if (method === 'POST' && parts[1] === 'activate') return activate(env, body);
   if (method === 'POST' && parts[1] === 'deactivate') return deactivate(env, body);
