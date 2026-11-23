@@ -265,7 +265,7 @@
       <div class="text">
         <h3>엑셀·GEDCOM으로 불러오기와 내보내기</h3>
         <p>족보를 엑셀 가계도나 GEDCOM 파일로 내보내고, 다시 불러올 수 있습니다. 엑셀에서는 세대별 열에 이름을 적는 익숙한 모양으로 족보를 작성합니다.</p>
-        <ul><li>엑셀 양식에는 작성 예시와 작성 안내가 들어 있어, 처음 작성하는 분도 따라 적을 수 있습니다.</li><li>엑셀에서 고친 내용을 기존 족보에 반영할 수 있습니다. 바뀐 내용을 미리 보여 드리고, 반영 직전의 족보는 백업해 둡니다.</li><li>GEDCOM은 Gramps, MyHeritage, Ancestry 같은 다른 족보 프로그램과 족보를 주고받는 국제 표준 파일입니다.</li></ul>
+        <ul><li>엑셀 양식에는 작성 예시와 작성 안내가 들어 있어, 처음 작성하는 분도 따라 적을 수 있습니다.</li><li>엑셀에서 고친 내용을 기존 족보에 반영할 수 있습니다. 바뀐 내용을 미리 보여 드리고, 반영 직전의 족보는 백업해 둡니다.</li><li>GEDCOM은 Gramps, MyHeritage, Ancestry 같은 다른 족보 프로그램과 족보를 주고받는 국제 표준 파일입니다.</li><li>빠진 쪽이나 잘못 옮겨 적은 곳이 있는 족보도 불러옵니다. 세대가 맞지 않는 관계는 빼고 불러온 뒤 누구의 어떤 관계인지 알려 드리므로, 프로그램 안에서 원본과 맞춰 고칠 수 있습니다. AI로 족보 사진을 옮겨 만든 GEDCOM 파일도 불러옵니다.</li><li>부모나 배우자와 이어지지 않아 따로 떨어진 사람은 "이어지지 않은 사람"으로 모아 보여 드리고, 그 자리에서 바로 이을 수 있습니다.</li></ul>
       </div>
       <div class="pic"><img src="/img/excel.jpg" alt="엑셀로 내보낸 가계도 양식" loading="lazy"></div>
     </div>
@@ -316,7 +316,7 @@
           <li>인물 수 제한 없음</li>
           <li>무료판의 모든 기능</li>
           <li>PC 2대 (옮겨 쓰기 가능)</li>
-          <li>1.x 판 업데이트 무료</li>
+          <li>업데이트 평생 무료</li>
           <li>구매 후 14일 안에 환불</li>
         </ul>
         <a class="btn btn-dark" href="#" data-buy>정식판 구매하기</a>
@@ -404,7 +404,7 @@
 
 <footer>
   <div class="wrap">
-    <span>© 2026 우리의 족보 · 결제 대행 Lemon Squeezy</span>
+    <span>© 2026 흥한소프트(K Software) · 우리의 족보</span>
     <span><a href="/guide/">사용 안내</a> · <a href="/guide/scan">족보 사진 판독</a> · <a href="/guide/family-tree">가계도 만들기</a> · <a href="/guide/jokbo-book">족보책</a> · <a href="/guide/excel-gedcom">엑셀·GEDCOM</a> · <a href="/guide/share">가족과 공유</a> · <a href="/faq">자주 묻는 질문</a></span>
     <span><a href="/terms">이용약관 Terms</a> · <a href="/refund">환불 정책 Refund Policy</a> · <a href="/privacy">개인정보처리방침 Privacy</a> · 문의 <a href="mailto:hung67890@gmail.com">hung67890@gmail.com</a></span>
   </div>
@@ -417,7 +417,7 @@
   const STORE_URL = 'https://apps.microsoft.com/detail/9p94f6t7dvww?hl=ko-KR&gl=KR';
   const CHECKOUT_URL = '/buy';
   // 직접 받는 설치 파일: 데모 계정과 예제 족보만 든 Store 판입니다(store-v 태그). 새 판을 내면 바꿉니다.
-  const EXE_URL = 'https://jocbo.pages.dev/download/store-v2026.11.8/jocbo-setup.exe';
+  const EXE_URL = 'https://jocbo.pages.dev/download/store-v2026.11.9/jocbo-setup.exe';
   document.querySelectorAll('[data-exe]').forEach(a => { a.href = EXE_URL; });
   document.querySelectorAll('[data-store]').forEach(a => { a.href = STORE_URL; a.target = '_blank'; a.rel = 'noopener'; });
   document.querySelectorAll('[data-buy]').forEach(a => {
