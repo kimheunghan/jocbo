@@ -281,6 +281,8 @@ test('FindInside 사이트의 키 다시 받기: 미리 묻기(OPTIONS) 허용, 
   // 상품마다 5분을 따로 세므로, 족보 사이트의 다시 받기는 막히지 않음
   await call('license/resend', { email: 'buyer@example.com' });
   assert.equal(mails.length, 2);
+  assert.ok(mails[0].text.includes('요청하신 라이선스 키를 다시 보내 드립니다.'));
+  assert.ok(!mails[0].text.includes('구매해 주셔서'));
   // 다른 사이트의 미리 묻기는 허용하지 않음
   const evil = await licenseApi(new Request('https://x/api/license/resend', { method: 'OPTIONS', headers: { origin: 'https://evil.example' } }), env, ['license', 'resend']);
   assert.equal(evil.headers.get('access-control-allow-origin'), null);
@@ -337,6 +339,21 @@ test('확인: Lemon Squeezy 키는 그쪽 답을 따르고, 닿지 않으면 503
   lemon.up = false;
   assert.equal((await check()).valid, true);
   assert.equal((await check({ key: '5AC927E4-617A-46EF-9947-43E1B5903BEA', instance: 'x', product: 'jocbo' })).status, 503);
+});
+
+test('두 번 산 키를 다시 받으면 주문 번호를 키마다 적고, 키는 굵게', async () => {
+  paddleTxn.items = [{ price: { id: PRICE_FIND }, quantity: 1 }];
+  await hook({ event_type: 'transaction.completed', data: { id: TXN } });
+  const TXN2 = 'txn_01h0000000000000000000000b';
+  paddleTxn = { ...paddleTxn, id: TXN2 };
+  await hook({ event_type: 'transaction.completed', data: { id: TXN2 } });
+  mails = [];
+  await call('license/resend', { email: 'buyer@example.com', product: 'findinside' });
+  const text = mails[0].text;
+  assert.match(text, new RegExp(`FIND-[0-9A-Z-]+ \\(주문 번호 ${TXN}\\)`));
+  assert.match(text, new RegExp(`FIND-[0-9A-Z-]+ \\(주문 번호 ${TXN2}\\)`));
+  assert.ok(!text.includes('주문 번호: '));
+  assert.equal((mails[0].html.match(/<b style/g) || []).length, 2);
 });
 
 test('키 다시 받기: 산 메일이면 보내고, 아니면 조용히, 5분 안에 또 누르면 보내지 않음', async () => {

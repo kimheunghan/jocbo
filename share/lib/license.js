@@ -103,18 +103,21 @@ async function paddle(env, path) {
 
 // -- 메일 (사장님 Gmail 의 Apps Script 창구) ------------------------------------
 
-function keyMail(env, rows) {
+function keyMail(env, rows, again = false) {
   const who = rows[0].name ? `${rows[0].name} 님, ` : '';
-  const lines = rows.map(r => `${PRODUCTS[r.product]?.name || r.product}: ${r.key}`);
+  // 주문이 여럿이면(다시 받기) 주문 번호를 키마다 적고, 하나면 아래에 한 번만 적습니다.
+  const orders = [...new Set(rows.filter(r => TXN.test(r.txn || '')).map(r => r.txn))];
+  const lines = rows.map(r => `${PRODUCTS[r.product]?.name || r.product}: ${r.key}`
+    + (orders.length > 1 && TXN.test(r.txn || '') ? ` (주문 번호 ${r.txn})` : ''));
   const hows = [...new Set(rows.map(r => PRODUCTS[r.product]?.how).filter(Boolean))];
   const brand = PRODUCTS[rows[0].product]?.brand || '우리의 족보';
-  const paddle = TXN.test(rows[0].txn || '');
+  const paddle = orders.length > 0;
   // 상품마다 자기 사이트의 주소를 적습니다. 두 상품을 함께 샀으면 두 곳을 모두 적습니다.
   const links = [...new Set(rows.map(r => r.product))].map(product => linksOf(env, product));
   const base = links[0].base;
   const contacts = links.filter(l => l.contact).map(l => l.contact);
   const text = [
-    `${who}구매해 주셔서 감사합니다.`, '',
+    again ? `${who}요청하신 라이선스 키를 다시 보내 드립니다.` : `${who}구매해 주셔서 감사합니다.`, '',
     '■ 라이선스 키', ...lines, '',
     '■ 등록 방법', ...hows, '등록할 때는 인터넷 연결이 필요합니다.', '',
     '■ 이용 안내',
@@ -123,7 +126,7 @@ function keyMail(env, rows) {
     ...links.map(l => `・키를 잃어버리셨다면: ${l.license}`),
     ...links.map(l => `・사용 안내: ${l.guide}`), '',
     ...(paddle ? [
-      `주문 번호: ${rows[0].txn} (환불·문의 때 알려 주십시오)`,
+      ...(orders.length === 1 ? [`주문 번호: ${orders[0]} (환불·문의 때 알려 주십시오)`] : ['환불·문의 때 위 주문 번호를 알려 주십시오.']),
       '결제 금액과 영수증은 결제 대행사 Paddle이 보낸 메일에서 확인하실 수 있습니다.',
     ] : []),
     contacts.length ? `문의: 이 메일에 회신하시거나 ${contacts.join(', ')}로 보내 주십시오.` : '문의: 이 메일에 회신해 주십시오.', '',
@@ -131,7 +134,7 @@ function keyMail(env, rows) {
   ].join('\n');
   const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   const html = '<div style="font-family:\'Malgun Gothic\',sans-serif;font-size:15px;line-height:1.7;color:#1d2433">'
-    + esc(text).replace(/^(.*: )([A-Z0-9-]{20,})$/gm, '$1<b style="font-size:17px;letter-spacing:.04em">$2</b>')
+    + esc(text).replace(/^(.*: )([A-Z0-9-]{20,})( \(주문 번호 [^)]*\))?$/gm, '$1<b style="font-size:17px;letter-spacing:.04em">$2</b>$3')
       .replace(/(https:\/\/[^\s<]+)/g, '<a href="$1">$1</a>').replace(/\n/g, '<br>') + '</div>';
   const subject = rows.length === 1 ? `[${brand}] ${PRODUCTS[rows[0].product]?.name || '라이선스'} 키 안내` : `[${brand}] 라이선스 키 안내`;
   return { to: rows[0].email, subject, text, html, name: `${SELLER} (${brand})` };
@@ -348,7 +351,7 @@ async function resend(env, body) {
   await env.DB.prepare('INSERT INTO mail_log (email, last) VALUES (?, ?) ON CONFLICT(email) DO UPDATE SET last = excluded.last').bind(slot, Date.now()).run();
   const { results } = await env.DB.prepare("SELECT * FROM licenses WHERE email = ? AND status = 'active' ORDER BY created").bind(email).all();
   const mine = product ? results.filter(r => r.product === product) : results;
-  if (mine.length) await sendMail(env, keyMail(env, mine));
+  if (mine.length) await sendMail(env, keyMail(env, mine, true));
   return done;
 }
 
