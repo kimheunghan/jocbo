@@ -5,6 +5,18 @@
 - 설치 파일(exe): `store-v<버전>` 태그, 홈페이지에서 `jocbo-setup_v<버전>.exe`로 내려받음
 - Microsoft Store: `msix-v<버전>` 태그
 
+## 2026.11.10 — 2026.11.24
+
+- 정식판 키를 우리 라이선스 서버(jocbo.pages.dev)에서 확인합니다(`backend/license.py`). Paddle로 산 `JOCBO-` 키와 Lemon Squeezy로 산 키를 모두 받습니다. Lemon Squeezy 키는 서버가 Lemon Squeezy에 물어 이어받으므로, Lemon Squeezy가 닫힌(2027-03-31) 뒤에도 그대로 씁니다. 2026.11.9 이하 판은 Lemon Squeezy에 직접 묻기 때문에 Paddle 키를 받지 못하고, 2027-03-31 뒤에는 등록도 되지 않습니다.
+- 2026.11.9 판(`release-2026.11.9`)에 2125723(Lemon Squeezy 확인으로 되돌림)만 되돌려 만들었습니다(`release-2026.11.10`).
+- 점검: 시험 101개 통과. 데모 계정으로 시험 서버에 붙여 틀린 키 거절, 시험 키 등록(정식판으로 바뀜), 등록 풀기(무료판으로 돌아감)를 화면에서 확인, 화면 오류 0.
+
+## 라이선스 서버를 실제 사이트에 올림 — 2026.11.24
+
+- 실제 DB(jocbo-share)에 licenses·activations·mail_log 표를 더하고(기존 공유 자료 그대로), 메일 창구 비밀값(MAIL_URL, MAIL_SECRET)을 넣었습니다.
+- 실제 사이트 화면은 그대로 두고 서버 코드만 더했습니다(`site-license` 갈래). PADDLE_PRICES는 비어 있어 Paddle 키는 아직 만들지 않고, 구매(`/buy`)는 그대로 Lemon Squeezy입니다. Paddle Live API 키와 알림 서명 키는 Live 상품을 만들 때 넣습니다.
+- 확인: 없는 키 등록·확인·해제 거절, 서명 없는 결제 알림 401, FindInside 사이트의 키 다시 받기 허용, 기존 공유 링크 열림, 설치 파일 내려받기 그대로.
+
 ## 2026.11.9 게시 — 2026.11.24
 
 - Microsoft Store Submission 5(`msix-v2026.11.9`) 심사 통과.

@@ -135,6 +135,11 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 ### 새로운 기능 (What's new)
 
 ```
+[버전 2026.11.10 · 2026년 11월 24일]
+
+■ 정식판 라이선스 확인 개선
+- 정식판 라이선스 키를 우리의 족보 라이선스 서버에서 확인합니다. 이미 구매하신 키는 그대로 쓰실 수 있습니다.
+
 [버전 2026.11.9 · 2026년 11월 23일]
 
 ■ 족보 파일 불러오기 개선
@@ -152,7 +157,7 @@ Partner Center(https://partner.microsoft.com/dashboard) → **앱 및 게임 →
 
 다음 제출부터도 맨 위에 `[버전 <판 번호> · <날짜>]`를 적습니다(Store 화면에는 버전 번호가 따로 나오지 않습니다).
 
-(2026.11.9 제출, Submission 5. 그 전: 2026.11.8 Submission 4, 2026.10.08 Submission 3.)
+(2026.11.10 제출, Submission 6. 그 전: 2026.11.9 Submission 5, 2026.11.8 Submission 4, 2026.10.08 Submission 3.)
 
 ### 스크린샷
 
