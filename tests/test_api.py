@@ -15,6 +15,10 @@ def client(tmp_path, monkeypatch):
         @event.listens_for(engine, 'connect')
         def fk(conn, _):
             conn.execute('PRAGMA foreign_keys=ON')
+    else:
+        # SQLite 는 시험마다 새 파일이지만, PostgreSQL 은 같은 DB를 함께 씁니다.
+        # 앞 시험의 행(공유 등)이 남지 않도록 표를 지우고 시작합니다(앱이 시작할 때 다시 만듭니다).
+        m.meta.drop_all(engine)
     monkeypatch.setattr(m, 'engine', engine)
     monkeypatch.setattr(m, 'UPLOADS', tmp_path / 'uploads')
     with TestClient(m.app) as c:
