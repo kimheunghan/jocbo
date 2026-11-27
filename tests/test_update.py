@@ -119,3 +119,44 @@ def test_api_reports_version_and_new_version(client, exe):
 def test_install_needs_a_json_body(client, exe):
     # 다른 사이트가 이 PC 의 서버로 보내는 폼 요청은 받지 않습니다.
     assert client.post('/api/update/install', data='x', headers={'Content-Type': 'text/plain'}).status_code == 422
+
+
+def test_store_asks_the_store_every_time(exe, monkeypatch):
+    # Store 판은 홈페이지가 아니라 Microsoft Store 에 묻고, 켤 때마다 묻습니다.
+    monkeypatch.setenv('JOCBO_CHANNEL', 'store')
+    calls = []
+
+    class Version:
+        major, minor, build = 2026, 11, 12
+
+    class Update:
+        class package:
+            class id:
+                version = Version
+
+    def store_updates():
+        calls.append(1)
+        return None, [Update]
+    monkeypatch.setattr(update, '_store_updates', store_updates)
+    assert update.available()['version'] == '2026.11.12'
+    assert update.available()['version'] == '2026.11.12'
+    assert len(calls) == 2 and exe == []  # 홈페이지에는 묻지 않습니다.
+    monkeypatch.setattr(update, '_store_updates', lambda: (None, []))
+    assert update.available() is None
+
+
+def test_store_failure_is_quiet(exe, monkeypatch):
+    monkeypatch.setenv('JOCBO_CHANNEL', 'store')
+
+    def fail():
+        raise OSError('no store')
+    monkeypatch.setattr(update, '_store_updates', fail)
+    assert update.available() is None
+
+
+def test_store_install_goes_through_the_store(client, exe, monkeypatch):
+    monkeypatch.setenv('JOCBO_CHANNEL', 'store')
+    called = []
+    monkeypatch.setattr(update, 'store_install', lambda: called.append(1) or 3)
+    assert client.post('/api/update/install', json={}).json() == {'version': '', 'store': True}
+    assert called == [1] and update.pending is None  # 설치 파일을 받지 않습니다.

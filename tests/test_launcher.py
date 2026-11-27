@@ -32,9 +32,38 @@ def test_outside_a_store_package_nothing_is_touched(monkeypatch):
     assert calls == []
 
 
-def test_a_deleted_shortcut_is_not_made_again(monkeypatch):
+def store(monkeypatch, tmp_path, answer):
     calls = []
+    monkeypatch.setattr(launcher, 'DATA', tmp_path)
     monkeypatch.setattr(launcher, 'package_family', lambda: 'kimheunghan.3981136B17516_e0edtm1ypyj4j')
-    monkeypatch.setattr(launcher, 'powershell', lambda script: calls.append(script) or 'none')
+    monkeypatch.setattr(launcher, 'stable_icon', lambda family: tmp_path / 'jocbo.ico')
+    monkeypatch.setattr(launcher, 'powershell', lambda script: calls.append(script) or answer)
+    return calls
+
+
+def test_the_store_build_makes_the_desktop_icon_once(monkeypatch, tmp_path):
+    # Windows 가 만들던 아이콘 대신, 처음 켜질 때 앱 이름으로 여는 아이콘을 만듭니다.
+    calls = store(monkeypatch, tmp_path, 'none')
+    launcher.fix_shortcut()
+    assert len(calls) == 2 and 'shell:AppsFolder' in calls[1]
+    assert (tmp_path / 'desktop-icon-made').exists()
+
+
+def test_a_deleted_shortcut_is_not_made_again(monkeypatch, tmp_path):
+    (tmp_path / 'desktop-icon-made').touch()
+    calls = store(monkeypatch, tmp_path, 'none')
     launcher.fix_shortcut()
     assert len(calls) == 1  # 있는지 보기만 하고 만들지 않습니다.
+
+
+def test_the_installer_icon_is_left_alone_on_a_pc_with_both(monkeypatch, tmp_path):
+    calls = store(monkeypatch, tmp_path, r'C:\Users\a\AppData\Local\Programs\jocbo\python\pythonw.exe|"launcher.py"|x.ico,0')
+    launcher.fix_shortcut()
+    assert len(calls) == 1
+
+
+def test_an_icon_into_the_store_folder_is_rewritten(monkeypatch, tmp_path):
+    target = r'C:\Program Files\WindowsApps\kimheunghan.3981136B17516_2026.11.10.0_x64__e0edtm1ypyj4j\python\pythonw.exe'
+    calls = store(monkeypatch, tmp_path, f'{target}|-m launcher|{target},0')
+    launcher.fix_shortcut()
+    assert len(calls) == 2 and 'explorer.exe' in calls[1]

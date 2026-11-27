@@ -86,9 +86,63 @@ def fetch():
         return json.loads(response.read(65536))
 
 
+def _store_updates():
+    """Store 판: Microsoft Store 에 이 앱의 새 판을 묻습니다. (StoreContext, 업데이트 목록)."""
+    import asyncio
+    from winrt.windows.services.store import StoreContext
+
+    async def ask():
+        context = StoreContext.get_default()
+        return context, list(await context.get_app_and_optional_store_package_updates_async())
+    return asyncio.run(ask())
+
+
+def store_available():
+    """Store 에 새 판이 있으면 {'version': …}. 켤 때마다 묻습니다(Store 가 빠르게 답합니다)."""
+    try:
+        _, updates = _store_updates()
+    except Exception as error:
+        print('Store 새 판 확인 실패:', error)
+        return None
+    if not updates:
+        return None
+    v = updates[0].package.id.version
+    return {'version': f'{v.major}.{v.minor}.{v.build}', 'notes': ''}
+
+
+def store_install():
+    """Store 판: 새 판을 창 없이 받아 설치합니다. 설치되면 Windows 가 이 앱을 닫고,
+    실행기가 등록해 둔 대로 새 판이 다시 켜집니다(desktop/launcher.py)."""
+    import asyncio
+    from winrt.windows.services.store import StoreContext
+
+    async def run():
+        context = StoreContext.get_default()
+        updates = await context.get_app_and_optional_store_package_updates_async()
+        if updates.size == 0:
+            raise UpdateError('설치할 새 판이 없습니다.')
+        if not context.can_silently_download_store_package_updates:
+            raise UpdateError('이 PC에서는 프로그램 안에서 업데이트할 수 없습니다. Microsoft Store에서 업데이트해 주십시오.')
+        result = await context.try_silent_download_and_install_store_package_updates_async(updates)
+        return int(result.overall_state)
+    try:
+        state = asyncio.run(run())
+    except UpdateError:
+        raise
+    except Exception as error:
+        print('Store 업데이트 실패:', error)
+        raise UpdateError('새 판을 받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주십시오.')
+    # StorePackageUpdateState: 0 Pending, 1 Downloading, 2 Deploying, 3 Completed, 4 Canceled, 5 OtherError, ...
+    if state not in (0, 1, 2, 3):
+        raise UpdateError('새 판을 설치하지 못했습니다. Microsoft Store에서 업데이트해 주십시오.')
+    return state
+
+
 def available(now=None):
     """알릴 새 판이 있으면 그 정보, 없으면 None. 실패하면 조용히 None 입니다."""
     current = version()
+    if channel() == 'store':
+        return store_available()
     if channel() != 'exe' or not parse(current):
         return None
     now = now or time.time()

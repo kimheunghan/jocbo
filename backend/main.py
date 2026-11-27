@@ -115,10 +115,14 @@ def update_later(_: UpdateAction):
 
 @app.post('/api/update/install')
 def update_install(_: UpdateAction):
-    info = app_update.available()
-    if not info:
-        raise HTTPException(400, '설치할 새 판이 없습니다.')
     try:
+        if app_update.channel() == 'store':
+            # Store 판: Store 가 받아 설치하고, 설치되면 Windows 가 앱을 닫았다가 다시 켭니다.
+            app_update.store_install()
+            return {'version': '', 'store': True}
+        info = app_update.available()
+        if not info:
+            raise HTTPException(400, '설치할 새 판이 없습니다.')
         app_update.download(info)
     except app_update.UpdateError as error:
         raise HTTPException(502, str(error))

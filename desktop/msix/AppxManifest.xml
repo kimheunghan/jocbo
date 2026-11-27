@@ -5,9 +5,8 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
-  xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 desktop7 rescap">
+  IgnorableNamespaces="uap uap10 rescap">
 
   <Identity Name="{{NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
 
@@ -37,15 +36,11 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\Square71x71Logo.png"
                          Square310x310Logo="Assets\Square310x310Logo.png" />
       </uap:VisualElements>
-      <!-- 설치하면 바탕화면에 바로가기를 만들고, 지우면 함께 지웁니다. Store 앱은 이것이 없으면
-           시작 메뉴에만 나타나 설치되지 않은 것처럼 보입니다. 바로가기는 위 uap10:Parameters 를
-           받지 못하므로 같은 인수를 Arguments 로 줍니다(없으면 파이썬만 켜졌다 꺼집니다). -->
-      <Extensions>
-        <desktop7:Extension Category="windows.shortcut">
-          <desktop7:Shortcut File="[{Desktop}]\우리의 족보.lnk" Icon="[{Package}]\Assets\jocbo.ico"
-                             Arguments="-m launcher" />
-        </desktop7:Extension>
-      </Extensions>
+      <!-- 바탕화면 바로가기는 Windows 가 만들지 않습니다(2026.11.12). Windows 가 만든 바로가기는
+           잠긴 설치 폴더(WindowsApps\…\pythonw.exe)를 직접 가리켜, 회사 PC 등에서 "액세스할 수
+           없습니다" 오류가 났고 업데이트마다 다시 그렇게 써졌습니다. 대신 앱이 처음 켜질 때
+           시작 메뉴와 같은 방식(explorer.exe shell:AppsFolder\…!Jocbo)의 바로가기를 만듭니다
+           (desktop/launcher.py fix_shortcut). Store 에서 설치하면 [열기]로 한 번 켜지므로 그때 생깁니다. -->
     </Application>
   </Applications>
 

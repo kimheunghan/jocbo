@@ -322,7 +322,8 @@ alive();setInterval(alive,20000);
 // 켤 때 느려지지 않도록 조금 뒤에 묻고, 서버가 하루에 한 번만 홈페이지에 물어봅니다.
 api('/app').then(info=>{
  if(info.version)$('#appVersion').textContent=` · 판 ${info.version}`;
- if(info.channel==='exe')setTimeout(checkUpdate,5000);
+ // 설치 파일판은 홈페이지에, Store 판은 Microsoft Store 에 묻습니다.
+ if(info.channel==='exe'||info.channel==='store')setTimeout(checkUpdate,3000);
 }).catch(()=>{});
 async function checkUpdate(){
  try{
@@ -338,8 +339,10 @@ $('#updateNow').onclick=async()=>{
  now.disabled=later.disabled=true;
  $('#updateText').textContent='새 판을 받는 중입니다. 잠시 기다려 주십시오.';
  try{
-  await api('/update/install','POST',{});
-  $('#updateText').textContent='새 판을 설치합니다. 프로그램이 닫혔다가 잠시 뒤 다시 켜집니다.';
+  const done=await api('/update/install','POST',{});
+  $('#updateText').textContent=done.store
+   ?'새 판을 설치했습니다. 프로그램이 닫혔다가 다시 켜집니다. 켜지지 않으면 바탕화면 아이콘으로 다시 열어 주십시오.'
+   :'새 판을 설치합니다. 프로그램이 닫혔다가 잠시 뒤 다시 켜집니다.';
  }catch(error){
   $('#updateText').textContent=error.message;
   now.disabled=later.disabled=false;

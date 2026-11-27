@@ -5,3 +5,8 @@ psycopg[binary]==3.3.6
 python-multipart==0.0.32
 anthropic==1.8.0
 pillow==12.3.0
+# Store 판이 Microsoft Store 에 새 판을 묻고 받습니다(backend/update.py). Windows 에서만 씁니다.
+winrt-runtime==4.2.1; sys_platform == "win32"
+winrt-Windows.Foundation==4!10.0.28000.2957; sys_platform == "win32"
+winrt-Windows.Foundation.Collections==4!10.0.28000.2957; sys_platform == "win32"
+winrt-Windows.Services.Store==4!10.0.28000.2957; sys_platform == "win32"

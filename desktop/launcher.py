@@ -92,31 +92,60 @@ def needs_fix(target, arguments, aumid):
     return '\\windowsapps\\' in target.lower()
 
 
-def fix_shortcut():
-    """Store 판이면 바탕화면 바로가기가 업데이트 뒤에도 열리도록 앱 이름으로 여는 모양으로 고칩니다.
+def stable_icon(family):
+    """바탕화면 아이콘 그림. 판마다 바뀌는 설치 폴더 대신, 이 앱 전용 폴더(LocalState)에 두어
+    업데이트 뒤에도 그림이 사라지지 않게 합니다."""
+    source = APP / 'Assets' / 'jocbo.ico'
+    folder = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'Packages' / family / 'LocalState'
+    target = folder / 'jocbo.ico'
+    try:
+        if not target.exists() or target.stat().st_size != source.stat().st_size:
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        return target
+    except OSError:
+        return source
 
-    바로가기가 없으면(손님이 지웠으면) 만들지 않습니다. 설치 파일판(exe)의 바로가기는
-    고정 폴더를 가리키므로 건드리지 않습니다. 실패해도 프로그램은 그대로 뜹니다.
+
+def fix_shortcut():
+    """Store 판이면 바탕화면 바로가기가 늘 열리도록 앱 이름으로 여는 모양으로 맞춥니다.
+
+    Windows 가 설치 때 만들던 바로가기는 잠긴 설치 폴더를 직접 가리켜, 회사 PC 등에서
+    "액세스할 수 없습니다" 오류가 났습니다. 2026.11.12부터는 Windows 가 만들지 않고 이 앱이
+    처음 켜질 때 한 번 만듭니다. 그 뒤 손님이 지우면 다시 만들지 않습니다.
+    설치 파일판(exe)의 바로가기는 고정 폴더를 가리키므로 건드리지 않습니다.
+    실패해도 프로그램은 그대로 뜹니다.
     """
     family = package_family()
     if not family:
         return
     aumid = f'{family}!{APP_ID}'
-    icon = APP / 'Assets' / 'jocbo.ico'
+    made = DATA / 'desktop-icon-made'
     # 바로가기는 COM(WScript.Shell)으로만 읽고 쓸 수 있어 PowerShell 에 맡깁니다.
     script = (
         "$d=[Environment]::GetFolderPath('Desktop');"
         f"$p=Join-Path $d '{SHORTCUT}';"
         "if(-not(Test-Path -LiteralPath $p)){'none';exit};"
         "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut($p);"
-        "$s.TargetPath+'|'+$s.Arguments"
+        "$s.TargetPath+'|'+$s.Arguments+'|'+$s.IconLocation"
     )
     found = powershell(script)
-    if not found or found == 'none' or '|' not in found:
+    if found is None:
         return
-    target, arguments = found.split('|', 1)
-    if not needs_fix(target, arguments, aumid):
-        return
+    icon = stable_icon(family)
+    if found == 'none':
+        if made.exists():
+            return  # 손님이 지운 아이콘은 다시 만들지 않습니다.
+        target = arguments = ''
+    else:
+        target, arguments, icon_now = (found.split('|') + ['', ''])[:3]
+        opens_by_name = not needs_fix(target, arguments, aumid) and target.lower().endswith('\\explorer.exe')
+        if not needs_fix(target, arguments, aumid) and not opens_by_name:
+            made.touch()
+            return  # 설치 파일판 등 다른 곳을 여는 아이콘은 건드리지 않습니다.
+        if opens_by_name and icon_now.lower().startswith(str(icon).lower()):
+            made.touch()
+            return  # 이미 맞습니다.
     windir = os.environ.get('WINDIR', r'C:\Windows')
     powershell(
         "$d=[Environment]::GetFolderPath('Desktop');"
@@ -128,7 +157,8 @@ def fix_shortcut():
         f"$s.IconLocation='{icon},0';"
         "$s.Save();'ok'"
     )
-    print('바탕화면 바로가기를 고쳤습니다:', target, '->', aumid)
+    made.touch()
+    print('바탕화면 바로가기를 맞췄습니다:', target or '(새로 만듦)', '->', aumid)
 
 
 def powershell(script):
@@ -325,6 +355,13 @@ def main():
         open_window(path, splash())
     # 바탕화면 바로가기 고치기는 화면을 기다리게 하지 않도록 따로 돌립니다.
     threading.Thread(target=quietly, args=(fix_shortcut,), daemon=True).start()
+    # Store 판: [지금 업데이트]로 Store 가 새 판을 설치하면 Windows 가 이 앱을 닫습니다.
+    # 그때 새 판이 다시 켜지도록 Windows 에 등록해 둡니다(켜진 지 60초가 지나야 적용됩니다).
+    if package_family():
+        try:
+            ctypes.windll.kernel32.RegisterApplicationRestart('-m launcher', 0)
+        except (AttributeError, OSError):
+            pass
 
     prepare_data()
     os.environ['DATABASE_URL'] = 'sqlite:///' + str(DATA / 'jocbo.db')
