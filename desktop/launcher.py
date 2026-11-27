@@ -403,9 +403,10 @@ def install_update(setup):
     script = (f"Wait-Process -Id {os.getpid()} -Timeout 60 -ErrorAction SilentlyContinue;"
               "Start-Process -FilePath '" + str(setup).replace("'", "''") + "'"
               " -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/RELAUNCH=1'")
-    # 이 실행기가 끝나도 남아 있도록 떼어 내어 돌립니다.
+    # 창 없이 돌립니다. 이 실행기가 끝나도 남아서 설치 파일을 띄웁니다.
+    # DETACHED_PROCESS 로 떼어 내면 PowerShell 이 콘솔이 없어 아무 일도 하지 못하고 끝납니다(2026-11-27 확인).
     subprocess.Popen(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script],
-                     creationflags=0x00000008 | 0x00000200)  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                     creationflags=0x08000000)  # CREATE_NO_WINDOW
 
 
 if __name__ == '__main__':
