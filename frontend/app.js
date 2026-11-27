@@ -329,7 +329,7 @@ async function checkUpdate(){
  try{
   const u=await api('/update');
   if(!u.available)return;
-  $('#updateText').textContent=`새 판(${u.version})이 나왔습니다. 지금 업데이트하시겠습니까? 족보 자료는 그대로 남습니다.`+(u.notes?` ${u.notes}`:'');
+  $('#updateText').textContent=`새 판(${u.version})이 나왔습니다. 지금 업데이트하시겠습니까?`+(u.notes?` ${u.notes}`:'');
   $('#updateBar').hidden=false;
  }catch{}
 }
