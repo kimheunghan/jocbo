@@ -132,6 +132,8 @@ def ocr_models():
 def check():
     """설치판 파이썬으로 서버 모듈을 실제로 불러 봅니다."""
     run(str(RUNTIME / 'python.exe'), '-c', 'import backend.main, uvicorn, rapidocr, opencc', cwd=OUT)
+    # Store 판이 Microsoft Store 에 새 판을 묻는 부품(backend/update.py).
+    run(str(RUNTIME / 'python.exe'), '-c', 'from winrt.windows.services.store import StoreContext', cwd=OUT)
 
 
 if __name__ == '__main__':
