@@ -36,6 +36,15 @@ curl -sI https://jocbo.pages.dev/download/store-v<버전>/jocbo-setup.exe | find
   ```
   const EXE_URL = 'https://jocbo.pages.dev/download/store-v<버전>/jocbo-setup.exe';
   ```
+- `share/web/latest.json`(설치 파일판 자동 업데이트 정보, 2026.11.11부터)을 새 판으로 바꿉니다. 확인값은 홈페이지 주소로 받은 설치 파일에서 구합니다. 설치 파일이 Releases에 올라간 **뒤에** 바꿉니다. 먼저 바꾸면 손님 프로그램이 아직 없는 파일을 받으러 갑니다.
+  ```
+  curl -sSL -o jocbo-setup.exe https://jocbo.pages.dev/download/store-v<버전>/jocbo-setup.exe
+  certutil -hashfile jocbo-setup.exe SHA256
+  ```
+  ```json
+  {"version": "<버전>", "url": "https://jocbo.pages.dev/download/store-v<버전>/jocbo-setup.exe", "sha256": "<확인값 소문자>", "notes": "바뀐 점 한 줄"}
+  ```
+- 실제 사이트는 `main`이 아니라 마지막 `site-*` 갈래에서 빌드합니다(`site-2026.11.27` 등). 빌드한 dist를 실제 사이트와 비교해 바뀐 파일이 의도한 것뿐인지 확인합니다.
 - `share/`에서 빌드하고 배포합니다.
   ```
   node build.mjs
