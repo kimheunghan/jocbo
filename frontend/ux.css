@@ -2492,20 +2492,3 @@ button {
 .import-notes { max-height: 160px; margin: 0; padding-left: 20px; overflow: auto; color: var(--ink-soft); font-size: 13px; }
 .import-notes li.error { color: #8f2d24; font-weight: 600; }
 .import-tree { max-height: 240px; margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--paper-sunk); font: 13px/1.6 "Noto Sans KR", "Malgun Gothic", sans-serif; white-space: pre; }
-
-/* 새 판 안내 띠(설치 파일판). 머리 바로 아래에 붙어 있고, 누르기 전까지 남습니다. */
-.update-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px 16px;
-  padding: 10px 16px;
-  background: var(--accent-wash);
-  border-bottom: 1px solid var(--gold);
-  color: var(--accent);
-  font-weight: 600;
-}
-.update-bar[hidden] { display: none; }
-.update-actions { display: inline-flex; gap: 8px; }
-.update-actions button { padding: 6px 14px; }

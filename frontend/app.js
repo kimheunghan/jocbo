@@ -318,36 +318,44 @@ async function api(path, method='GET', data) {
 // The installed launcher stops the server once this window goes quiet.
 const alive=()=>fetch('/api/alive').catch(()=>{});
 alive();setInterval(alive,20000);
-// 판 번호를 화면 아래에 적고, 설치 파일판이면 새 판이 있는지 묻습니다(backend/update.py).
+// 판 번호를 화면 아래에 적고, 설치 파일판이면 새 버전이 있는지 묻습니다(backend/update.py).
 // 켤 때 느려지지 않도록 조금 뒤에 묻고, 서버가 하루에 한 번만 홈페이지에 물어봅니다.
+let appVersion='';
 api('/app').then(info=>{
- if(info.version)$('#appVersion').textContent=` · 판 ${info.version}`;
+ appVersion=info.version||'';
+ if(info.version)$('#appVersion').textContent=` · 버전 ${info.version}`;
  // 설치 파일판은 홈페이지에, Store 판은 Microsoft Store 에 묻습니다.
  if(info.channel==='exe'||info.channel==='store')setTimeout(checkUpdate,3000);
 }).catch(()=>{});
+// 새 버전이 있으면 확인 창(팝업)으로 묻습니다. [지금 업데이트] 또는 [나중에].
 async function checkUpdate(){
- try{
-  const u=await api('/update');
-  if(!u.available)return;
-  $('#updateText').textContent=`새 판(${u.version})이 나왔습니다. 지금 업데이트하시겠습니까?`+(u.notes?` ${u.notes}`:'');
-  $('#updateBar').hidden=false;
- }catch{}
-}
-$('#updateLater').onclick=()=>{$('#updateBar').hidden=true;api('/update/later','POST',{}).catch(()=>{});};
-$('#updateNow').onclick=async()=>{
- const now=$('#updateNow'),later=$('#updateLater');
- now.disabled=later.disabled=true;
- $('#updateText').textContent='새 판을 받는 중입니다. 잠시 기다려 주십시오.';
+ let u;
+ try{u=await api('/update');}catch{return;}
+ if(!u.available)return;
+ // FindInside 의 업데이트 창과 같은 모양으로 씁니다.
+ $('#confirmHeading').textContent='우리의 족보 업데이트';
+ $('#confirmCancel').textContent='나중에';
+ const ok=await ask(`새 버전(${u.version})이 출시되었습니다.`
+  +(u.notes?`\n\n변경 사항: ${u.notes}`:'')
+  +(appVersion?`\n\n현재 버전: ${appVersion}`:'')
+  +'\n\n[지금 업데이트]를 선택하면 새 버전을 내려받아 설치한 후 우리의 족보를 다시 실행합니다.'
+  +' 족보 자료와 정식판 정보는 그대로 유지됩니다.','지금 업데이트');
+ $('#confirmHeading').textContent='확인';
+ $('#confirmCancel').textContent='취소';
+ if(!ok){api('/update/later','POST',{}).catch(()=>{});return;}
+ // 받는 동안에는 안내가 저절로 사라지지 않게 둡니다.
+ clearTimeout(messageTimer);
+ $('#message').classList.remove('error');
+ $('#message').textContent='새 버전을 받는 중입니다. 잠시 기다려 주십시오.';
  try{
   const done=await api('/update/install','POST',{});
-  $('#updateText').textContent=done.store
-   ?'새 판을 설치했습니다. 프로그램이 닫혔다가 다시 켜집니다. 켜지지 않으면 바탕화면 아이콘으로 다시 열어 주십시오.'
-   :'새 판을 설치합니다. 프로그램이 닫혔다가 잠시 뒤 다시 켜집니다.';
+  $('#message').textContent=done.store
+   ?'새 버전을 설치했습니다. 프로그램이 닫혔다가 다시 켜집니다. 켜지지 않으면 바탕화면 아이콘으로 다시 열어 주십시오.'
+   :'새 버전을 설치합니다. 프로그램이 닫혔다가 잠시 뒤 다시 켜집니다.';
  }catch(error){
-  $('#updateText').textContent=error.message;
-  now.disabled=later.disabled=false;
+  message(error.message,'error');
  }
-};
+}
 // 무료 인원을 넘으면 그렇다고 알리고, [정식판 안내]로 구매·키 입력 창을 엽니다.
 function paywall(text){
  $('#confirmHeading').textContent='정식판으로 전환';

@@ -122,7 +122,7 @@ def update_install(_: UpdateAction):
             return {'version': '', 'store': True}
         info = app_update.available()
         if not info:
-            raise HTTPException(400, '설치할 새 판이 없습니다.')
+            raise HTTPException(400, '설치할 새 버전이 없습니다.')
         app_update.download(info)
     except app_update.UpdateError as error:
         raise HTTPException(502, str(error))

@@ -1,6 +1,6 @@
 """설치 파일판(exe)의 새 판 알림과 설치 파일 받기.
 
-홈페이지의 최신 판 정보(latest.json)를 하루에 한 번 읽어, 지금 판보다 새 판이 있으면
+홈페이지의 최신 판 정보(latest.json)를 하루에 한 번 읽어, 지금 판보다 새 버전이 있으면
 화면에 알립니다. [지금 업데이트]를 누르면 설치 파일을 받아 확인값(SHA-256)을 맞춰 보고,
 맞으면 실행기(desktop/launcher.py)가 프로그램을 닫은 뒤 설치합니다.
 
@@ -87,7 +87,7 @@ def fetch():
 
 
 def _store_updates():
-    """Store 판: Microsoft Store 에 이 앱의 새 판을 묻습니다. (StoreContext, 업데이트 목록)."""
+    """Store 판: Microsoft Store 에 이 앱의 새 버전을 묻습니다. (StoreContext, 업데이트 목록)."""
     import asyncio
     from winrt.windows.services.store import StoreContext
 
@@ -98,7 +98,7 @@ def _store_updates():
 
 
 def store_available():
-    """Store 에 새 판이 있으면 {'version': …}. 켤 때마다 묻습니다(Store 가 빠르게 답합니다)."""
+    """Store 에 새 버전이 있으면 {'version': …}. 켤 때마다 묻습니다(Store 가 빠르게 답합니다)."""
     try:
         _, updates = _store_updates()
     except Exception as error:
@@ -111,8 +111,8 @@ def store_available():
 
 
 def store_install():
-    """Store 판: 새 판을 창 없이 받아 설치합니다. 설치되면 Windows 가 이 앱을 닫고,
-    실행기가 등록해 둔 대로 새 판이 다시 켜집니다(desktop/launcher.py)."""
+    """Store 판: 새 버전을 창 없이 받아 설치합니다. 설치되면 Windows 가 이 앱을 닫고,
+    실행기가 등록해 둔 대로 새 버전이 다시 켜집니다(desktop/launcher.py)."""
     import asyncio
     from winrt.windows.services.store import StoreContext
 
@@ -120,7 +120,7 @@ def store_install():
         context = StoreContext.get_default()
         updates = await context.get_app_and_optional_store_package_updates_async()
         if updates.size == 0:
-            raise UpdateError('설치할 새 판이 없습니다.')
+            raise UpdateError('설치할 새 버전이 없습니다.')
         if not context.can_silently_download_store_package_updates:
             raise UpdateError('이 PC에서는 프로그램 안에서 업데이트할 수 없습니다. Microsoft Store에서 업데이트해 주십시오.')
         result = await context.try_silent_download_and_install_store_package_updates_async(updates)
@@ -131,15 +131,15 @@ def store_install():
         raise
     except Exception as error:
         print('Store 업데이트 실패:', error)
-        raise UpdateError('새 판을 받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주십시오.')
+        raise UpdateError('새 버전을 받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주십시오.')
     # StorePackageUpdateState: 0 Pending, 1 Downloading, 2 Deploying, 3 Completed, 4 Canceled, 5 OtherError, ...
     if state not in (0, 1, 2, 3):
-        raise UpdateError('새 판을 설치하지 못했습니다. Microsoft Store에서 업데이트해 주십시오.')
+        raise UpdateError('새 버전을 설치하지 못했습니다. Microsoft Store에서 업데이트해 주십시오.')
     return state
 
 
 def available(now=None):
-    """알릴 새 판이 있으면 그 정보, 없으면 None. 실패하면 조용히 None 입니다."""
+    """알릴 새 버전이 있으면 그 정보, 없으면 None. 실패하면 조용히 None 입니다."""
     current = version()
     if channel() == 'store':
         return store_available()
@@ -175,7 +175,7 @@ def download(info):
     """설치 파일을 받아 확인값을 맞춰 보고, 맞으면 그 경로를 pending 에 둡니다."""
     global pending
     if not valid(info, version()):
-        raise UpdateError('새 판 정보가 올바르지 않습니다.')
+        raise UpdateError('새 버전 정보가 올바르지 않습니다.')
     folder = Path(os.getenv('JOCBO_DATA_DIR') or ROOT) / 'update'
     folder.mkdir(parents=True, exist_ok=True)
     for old in folder.glob('*.exe'):
@@ -190,7 +190,7 @@ def download(info):
                 out.write(chunk)
     except Exception:
         target.unlink(missing_ok=True)
-        raise UpdateError('새 판을 받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주십시오.')
+        raise UpdateError('새 버전을 받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주십시오.')
     if digest.hexdigest().lower() != info['sha256'].lower():
         target.unlink(missing_ok=True)
         raise UpdateError('받은 파일이 올바르지 않아 설치하지 않았습니다. 지금 판을 그대로 씁니다.')
