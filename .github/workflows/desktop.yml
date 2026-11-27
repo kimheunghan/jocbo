@@ -28,6 +28,8 @@ jobs:
           PYTHONIOENCODING: utf-8
         shell: pwsh
         run: |
+          # 태그의 판 번호(store-v2026.11.11 → 2026.11.11)를 프로그램에 넣습니다(version.txt).
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:JOCBO_VERSION = $env:GITHUB_REF_NAME -replace '^(store-|msix-)?v', '' }
           if ($env:STORE -eq 'true') { python desktop/build.py --store } else { python desktop/build.py }
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: MSIX package

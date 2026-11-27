@@ -77,6 +77,11 @@ def program():
     shutil.copy2(ROOT / 'desktop' / 'loading.html', OUT / 'loading.html')
     shutil.copy2(ROOT / 'desktop' / 'jocbo.ico', OUT / 'jocbo.ico')
     (OUT / 'db' / 'jocbo.db').unlink(missing_ok=True)
+    # 판 번호. 화면 아래에 보이고, 새 판 알림이 이것과 견줍니다(backend/update.py).
+    version = os.environ.get('JOCBO_VERSION', '').strip()
+    if version:
+        (OUT / 'version.txt').write_text(version + '\n', encoding='utf-8')
+        print('판 번호:', version)
 
 
 def demo_only():

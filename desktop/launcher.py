@@ -330,6 +330,15 @@ def main():
     os.environ['DATABASE_URL'] = 'sqlite:///' + str(DATA / 'jocbo.db')
     os.environ['UPLOAD_DIR'] = str(DATA / 'uploads')
     os.environ['JOCBO_ENV_FILE'] = str(DATA / '.env')
+    os.environ['JOCBO_DATA_DIR'] = str(DATA)
+    # 새 판 알림은 설치 파일판만 합니다. Store 판은 Store 가 업데이트합니다.
+    os.environ['JOCBO_CHANNEL'] = 'store' if package_family() else 'exe'
+    # 지난번 업데이트로 받아 둔 설치 파일은 이제 필요 없습니다.
+    for old in (DATA / 'update').glob('*.exe'):
+        try:
+            old.unlink()
+        except OSError:
+            pass
 
     sys.path.insert(0, str(APP))
     import uvicorn
@@ -363,7 +372,7 @@ def main():
         # 첫 클릭에 창이 다른 창 뒤에 떴더라도 한 번 앞으로 가져옵니다.
         bring_forward()
         missing = 0
-        while missing < 3:
+        while missing < 3 and not updating():
             missing = 0 if in_use() else missing + 1
             time.sleep(1)
     else:
@@ -371,6 +380,32 @@ def main():
         message(RUNNING)
     server.should_exit = True
     thread.join(10)
+    if updating():
+        install_update(updating())
+
+
+def updating():
+    """[지금 업데이트]로 받아 확인을 마친 설치 파일. 없으면 None."""
+    from backend import update
+    return update.pending
+
+
+def install_update(setup):
+    """앱 창을 닫고, 이 실행기가 끝난 뒤 설치 파일을 창 없이 돌립니다.
+
+    설치 파일은 같은 폴더에 덮어 깔고(족보 자료는 %LocalAppData%\\jocbo 에 있어 그대로),
+    바탕화면 아이콘을 맞춘 뒤 /RELAUNCH=1 을 보고 프로그램을 다시 켭니다(desktop/jocbo.iss).
+    """
+    user32 = ctypes.windll.user32
+    for handle in windows():
+        user32.PostMessageW(ctypes.c_void_p(handle), 0x0010, 0, 0)  # WM_CLOSE
+    print('새 판 설치:', setup)
+    script = (f"Wait-Process -Id {os.getpid()} -Timeout 60 -ErrorAction SilentlyContinue;"
+              "Start-Process -FilePath '" + str(setup).replace("'", "''") + "'"
+              " -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/RELAUNCH=1'")
+    # 이 실행기가 끝나도 남아 있도록 떼어 내어 돌립니다.
+    subprocess.Popen(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script],
+                     creationflags=0x00000008 | 0x00000200)  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 
 
 if __name__ == '__main__':

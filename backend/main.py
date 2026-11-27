@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from backend import exchange
 from backend import license as paid
 from backend import share as web_share
+from backend import update as app_update
 
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.getenv('UPLOAD_DIR', str(ROOT / 'uploads')))
@@ -91,6 +92,37 @@ def alive():
     global last_seen
     last_seen = time.time()
     return {}
+
+# 판 번호와 새 판 알림(설치 파일판). 자세한 것은 backend/update.py.
+@app.get('/api/app')
+def app_info():
+    return {'version': app_update.version(), 'channel': app_update.channel()}
+
+@app.get('/api/update')
+def update_check():
+    info = app_update.available()
+    return {'available': bool(info), 'version': info['version'] if info else '',
+            'notes': str(info.get('notes', ''))[:300] if info else ''}
+
+class UpdateAction(BaseModel):
+    # 본문을 JSON 으로만 받아, 다른 사이트가 이 PC 의 서버로 보내는 요청을 막습니다.
+    model_config = ConfigDict(extra='forbid')
+
+@app.post('/api/update/later')
+def update_later(_: UpdateAction):
+    app_update.later()
+    return {}
+
+@app.post('/api/update/install')
+def update_install(_: UpdateAction):
+    info = app_update.available()
+    if not info:
+        raise HTTPException(400, '설치할 새 판이 없습니다.')
+    try:
+        app_update.download(info)
+    except app_update.UpdateError as error:
+        raise HTTPException(502, str(error))
+    return {'version': info['version']}
 
 class Input(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')

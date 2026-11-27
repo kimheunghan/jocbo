@@ -48,10 +48,36 @@ Source: "..\build\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [Icons]
 Name: "{autoprograms}\우리의 족보"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\jocbo.ico"
 Name: "{autodesktop}\우리의 족보"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\jocbo.ico"; Tasks: desktopicon
+; 바탕화면에 이미 "우리의 족보" 아이콘이 있으면, 체크하지 않았어도 이 판을 여는 아이콘으로 바꿉니다.
+; 깨진 아이콘, 아주 예전 방식(install.bat 의 start.bat), Store 판 아이콘이 모두 이 판으로 맞춰집니다.
+Name: "{autodesktop}\우리의 족보"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\jocbo.ico"; Check: HadDesktopIcon
 
 [Run]
 Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; Description: "우리의 족보 실행"; Flags: postinstall nowait skipifsilent
+; 프로그램 안의 [지금 업데이트]로 창 없이 깔았을 때(/RELAUNCH=1) 다시 켭니다.
+Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; Flags: nowait; Check: Relaunch
 
 [UninstallDelete]
 ; 프로그램 폴더만 지웁니다. 족보 데이터(%LocalAppData%\jocbo)는 남습니다.
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+var
+  DesktopIconBefore: Boolean;
+
+function InitializeSetup(): Boolean;
+begin
+  // 설치를 시작할 때 바탕화면 아이콘이 있었는지 적어 둡니다(설치 중에 새로 만든 것과 가리기 위해).
+  DesktopIconBefore := FileExists(ExpandConstant('{autodesktop}\우리의 족보.lnk'));
+  Result := True;
+end;
+
+function HadDesktopIcon(): Boolean;
+begin
+  Result := DesktopIconBefore;
+end;
+
+function Relaunch(): Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
