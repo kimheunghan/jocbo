@@ -61,6 +61,101 @@ def prepare_data():
     (DATA / 'uploads').mkdir(exist_ok=True)
 
 
+# Store 판의 바탕화면 바로가기 이름(desktop/msix/AppxManifest.xml 의 desktop7:Shortcut)과 앱 Id.
+SHORTCUT = '우리의 족보.lnk'
+APP_ID = 'Jocbo'
+
+
+def package_family():
+    """Store(MSIX) 판으로 떠 있으면 패키지 패밀리 이름, 아니면 None."""
+    try:
+        length = ctypes.c_uint32(0)
+        get = ctypes.windll.kernel32.GetCurrentPackageFamilyName
+        if get(ctypes.byref(length), None) != 122:  # ERROR_INSUFFICIENT_BUFFER 가 아니면 패키지 밖
+            return None
+        buffer = ctypes.create_unicode_buffer(length.value)
+        return buffer.value if get(ctypes.byref(length), buffer) == 0 else None
+    except (AttributeError, OSError):
+        return None
+
+
+def needs_fix(target, arguments, aumid):
+    """바로가기를 앱 이름으로 여는 모양으로 고쳐 써야 하는지.
+
+    Store 판이 만든 바로가기는 C:\\Program Files\\WindowsApps\\<패키지>_<버전>_…\\python\\pythonw.exe
+    를 직접 가리킵니다. 그 폴더는 Windows 가 잠가 두어, 바로가기 정보가 조금만 어긋나도
+    "액세스할 수 없습니다" 오류가 나고, 폴더 이름은 판마다 바뀝니다. 시작 메뉴처럼
+    explorer.exe shell:AppsFolder\\<앱 이름> 으로 열면 늘 지금 깔린 판이 열립니다.
+    """
+    if target.lower().endswith('\\explorer.exe') and arguments.strip().lower() == f'shell:appsfolder\\{aumid}'.lower():
+        return False
+    return '\\windowsapps\\' in target.lower()
+
+
+def fix_shortcut():
+    """Store 판이면 바탕화면 바로가기가 업데이트 뒤에도 열리도록 앱 이름으로 여는 모양으로 고칩니다.
+
+    바로가기가 없으면(손님이 지웠으면) 만들지 않습니다. 설치 파일판(exe)의 바로가기는
+    고정 폴더를 가리키므로 건드리지 않습니다. 실패해도 프로그램은 그대로 뜹니다.
+    """
+    family = package_family()
+    if not family:
+        return
+    aumid = f'{family}!{APP_ID}'
+    icon = APP / 'Assets' / 'jocbo.ico'
+    # 바로가기는 COM(WScript.Shell)으로만 읽고 쓸 수 있어 PowerShell 에 맡깁니다.
+    script = (
+        "$d=[Environment]::GetFolderPath('Desktop');"
+        f"$p=Join-Path $d '{SHORTCUT}';"
+        "if(-not(Test-Path -LiteralPath $p)){'none';exit};"
+        "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut($p);"
+        "$s.TargetPath+'|'+$s.Arguments"
+    )
+    found = powershell(script)
+    if not found or found == 'none' or '|' not in found:
+        return
+    target, arguments = found.split('|', 1)
+    if not needs_fix(target, arguments, aumid):
+        return
+    windir = os.environ.get('WINDIR', r'C:\Windows')
+    powershell(
+        "$d=[Environment]::GetFolderPath('Desktop');"
+        f"$p=Join-Path $d '{SHORTCUT}';"
+        "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut($p);"
+        f"$s.TargetPath='{windir}\\explorer.exe';"
+        f"$s.Arguments='shell:AppsFolder\\{aumid}';"
+        "$s.WorkingDirectory='';"
+        f"$s.IconLocation='{icon},0';"
+        "$s.Save();'ok'"
+    )
+    print('바탕화면 바로가기를 고쳤습니다:', target, '->', aumid)
+
+
+def powershell(script):
+    """PowerShell 한 줄을 창 없이 돌리고 출력을 돌려줍니다. 실패하면 None."""
+    import base64
+    encoded = base64.b64encode(('[Console]::OutputEncoding=[Text.Encoding]::UTF8;' + script).encode('utf-16-le')).decode()
+    try:
+        done = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+                              capture_output=True, timeout=30, creationflags=0x08000000)  # CREATE_NO_WINDOW
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print('PowerShell 실패:', error)
+        return None
+    if done.returncode:
+        print('PowerShell 실패:', done.stderr.decode('utf-8', 'replace')[-500:])
+        return None
+    return done.stdout.decode('utf-8', 'replace').strip()
+
+
+def quietly(work):
+    """곁가지 일이 실패해도 프로그램은 멈추지 않게 하고, 기록 파일에만 남깁니다."""
+    try:
+        work()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+
+
 def answering():
     try:
         with urllib.request.urlopen(URL, timeout=2) as response:
@@ -228,6 +323,8 @@ def main():
     if path:
         allow_forward()
         open_window(path, splash())
+    # 바탕화면 바로가기 고치기는 화면을 기다리게 하지 않도록 따로 돌립니다.
+    threading.Thread(target=quietly, args=(fix_shortcut,), daemon=True).start()
 
     prepare_data()
     os.environ['DATABASE_URL'] = 'sqlite:///' + str(DATA / 'jocbo.db')

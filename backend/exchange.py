@@ -425,15 +425,19 @@ GENDER = {'남': '남', '男': '남', 'M': '남', 'MALE': '남', '여': '여', '
 
 # ── 세대 ──────────────────────────────────────────────────────────────
 
-def tangles(keys, parents, spouses):
+def tangles(keys, parents, spouses, doubtful=()):
     """The links that keep the family from being laid out in 世, as (parent links, spouse links).
 
     A child must stand below its parents and a couple side by side, so a loop of
     such links (someone married to their own child, a person their own forebear)
     cannot be drawn. Only the people caught in such a loop are looked at again:
     their parent links are put back first, then their marriages, and a link that
-    would close a loop is left out. Returns empty lists when nothing is wrong.
+    would close a loop is left out. Links the file itself contradicts (`doubtful`,
+    pairs from read_family's 'doubtful' groups) are put back after all the others.
+    Returns empty lists when nothing is wrong.
     """
+    doubtful_parents = {tuple(pair) for group in doubtful for pair in group['parents']}
+    doubtful_spouses = {frozenset(pair) for group in doubtful for pair in group['spouses']}
     keys = list(keys)
     root = {k: k for k in keys}
 
@@ -514,23 +518,28 @@ def tangles(keys, parents, spouses):
         return False
 
     left_parents, left_spouses = [], []
-    for link in parents:
-        parent, child = link[0], link[1]
-        if parent not in caught or child not in caught:
-            continue
-        if reaches(child, parent, False):
-            left_parents.append(link)
-        else:
-            kids[parent].append(child)
-    for link in spouses:
-        one, other = link[0], link[1]
-        if one not in caught or other not in caught:
-            continue
-        if reaches(one, other, True) or reaches(other, one, True):
-            left_spouses.append(link)
-        else:
-            mates[one].append(other)
-            mates[other].append(one)
+    sure_parents = [l for l in parents if (l[0], l[1]) not in doubtful_parents]
+    sure_spouses = [l for l in spouses if frozenset(l[:2]) not in doubtful_spouses]
+    later_parents = [l for l in parents if (l[0], l[1]) in doubtful_parents]
+    later_spouses = [l for l in spouses if frozenset(l[:2]) in doubtful_spouses]
+    for some_parents, some_spouses in ((sure_parents, sure_spouses), (later_parents, later_spouses)):
+        for link in some_parents:
+            parent, child = link[0], link[1]
+            if parent not in caught or child not in caught:
+                continue
+            if reaches(child, parent, False):
+                left_parents.append(link)
+            else:
+                kids[parent].append(child)
+        for link in some_spouses:
+            one, other = link[0], link[1]
+            if one not in caught or other not in caught:
+                continue
+            if reaches(one, other, True) or reaches(other, one, True):
+                left_spouses.append(link)
+            else:
+                mates[one].append(other)
+                mates[other].append(one)
     return left_parents, left_spouses
 
 
@@ -667,6 +676,7 @@ def finish(family):
                 settle_generations(family['people'], family['parents'], family['spouses'])
             except ExchangeError as error:
                 family['errors'].append(str(error))
+    family.pop('doubtful', None)
     family['book'] = tidy_book(family['book'])
     return family
 
@@ -677,11 +687,27 @@ SET_ASIDE = '불러올 때 뺀 관계'
 def set_aside(family):
     """Leave out the links that cannot be laid out in 世, and say which (warnings and each person's note)."""
     by_key = {p['key']: p for p in family['people']}
-    left_parents, left_spouses = tangles(by_key, family['parents'], family['spouses'])
+    doubtful = family.get('doubtful', [])
+    left_parents, left_spouses = tangles(by_key, family['parents'], family['spouses'], doubtful)
     if not left_parents and not left_spouses:
         return
     out_p = {(l[0], l[1]) for l in left_parents}
     out_s = {(l[0], l[1]) for l in left_spouses}
+    # 어긋난 소속에서 하나라도 빠졌으면 그 소속의 관계를 모두 뺍니다. 잘못 적힌 아내를 혼인에서만
+    # 빼고 그 가족 자녀의 어머니로는 남겨 두면, 다른 자녀가 엉뚱한 세대로 내려앉습니다.
+    for group in doubtful:
+        spouse_pairs = {frozenset(pair) for pair in group['spouses']}
+        if not any(frozenset(pair) in spouse_pairs for pair in out_s) and \
+                not any(tuple(pair) in out_p for pair in group['parents']):
+            continue
+        for link in family['parents']:
+            if (link[0], link[1]) in {tuple(pair) for pair in group['parents']} and (link[0], link[1]) not in out_p:
+                out_p.add((link[0], link[1]))
+                left_parents.append(link)
+        for link in family['spouses']:
+            if frozenset(link[:2]) in spouse_pairs and (link[0], link[1]) not in out_s:
+                out_s.add((link[0], link[1]))
+                left_spouses.append(link)
     family['parents'] = [l for l in family['parents'] if (l[0], l[1]) not in out_p]
     family['spouses'] = [l for l in family['spouses'] if (l[0], l[1]) not in out_s]
     lines = []
@@ -1996,7 +2022,8 @@ EVENT_NOTES = {'OCCU': '직업', 'EDUC': '학력', 'TITL': '관직·칭호', 'RE
 
 
 def gedcom_family(data):
-    family = {'book': {}, 'book_key': '', 'people': [], 'parents': [], 'spouses': [], 'warnings': [], 'errors': []}
+    family = {'book': {}, 'book_key': '', 'people': [], 'parents': [], 'spouses': [], 'warnings': [], 'errors': [],
+              'doubtful': []}
     text = decode_gedcom(data)
     roots, bad = parse_gedcom_lines(text)
     if not roots or roots[0]['tag'] != 'HEAD':
@@ -2142,6 +2169,16 @@ def gedcom_family(data):
         kids = [k for k in kids if k]
         kids += [k for k in dict.fromkeys(child_of.get(node['xref'], [])) if k not in kids and k not in couple]
         fams.append((node, couple, kids))
+    # 어긋난 소속: 가족 기록이 남편·아내로 적었는데, 그 사람은 자기 기록에 자기 가족(FAMS)을
+    # 적어 두고도 이 가족은 적지 않은 경우입니다. 두 기록이 서로 다르게 말하므로, 세대가 서로
+    # 맞지 않을 때 이 소속(그 혼인과, 그 사람을 부모로 둔 자녀 관계)을 먼저 뺍니다(set_aside).
+    # 다른 관계와 부딪히지 않으면 그대로 잇습니다.
+    for node, couple, kids in fams:
+        for one in couple:
+            if fams_order.get(one) and node['xref'] not in fams_order[one]:
+                family['doubtful'].append({
+                    'spouses': [(one, other) for other in couple if other != one],
+                    'parents': [(one, kid) for kid in kids]})
     # 부부가 함께 적힌 가족만 혼인으로 셉니다(한쪽 부모만 있는 가족은 혼인 순서에 넣지 않음).
     spouse_fams = {node['xref'] for node, couple, _ in fams if len(couple) == 2}
     for node, couple, kids in fams:

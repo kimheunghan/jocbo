@@ -602,6 +602,40 @@ def test_parent_loop_in_a_file_is_read_with_one_link_left_out():
     assert family['warnings'][0].startswith('세대가 서로 맞지 않는 관계 1건')
 
 
+def test_a_wife_the_person_record_contradicts_is_the_link_left_out():
+    # 며느리가 시아버지 가족(F1)에도 아내로 적혔지만, 며느리 자기 기록은 남편 가족(F2)만 적은 파일.
+    # 두 혼인은 함께 설 수 없으므로 하나를 빼야 하고, 자기 기록과 어긋난 쪽(F1의 아내 칸)을 뺍니다.
+    # 그 칸에서 생긴 "며느리 → 시아버지의 자녀" 관계도 함께 뺍니다.
+    text = (AI_HEAD + ai_person(1, '박시조', extra='1 FAMS @F1@\n')
+            + ai_person(2, '박장남', extra='1 FAMC @F1@\n1 FAMS @F2@\n')
+            + ai_person(3, '박차남', extra='1 FAMC @F1@\n')
+            + ai_person(4, '한씨', 'F', '1 FAMS @F2@\n')
+            + ai_person(5, '박손자', extra='1 FAMC @F2@\n')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I4@\n1 CHIL @I2@\n1 CHIL @I3@\n'
+            + '0 @F2@ FAM\n1 HUSB @I2@\n1 WIFE @I4@\n1 CHIL @I5@\n0 TRLR\n')
+    family = x.read_family('daughter_in_law.ged', text.encode('utf-8'))
+    assert family['errors'] == []
+    assert sorted(family['spouses']) == [['I2', 'I4', 1]]
+    assert pairs(family) == [('I1', 'I2'), ('I1', 'I3'), ('I2', 'I5'), ('I4', 'I5')]
+    gen = {p['key']: p['generation'] for p in family['people']}
+    assert gen['I2'] == gen['I3'] == gen['I4'] == gen['I1'] + 1 and gen['I5'] == gen['I2'] + 1
+    assert family['warnings'][0].startswith('세대가 서로 맞지 않는 관계 3건')
+    people = {p['key']: p for p in family['people']}
+    assert '[불러올 때 뺀 관계] 배우자 박시조' in people['I4']['note']
+    assert 'doubtful' not in family
+
+
+def test_a_contradicted_wife_is_kept_when_nothing_clashes():
+    # 자기 기록과 어긋나도 다른 관계와 부딪히지 않으면 지금처럼 그대로 잇습니다.
+    text = (AI_HEAD + ai_person(1, '박갑', extra='1 FAMS @F1@\n') + ai_person(2, '한씨', 'F', '1 FAMS @F9@\n')
+            + ai_person(3, '박을', extra='1 FAMC @F1@\n')
+            + '0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n0 TRLR\n')
+    family = x.read_family('kept.ged', text.encode('utf-8'))
+    assert family['errors'] == [] and family['warnings'] == []
+    assert sorted(family['spouses']) == [['I1', 'I2', 1]]
+    assert pairs(family) == [('I1', 'I3'), ('I2', 'I3')]
+
+
 def test_links_written_only_on_the_person_are_read():
     # AI가 만든 파일처럼 자녀를 사람 쪽(FAMC)에만, 아내를 사람 쪽(FAMS)에만 적은 경우.
     text = ('0 HEAD\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME 김갑\n1 FAMS @F1@\n0 @I2@ INDI\n1 NAME 이씨\n1 FAMS @F1@\n'
